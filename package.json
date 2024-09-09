@@ -1,0 +1,23 @@
+{
+  "name": "guida",
+  "version": "0.1.0",
+  "description": "Guida is a functional programming language that builds upon the solid foundation of Elm, offering backward compatibility with all existing Elm 0.19.1 projects",
+  "author": "Decio Ferreira",
+  "license": "BSD-3-Clause",
+  "main": "./lib/guida.js",
+  "bin": {
+    "guida": "./bin/index.js"
+  },
+  "scripts": {
+    "start": "./lib/guida.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.15",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "elm": "^0.19.1-6",
+    "handlebars": "^4.7.8"
+  }
+}

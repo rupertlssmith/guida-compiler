@@ -1,7 +1,7 @@
+node_modules
 elm-stuff
-dist
-cabal-dev
-.cabal-sandbox/
-cabal.sandbox.config
 .DS_Store
-*~
+
+# Guida
+bin/guida.js
+guida-stuff
