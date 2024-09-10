@@ -1,4 +1,7 @@
-module Canonicalize.Effects exposing (canonicalize, checkPayload)
+module Canonicalize.Effects exposing
+    ( canonicalize
+    , checkPayload
+    )
 
 import AST.Canonical as Can
 import AST.Source as Src

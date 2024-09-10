@@ -1,4 +1,4 @@
-module Buttons exposing (..)
+module Buttons exposing (main)
 
 -- Press buttons to increment and decrement a counter.
 --

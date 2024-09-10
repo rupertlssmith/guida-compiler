@@ -1,4 +1,7 @@
-module Parse.Type exposing (expression, variant)
+module Parse.Type exposing
+    ( expression
+    , variant
+    )
 
 import AST.Source as Src
 import Data.Name exposing (Name)

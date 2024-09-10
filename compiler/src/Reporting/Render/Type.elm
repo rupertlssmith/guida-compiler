@@ -1,4 +1,14 @@
-module Reporting.Render.Type exposing (Context(..), apply, canToDoc, lambda, record, srcToDoc, tuple, vrecord, vrecordSnippet)
+module Reporting.Render.Type exposing
+    ( Context(..)
+    , apply
+    , canToDoc
+    , lambda
+    , record
+    , srcToDoc
+    , tuple
+    , vrecord
+    , vrecordSnippet
+    )
 
 import AST.Canonical as Can
 import AST.Source as Src

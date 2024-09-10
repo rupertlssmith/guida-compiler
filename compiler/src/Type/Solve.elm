@@ -723,17 +723,9 @@ register rank pools content =
             )
 
 
-
-{- # NOINLINE emptyRecord1 # -}
-
-
 emptyRecord1 : Content
 emptyRecord1 =
     UF.Structure UF.EmptyRecord1
-
-
-
-{- # NOINLINE unit1 # -}
 
 
 unit1 : Content

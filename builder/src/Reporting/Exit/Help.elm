@@ -1,6 +1,3 @@
-{- # LANGUAGE OverloadedStrings # -}
-
-
 module Reporting.Exit.Help exposing
     ( Report
     , compilerReport

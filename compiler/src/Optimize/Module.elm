@@ -294,11 +294,7 @@ addDefHelp region annotations home name args body ((Opt.LocalGraph _ nodes field
                 if hm == ModuleName.platform && nm == Name.program then
                     case Effects.checkPayload flags of
                         Ok () ->
-                            Port.toFlagsDecoder flags
-                                |> Names.fmap (Opt.Dynamic message)
-                                |> Names.run
-                                |> addMain
-                                |> R.ok
+                            R.ok <| addMain <| Names.run <| Names.fmap (Opt.Dynamic message) <| Port.toFlagsDecoder flags
 
                         Err ( subType, invalidPayload ) ->
                             R.throw (E.BadFlags region subType invalidPayload)
