@@ -208,7 +208,7 @@ bind callback (Tracker k) =
 
 traverse : (a -> Tracker b) -> List a -> Tracker (List b)
 traverse func =
-    List.foldr (\a -> bind (\acc -> fmap (\b -> b :: acc) (func a))) (pure [])
+    List.foldl (\a -> bind (\acc -> fmap (\b -> acc ++ [ b ]) (func a))) (pure [])
 
 
 mapTraverse : (a -> Tracker b) -> Dict k a -> Tracker (Dict k b)
