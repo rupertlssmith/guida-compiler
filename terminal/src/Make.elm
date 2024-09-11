@@ -28,7 +28,7 @@ import Reporting.Exit as Exit
 import Reporting.Task as Task
 import Stuff
 import Terminal.Internal exposing (Parser(..))
-import Utils exposing (FilePath)
+import Utils.Main as Utils exposing (FilePath)
 
 
 

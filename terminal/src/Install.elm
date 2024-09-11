@@ -3,9 +3,9 @@ module Install exposing
     , run
     )
 
-import AssocList as Dict exposing (Dict)
 import BackgroundWriter as BW
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Deps.Registry as Registry
 import Deps.Solver as Solver
 import Elm.Constraint as C
@@ -18,7 +18,7 @@ import Reporting.Doc as D
 import Reporting.Exit as Exit
 import Reporting.Task as Task
 import Stuff
-import Utils exposing (FilePath)
+import Utils.Main as Utils exposing (FilePath)
 
 
 
@@ -220,7 +220,7 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline el
                         Outline.App <|
                             Outline.AppOutline elmVersion
                                 sourceDirs
-                                (Dict.insert pkg vsn direct)
+                                (Dict.insert Pkg.compareName pkg vsn direct)
                                 (Dict.remove pkg indirect)
                                 testDirect
                                 testIndirect
@@ -234,7 +234,7 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline el
                                 Outline.App <|
                                     Outline.AppOutline elmVersion
                                         sourceDirs
-                                        (Dict.insert pkg vsn direct)
+                                        (Dict.insert Pkg.compareName pkg vsn direct)
                                         indirect
                                         (Dict.remove pkg testDirect)
                                         testIndirect
@@ -248,7 +248,7 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline el
                                         Outline.App <|
                                             Outline.AppOutline elmVersion
                                                 sourceDirs
-                                                (Dict.insert pkg vsn direct)
+                                                (Dict.insert Pkg.compareName pkg vsn direct)
                                                 indirect
                                                 testDirect
                                                 (Dict.remove pkg testIndirect)
@@ -304,7 +304,7 @@ makePkgPlan (Solver.Env cache _ connection registry) pkg (Outline.PkgOutline nam
                                 license
                                 version
                                 exposed
-                                (Dict.insert pkg con deps)
+                                (Dict.insert Pkg.compareName pkg con deps)
                                 (Dict.remove pkg test)
                                 elmVersion
 
@@ -322,10 +322,10 @@ makePkgPlan (Solver.Env cache _ connection registry) pkg (Outline.PkgOutline nam
                     Ok (Registry.KnownVersions _ _) ->
                         let
                             old =
-                                Dict.union deps test
+                                Dict.union Pkg.compareName deps test
 
                             cons =
-                                Dict.insert pkg C.anything old
+                                Dict.insert Pkg.compareName pkg C.anything old
                         in
                         Task.io (Solver.verify cache connection registry cons)
                             |> Task.bind
@@ -340,13 +340,13 @@ makePkgPlan (Solver.Env cache _ connection registry) pkg (Outline.PkgOutline nam
                                                     C.untilNextMajor vsn
 
                                                 new =
-                                                    Dict.insert pkg con old
+                                                    Dict.insert Pkg.compareName pkg con old
 
                                                 changes =
                                                     detectChanges old new
 
                                                 news =
-                                                    Utils.mapMapMaybe keepNew changes
+                                                    Utils.mapMapMaybe Pkg.compareName keepNew changes
                                             in
                                             Task.pure <|
                                                 Changes changes <|
@@ -374,11 +374,11 @@ makePkgPlan (Solver.Env cache _ connection registry) pkg (Outline.PkgOutline nam
 addNews : Maybe Pkg.Name -> Dict Pkg.Name C.Constraint -> Dict Pkg.Name C.Constraint -> Dict Pkg.Name C.Constraint
 addNews pkg new old =
     Dict.merge
-        Dict.insert
-        (\k _ n -> Dict.insert k n)
+        (Dict.insert Pkg.compareName)
+        (\k _ n -> Dict.insert Pkg.compareName k n)
         (\k c acc ->
             if Just k == pkg then
-                Dict.insert k c acc
+                Dict.insert Pkg.compareName k c acc
 
             else
                 acc
@@ -401,16 +401,16 @@ type Change a
 detectChanges : Dict Pkg.Name a -> Dict Pkg.Name a -> Dict Pkg.Name (Change a)
 detectChanges old new =
     Dict.merge
-        (\k v -> Dict.insert k (Remove v))
+        (\k v -> Dict.insert Pkg.compareName k (Remove v))
         (\k oldElem newElem acc ->
             case keepChange k oldElem newElem of
                 Just change ->
-                    Dict.insert k change acc
+                    Dict.insert Pkg.compareName k change acc
 
                 Nothing ->
                     acc
         )
-        (\k v -> Dict.insert k (Insert v))
+        (\k v -> Dict.insert Pkg.compareName k (Insert v))
         old
         new
         Dict.empty

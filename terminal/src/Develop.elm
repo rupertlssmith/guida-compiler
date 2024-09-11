@@ -3,10 +3,10 @@ module Develop exposing
     , run
     )
 
-import AssocList as Dict exposing (Dict)
 import BackgroundWriter as BW
 import Build
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Data.NonEmptyList as NE
 import Develop.Generate.Help as Help
 import Develop.Generate.Index as Index
@@ -18,7 +18,7 @@ import Reporting
 import Reporting.Exit as Exit
 import Reporting.Task as Task
 import Stuff
-import Utils exposing (FilePath)
+import Utils.Main as Utils exposing (FilePath)
 
 
 

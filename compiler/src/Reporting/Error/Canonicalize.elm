@@ -15,12 +15,12 @@ module Reporting.Error.Canonicalize exposing
 
 import AST.Canonical as Can
 import AST.Source as Src
-import AssocList as Dict exposing (Dict)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
 import Data.OneOrMore as OneOrMore exposing (OneOrMore)
+import Data.Set as EverySet exposing (EverySet)
 import Elm.ModuleName as ModuleName
-import EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.DecodeX as DecodeX
 import Json.Encode as Encode
@@ -1804,7 +1804,7 @@ errorDecoder =
                         Decode.map3 NotFoundBinop
                             (Decode.field "region" A.regionDecoder)
                             (Decode.field "op" Decode.string)
-                            (Decode.field "locals" (DecodeX.everySet Decode.string))
+                            (Decode.field "locals" (DecodeX.everySet compare Decode.string))
 
                     "PatternHasRecordCtor" ->
                         Decode.map2 PatternHasRecordCtor
@@ -2007,8 +2007,8 @@ possibleNamesEncoder possibleNames =
 possibleNamesDecoder : Decode.Decoder PossibleNames
 possibleNamesDecoder =
     Decode.map2 PossibleNames
-        (Decode.field "locals" (DecodeX.everySet Decode.string))
-        (Decode.field "quals" (DecodeX.assocListDict Decode.string (DecodeX.everySet Decode.string)))
+        (Decode.field "locals" (DecodeX.everySet compare Decode.string))
+        (Decode.field "quals" (DecodeX.assocListDict compare Decode.string (DecodeX.everySet compare Decode.string)))
 
 
 invalidPayloadEncoder : InvalidPayload -> Encode.Value

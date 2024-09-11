@@ -13,12 +13,12 @@ module Generate.JavaScript.Name exposing
     , makeTemp
     )
 
-import AssocList as Dict exposing (Dict)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
+import Data.Set as EverySet exposing (EverySet)
 import Elm.ModuleName as ModuleName
 import Elm.Package as Pkg
-import EverySet exposing (EverySet)
 
 
 
@@ -117,12 +117,12 @@ usd =
 
 reservedNames : EverySet String
 reservedNames =
-    EverySet.union jsReservedWords elmReservedWords
+    EverySet.union compare jsReservedWords elmReservedWords
 
 
 jsReservedWords : EverySet String
 jsReservedWords =
-    EverySet.fromList
+    EverySet.fromList compare
         [ "do"
         , "if"
         , "in"
@@ -195,7 +195,7 @@ jsReservedWords =
 
 elmReservedWords : EverySet String
 elmReservedWords =
-    EverySet.fromList
+    EverySet.fromList compare
         [ "F2"
         , "F3"
         , "F4"
@@ -312,7 +312,7 @@ toByte n =
         Char.fromCode (48 + n - 54)
 
     else
-        -- Utils.crash ("cannot convert int " ++ String.fromInt n ++ " to ASCII")
+        -- crash ("cannot convert int " ++ String.fromInt n ++ " to ASCII")
         Char.fromCode n
 
 
@@ -332,7 +332,7 @@ allBadFields : List BadFields
 allBadFields =
     let
         add keyword dict =
-            Dict.update (String.length keyword) (Just << addRenaming keyword) dict
+            Dict.update compare (String.length keyword) (Just << addRenaming keyword) dict
     in
     Dict.values (EverySet.foldr add Dict.empty jsReservedWords)
 
@@ -351,4 +351,4 @@ addRenaming keyword maybeBadFields =
             BadFields (Dict.singleton keyword (unsafeIntToAscii width [] maxName))
 
         Just (BadFields renamings) ->
-            BadFields (Dict.insert keyword (unsafeIntToAscii width [] (maxName - Dict.size renamings)) renamings)
+            BadFields (Dict.insert compare keyword (unsafeIntToAscii width [] (maxName - Dict.size renamings)) renamings)

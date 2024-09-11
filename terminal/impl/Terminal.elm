@@ -28,7 +28,7 @@ import Reporting.Doc as D
 import Terminal.Chomp as Chomp
 import Terminal.Error as Error
 import Terminal.Internal exposing (Args(..), Command(..), CompleteArgs(..), Flag(..), Flags(..), Parser(..), RequiredArgs(..), Summary(..), toName)
-import Utils exposing (FilePath)
+import Utils.Main as Utils exposing (FilePath)
 
 
 

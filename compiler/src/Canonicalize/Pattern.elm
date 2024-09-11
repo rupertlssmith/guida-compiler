@@ -7,16 +7,16 @@ module Canonicalize.Pattern exposing
 
 import AST.Canonical as Can
 import AST.Source as Src
-import AssocList exposing (Dict)
 import Canonicalize.Environment as Env
 import Canonicalize.Environment.Dups as Dups
 import Data.Index as Index
+import Data.Map exposing (Dict)
 import Data.Name as Name
 import Elm.ModuleName as ModuleName
 import Reporting.Annotation as A
 import Reporting.Error.Canonicalize as Error
 import Reporting.Result as R
-import Utils
+import Utils.Main as Utils
 
 
 

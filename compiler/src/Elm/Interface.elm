@@ -21,7 +21,7 @@ module Elm.Interface exposing
 
 import AST.Canonical as Can
 import AST.Utils.Binop as Binop
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
 import Elm.Package as Pkg
 import Json.Decode as Decode
@@ -29,7 +29,8 @@ import Json.DecodeX as D
 import Json.Encode as Encode
 import Json.EncodeX as E
 import Reporting.Annotation as A
-import Utils
+import Utils.Crash exposing (crash)
+import Utils.Main as Utils
 
 
 
@@ -75,7 +76,7 @@ restrict exports dict =
             dict
 
         Can.Export explicitExports ->
-            Utils.mapIntersection dict explicitExports
+            Dict.intersection dict explicitExports
 
 
 toOp : Dict Name.Name Can.Annotation -> Can.Binop -> Binop
@@ -90,19 +91,20 @@ restrictUnions exports unions =
             Dict.map (\_ -> OpenUnion) unions
 
         Can.Export explicitExports ->
-            Dict.merge (\_ _ result -> result)
+            Dict.merge
+                (\_ _ result -> result)
                 (\k (A.At _ export) union result ->
                     case export of
                         Can.ExportUnionOpen ->
-                            Dict.insert k (OpenUnion union) result
+                            Dict.insert compare k (OpenUnion union) result
 
                         Can.ExportUnionClosed ->
-                            Dict.insert k (ClosedUnion union) result
+                            Dict.insert compare k (ClosedUnion union) result
 
                         _ ->
-                            Utils.crash "impossible exports discovered in restrictUnions"
+                            crash "impossible exports discovered in restrictUnions"
                 )
-                (\k union result -> Dict.insert k (PrivateUnion union) result)
+                (\k union result -> Dict.insert compare k (PrivateUnion union) result)
                 explicitExports
                 unions
                 Dict.empty
@@ -116,8 +118,8 @@ restrictAliases exports aliases =
 
         Can.Export explicitExports ->
             Dict.merge (\_ _ result -> result)
-                (\k _ alias result -> Dict.insert k (PublicAlias alias) result)
-                (\k alias result -> Dict.insert k (PrivateAlias alias) result)
+                (\k _ alias result -> Dict.insert compare k (PublicAlias alias) result)
+                (\k alias result -> Dict.insert compare k (PrivateAlias alias) result)
                 explicitExports
                 aliases
                 Dict.empty
@@ -222,10 +224,10 @@ interfaceDecoder : Decode.Decoder Interface
 interfaceDecoder =
     Decode.map5 Interface
         (Decode.field "home" Pkg.nameDecoder)
-        (Decode.field "values" (D.assocListDict Decode.string Can.annotationDecoder))
-        (Decode.field "unions" (D.assocListDict Decode.string unionDecoder))
-        (Decode.field "aliases" (D.assocListDict Decode.string aliasDecoder))
-        (Decode.field "binops" (D.assocListDict Decode.string binopDecoder))
+        (Decode.field "values" (D.assocListDict compare Decode.string Can.annotationDecoder))
+        (Decode.field "unions" (D.assocListDict compare Decode.string unionDecoder))
+        (Decode.field "aliases" (D.assocListDict compare Decode.string aliasDecoder))
+        (Decode.field "binops" (D.assocListDict compare Decode.string binopDecoder))
 
 
 unionEncoder : Union -> Encode.Value
@@ -358,8 +360,8 @@ dependencyInterfaceDecoder =
                     "Private" ->
                         Decode.map3 Private
                             (Decode.field "pkg" Pkg.nameDecoder)
-                            (Decode.field "unions" (D.assocListDict Decode.string Can.unionDecoder))
-                            (Decode.field "aliases" (D.assocListDict Decode.string Can.aliasDecoder))
+                            (Decode.field "unions" (D.assocListDict compare Decode.string Can.unionDecoder))
+                            (Decode.field "aliases" (D.assocListDict compare Decode.string Can.aliasDecoder))
 
                     _ ->
                         Decode.fail ("Failed to decode DependencyInterface's type: " ++ type_)

@@ -24,7 +24,7 @@ import Reporting.Exit as Exit
 import Reporting.Exit.Help as Help
 import Reporting.Task as Task
 import Stuff
-import Utils exposing (FilePath)
+import Utils.Main as Utils exposing (FilePath)
 
 
 

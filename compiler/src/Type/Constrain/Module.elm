@@ -1,8 +1,8 @@
 module Type.Constrain.Module exposing (constrain)
 
 import AST.Canonical as Can
-import AssocList as Dict
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict
 import Data.Name as Name exposing (Name)
 import Elm.ModuleName as ModuleName
 import Reporting.Annotation as A
@@ -10,7 +10,7 @@ import Reporting.Error.Type as E
 import Type.Constrain.Expression as Expr
 import Type.Instantiate as Instantiate
 import Type.Type as Type exposing (Constraint(..), Type(..), mkFlexVar, nameToRigid)
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -70,7 +70,7 @@ letPort : Name -> Can.Port -> IO Constraint -> IO Constraint
 letPort name port_ makeConstraint =
     case port_ of
         Can.Incoming { freeVars, func } ->
-            Utils.mapTraverseWithKey (\k _ -> nameToRigid k) freeVars
+            Utils.mapTraverseWithKey compare (\k _ -> nameToRigid k) freeVars
                 |> IO.bind
                     (\vars ->
                         Instantiate.fromSrcType (Dict.map (\_ v -> VarN v) vars) func
@@ -85,7 +85,7 @@ letPort name port_ makeConstraint =
                     )
 
         Can.Outgoing { freeVars, func } ->
-            Utils.mapTraverseWithKey (\k _ -> nameToRigid k) freeVars
+            Utils.mapTraverseWithKey compare (\k _ -> nameToRigid k) freeVars
                 |> IO.bind
                     (\vars ->
                         Instantiate.fromSrcType (Dict.map (\_ v -> VarN v) vars) func

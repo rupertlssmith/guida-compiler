@@ -3,7 +3,7 @@ module Deps.Bump exposing (getPossibilities)
 import Deps.Registry exposing (KnownVersions(..))
 import Elm.Magnitude as M
 import Elm.Version as V
-import Utils
+import Utils.Main as Utils
 
 
 

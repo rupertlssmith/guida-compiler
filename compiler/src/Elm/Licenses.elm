@@ -5,7 +5,7 @@ module Elm.Licenses exposing
     , encode
     )
 
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Json.DecodeX as D
 import Json.EncodeX as E
 import Reporting.Suggest as Suggest
@@ -72,7 +72,7 @@ check givenCode =
 
 osiApprovedSpdxLicenses : Dict String String
 osiApprovedSpdxLicenses =
-    Dict.fromList
+    Dict.fromList compare
         [ ( "0BSD", "BSD Zero Clause License" )
         , ( "AAL", "Attribution Assurance License" )
         , ( "AFL-1.1", "Academic Free License v1.1" )

@@ -2,6 +2,7 @@ module Optimize.DecisionTree exposing
     ( DecisionTree(..)
     , Path(..)
     , Test(..)
+    , compareTest
     , compile
     , pathDecoder
     , pathEncoder
@@ -23,12 +24,13 @@ module Optimize.DecisionTree exposing
 import AST.Canonical as Can
 import Data.Index as Index
 import Data.Name as Name
+import Data.Set as EverySet
 import Elm.ModuleName as ModuleName
-import EverySet
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Reporting.Annotation as A
-import Utils
+import Utils.Crash exposing (crash)
+import Utils.Main as Utils
 
 
 
@@ -72,6 +74,59 @@ type Test
     | IsChr String
     | IsStr String
     | IsBool Bool
+
+
+compareTest : Test -> Test -> Order
+compareTest test1 test2 =
+    case ( test1, test2 ) of
+        ( IsCtor home1 _ _ _ _, IsCtor home2 _ _ _ _ ) ->
+            ModuleName.compareCanonical home1 home2
+
+        ( IsInt value1, IsInt value2 ) ->
+            compare value1 value2
+
+        ( IsChr chr1, IsChr chr2 ) ->
+            compare chr1 chr2
+
+        ( IsStr str1, IsStr str2 ) ->
+            compare str1 str2
+
+        ( IsBool True, IsBool False ) ->
+            GT
+
+        ( IsBool False, IsBool True ) ->
+            LT
+
+        _ ->
+            let
+                toOrderVal : Test -> Int
+                toOrderVal t =
+                    case t of
+                        IsCtor _ _ _ _ _ ->
+                            1
+
+                        IsCons ->
+                            2
+
+                        IsNil ->
+                            3
+
+                        IsTuple ->
+                            4
+
+                        IsInt _ ->
+                            5
+
+                        IsChr _ ->
+                            6
+
+                        IsStr _ ->
+                            7
+
+                        IsBool _ ->
+                            8
+            in
+            compare (toOrderVal test1) (toOrderVal test2)
 
 
 type Path
@@ -300,7 +355,7 @@ testsAtPath selectedPath branches =
 
             else
                 ( test :: uniqueTests
-                , EverySet.insert test visitedTests
+                , EverySet.insert compareTest test visitedTests
                 )
     in
     Tuple.first (List.foldr skipVisited ( [], EverySet.empty ) allTests)
@@ -360,7 +415,7 @@ testAtPath selectedPath (Branch _ pathPatterns) =
                         Nothing
 
                     Can.PAlias _ _ ->
-                        Utils.crash "aliases should never reach 'testAtPath' function"
+                        crash "aliases should never reach 'testAtPath' function"
             )
 
 
@@ -596,7 +651,7 @@ needsTests (A.At _ pattern) =
             True
 
         Can.PAlias _ _ ->
-            Utils.crash "aliases should never reach 'isIrrelevantTo' function"
+            crash "aliases should never reach 'isIrrelevantTo' function"
 
 
 
@@ -635,7 +690,7 @@ bests : List ( Path, Int ) -> List Path
 bests allPaths =
     case allPaths of
         [] ->
-            Utils.crash "Cannot choose the best of zero paths. This should never happen."
+            crash "Cannot choose the best of zero paths. This should never happen."
 
         ( headPath, headWeight ) :: weightedPaths ->
             let

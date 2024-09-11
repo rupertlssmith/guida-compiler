@@ -12,8 +12,8 @@ module Deps.Registry exposing
     , update
     )
 
-import AssocList as Dict exposing (Dict)
 import Data.IO as IO exposing (IO(..))
+import Data.Map as Dict exposing (Dict)
 import Deps.Website as Website
 import Elm.Package as Pkg
 import Elm.Version as V
@@ -26,7 +26,7 @@ import Json.EncodeX as E
 import Parse.Primitives as P
 import Reporting.Exit as Exit
 import Stuff
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -111,7 +111,7 @@ allPkgsDecoder =
                 [] ->
                     D.failure ()
     in
-    D.dict keyDecoder (D.bind toKnownVersions versionsDecoder)
+    D.dict Pkg.compareName keyDecoder (D.bind toKnownVersions versionsDecoder)
 
 
 
@@ -152,7 +152,7 @@ addNew ( name, version ) versions =
                 Nothing ->
                     KnownVersions version []
     in
-    Dict.update name (Just << add) versions
+    Dict.update Pkg.compareName name (Just << add) versions
 
 
 
@@ -245,7 +245,7 @@ registryDecoder : Decode.Decoder Registry
 registryDecoder =
     Decode.map2 Registry
         (Decode.field "size" Decode.int)
-        (Decode.field "packages" (D.assocListDict Pkg.nameDecoder knownVersionsDecoder))
+        (Decode.field "packages" (D.assocListDict Pkg.compareName Pkg.nameDecoder knownVersionsDecoder))
 
 
 registryEncoder : Registry -> Encode.Value

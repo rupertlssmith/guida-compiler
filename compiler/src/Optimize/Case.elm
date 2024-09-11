@@ -2,11 +2,12 @@ module Optimize.Case exposing (optimize)
 
 import AST.Canonical as Can
 import AST.Optimized as Opt
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
 import List.Extra as List
 import Optimize.DecisionTree as DT
-import Utils
+import Utils.Crash exposing (crash)
+import Utils.Main as Utils
 
 
 
@@ -30,7 +31,7 @@ optimize temp root optBranches =
     in
     Opt.Case temp
         root
-        (insertChoices (Dict.fromList choices) decider)
+        (insertChoices (Dict.fromList compare choices) decider)
         (List.filterMap identity maybeJumps)
 
 
@@ -56,7 +57,7 @@ treeToDecider tree =
 
         -- zero options
         DT.Decision _ [] Nothing ->
-            Utils.crash "compiler bug, somehow created an empty decision tree"
+            crash "compiler bug, somehow created an empty decision tree"
 
         -- one option
         DT.Decision _ [ ( _, subTree ) ] Nothing ->
@@ -119,10 +120,10 @@ countTargets decisionTree =
             Dict.singleton target 1
 
         Opt.Chain _ success failure ->
-            Utils.mapUnionWith (+) (countTargets success) (countTargets failure)
+            Utils.mapUnionWith compare (+) (countTargets success) (countTargets failure)
 
         Opt.FanOut _ tests fallback ->
-            Utils.mapUnionsWith (+) (List.map countTargets (fallback :: List.map Tuple.second tests))
+            Utils.mapUnionsWith compare (+) (List.map countTargets (fallback :: List.map Tuple.second tests))
 
 
 createChoices : Dict Int Int -> ( Int, Opt.Expr ) -> ( ( Int, Opt.Choice ), Maybe ( Int, Opt.Expr ) )

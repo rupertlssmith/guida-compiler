@@ -5,7 +5,7 @@ module Develop.Generate.Help exposing
 
 import Data.Name as Name
 import Json.EncodeX as Encode
-import Utils
+import Utils.Main as Utils
 
 
 

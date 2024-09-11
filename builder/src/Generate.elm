@@ -6,9 +6,9 @@ module Generate exposing
     )
 
 import AST.Optimized as Opt
-import AssocList as Dict exposing (Dict)
 import Build
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as N
 import Data.NonEmptyList as NE
 import Elm.Compiler.Type.Extract as Extract
@@ -24,7 +24,7 @@ import Nitpick.Debug as Nitpick
 import Reporting.Exit as Exit
 import Reporting.Task as Task
 import Stuff
-import Utils exposing (FilePath, MVar)
+import Utils.Main as Utils exposing (FilePath, MVar)
 
 
 
@@ -140,7 +140,7 @@ checkForDebugUses (Objects _ locals) =
 
 gatherMains : Pkg.Name -> Objects -> NE.Nonempty Build.Root -> Dict ModuleName.Canonical Opt.Main
 gatherMains pkg (Objects _ locals) roots =
-    Dict.fromList (List.filterMap (lookupMain pkg locals) (NE.toList roots))
+    Dict.fromList ModuleName.compareCanonical (List.filterMap (lookupMain pkg locals) (NE.toList roots))
 
 
 lookupMain : Pkg.Name -> Dict ModuleName.Raw Opt.LocalGraph -> Build.Root -> Maybe ( ModuleName.Canonical, Opt.Main )
@@ -174,7 +174,7 @@ loadObjects root details modules =
                     Utils.listTraverse (loadObject root) modules
                         |> IO.fmap
                             (\mvars ->
-                                LoadingObjects mvar (Dict.fromList mvars)
+                                LoadingObjects mvar (Dict.fromList compare mvars)
                             )
                 )
         )
@@ -210,10 +210,10 @@ finalizeObjects (LoadingObjects mvar mvars) =
         (Utils.readMVar (Decode.maybe Opt.globalGraphDecoder) mvar
             |> IO.bind
                 (\result ->
-                    Utils.mapTraverse (Utils.readMVar (Decode.maybe Opt.localGraphDecoder)) mvars
+                    Utils.mapTraverse compare (Utils.readMVar (Decode.maybe Opt.localGraphDecoder)) mvars
                         |> IO.fmap
                             (\results ->
-                                case Maybe.map2 Objects result (Utils.sequenceDictMaybe results) of
+                                case Maybe.map2 Objects result (Utils.sequenceDictMaybe compare results) of
                                     Just loaded ->
                                         Ok loaded
 

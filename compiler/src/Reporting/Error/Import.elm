@@ -8,10 +8,10 @@ module Reporting.Error.Import exposing
     , toReport
     )
 
-import AssocList as Dict
+import Data.Map as Dict
+import Data.Set as EverySet exposing (EverySet)
 import Elm.ModuleName as ModuleName
 import Elm.Package as Pkg
-import EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.DecodeX as DecodeX
 import Json.Encode as Encode
@@ -269,5 +269,5 @@ errorDecoder =
     Decode.map4 Error
         (Decode.field "region" A.regionDecoder)
         (Decode.field "name" ModuleName.rawDecoder)
-        (Decode.field "unimportedModules" (DecodeX.everySet ModuleName.rawDecoder))
+        (Decode.field "unimportedModules" (DecodeX.everySet compare ModuleName.rawDecoder))
         (Decode.field "problem" problemDecoder)

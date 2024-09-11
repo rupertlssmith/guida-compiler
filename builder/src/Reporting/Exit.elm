@@ -40,8 +40,8 @@ module Reporting.Exit exposing
     , toString
     )
 
-import AssocList as Dict exposing (Dict)
 import Data.IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as N
 import Data.NonEmptyList as NE
 import Elm.Constraint as C
@@ -64,7 +64,7 @@ import Reporting.Error.Import as Import
 import Reporting.Error.Json as Json
 import Reporting.Exit.Help as Help
 import Reporting.Render.Code as Code
-import Utils exposing (FilePath, HTTPResponse)
+import Utils.Main as Utils exposing (FilePath, HTTPResponse)
 
 
 
@@ -2889,7 +2889,7 @@ detailsBadDepDecoder =
                         CoreDecode.map3 BD_BadBuild
                             (CoreDecode.field "pkg" Pkg.nameDecoder)
                             (CoreDecode.field "vsn" V.versionDecoder)
-                            (CoreDecode.field "fingerprint" (Decode.assocListDict Pkg.nameDecoder V.versionDecoder))
+                            (CoreDecode.field "fingerprint" (Decode.assocListDict Pkg.compareName Pkg.nameDecoder V.versionDecoder))
 
                     _ ->
                         CoreDecode.fail ("Failed to decode DetailsBadDep's type: " ++ type_)

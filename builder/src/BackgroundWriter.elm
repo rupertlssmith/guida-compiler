@@ -8,7 +8,7 @@ import Data.IO as IO exposing (IO)
 import File
 import Json.Decode as Decode
 import Json.Encode as Encode
-import Utils
+import Utils.Main as Utils
 
 
 

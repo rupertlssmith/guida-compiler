@@ -7,11 +7,11 @@ module Optimize.Expression exposing
 import AST.Canonical as Can
 import AST.Optimized as Opt
 import AST.Utils.Shader as Shader
-import AssocList as Dict
 import Data.Index as Index
+import Data.Map as Dict
 import Data.Name as Name
+import Data.Set as EverySet exposing (EverySet)
 import Elm.ModuleName as ModuleName
-import EverySet exposing (EverySet)
 import Optimize.Case as Case
 import Optimize.Names as Names
 import Reporting.Annotation as A
@@ -212,7 +212,7 @@ optimize cycle (A.At region expression) =
                     )
 
         Can.Update _ record updates ->
-            Names.mapTraverse (optimizeUpdate cycle) updates
+            Names.mapTraverse compare (optimizeUpdate cycle) updates
                 |> Names.bind
                     (\optUpdates ->
                         optimize cycle record
@@ -223,7 +223,7 @@ optimize cycle (A.At region expression) =
                     )
 
         Can.Record fields ->
-            Names.mapTraverse (optimize cycle) fields
+            Names.mapTraverse compare (optimize cycle) fields
                 |> Names.bind
                     (\optFields ->
                         Names.registerFieldDict fields (Opt.Record optFields)
@@ -254,7 +254,7 @@ optimize cycle (A.At region expression) =
                     )
 
         Can.Shader src (Shader.Types attributes uniforms _) ->
-            Names.pure (Opt.Shader src (EverySet.fromList (Dict.keys attributes)) (EverySet.fromList (Dict.keys uniforms)))
+            Names.pure (Opt.Shader src (EverySet.fromList compare (Dict.keys attributes)) (EverySet.fromList compare (Dict.keys uniforms)))
 
 
 

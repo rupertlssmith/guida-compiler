@@ -5,9 +5,9 @@ module Type.Constrain.Pattern exposing
     )
 
 import AST.Canonical as Can
-import AssocList as Dict exposing (Dict)
 import Data.IO as IO exposing (IO)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
 import Elm.ModuleName as ModuleName
 import Reporting.Annotation as A
@@ -15,7 +15,7 @@ import Reporting.Error.Type as E
 import Type.Instantiate as Instantiate
 import Type.Type as Type exposing (Type)
 import Type.UnionFind as UF
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -129,7 +129,7 @@ add (A.At region pattern) expectation state =
                                 (\fieldVars ->
                                     let
                                         fieldTypes =
-                                            Dict.fromList (List.map (Tuple.mapSecond Type.VarN) fieldVars)
+                                            Dict.fromList compare (List.map (Tuple.mapSecond Type.VarN) fieldVars)
 
                                         recordType =
                                             Type.RecordN fieldTypes extType
@@ -141,7 +141,7 @@ add (A.At region pattern) expectation state =
                                             Type.CPattern region E.PRecord recordType expectation
                                     in
                                     State
-                                        (Dict.union headers (Dict.map (\_ v -> A.At region v) fieldTypes))
+                                        (Dict.union compare headers (Dict.map (\_ v -> A.At region v) fieldTypes))
                                         (List.map Tuple.second fieldVars ++ extVar :: vars)
                                         (recordCon :: revCons)
                                 )
@@ -204,7 +204,7 @@ addToHeaders region name expectation (State headers vars revCons) =
             getType expectation
 
         newHeaders =
-            Dict.insert name (A.At region tipe) headers
+            Dict.insert compare name (A.At region tipe) headers
     in
     State newHeaders vars revCons
 
@@ -307,7 +307,7 @@ addCtor region home typeName typeVarNames ctorName args expectation state =
                         List.map (Tuple.mapSecond Type.VarN) varPairs
 
                     freeVarDict =
-                        Dict.fromList typePairs
+                        Dict.fromList compare typePairs
                 in
                 Utils.ioFoldM (addCtorArg region ctorName freeVarDict) state args
                     |> IO.bind

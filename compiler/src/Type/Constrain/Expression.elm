@@ -6,9 +6,9 @@ module Type.Constrain.Expression exposing
 
 import AST.Canonical as Can
 import AST.Utils.Shader as Shader
-import AssocList as Dict exposing (Dict)
 import Data.IO as IO exposing (IO)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
 import Elm.ModuleName as ModuleName
 import Reporting.Annotation as A
@@ -17,7 +17,7 @@ import Type.Constrain.Pattern as Pattern
 import Type.Instantiate as Instantiate
 import Type.Type as Type exposing (..)
 import Type.UnionFind as UF
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -535,7 +535,7 @@ constrainCaseBranch rtv (Can.CaseBranch pattern expr) pExpect bExpect =
 
 constrainRecord : RTV -> A.Region -> Dict Name.Name Can.Expr -> Expected Type -> IO Constraint
 constrainRecord rtv region fields expected =
-    Utils.mapTraverse (constrainField rtv) fields
+    Utils.mapTraverse compare (constrainField rtv) fields
         |> IO.fmap
             (\dict ->
                 let
@@ -584,7 +584,7 @@ constrainUpdate rtv region name expr fields expected =
     mkFlexVar
         |> IO.bind
             (\extVar ->
-                Utils.mapTraverseWithKey (constrainUpdateField rtv region) fields
+                Utils.mapTraverseWithKey compare (constrainUpdateField rtv region) fields
                     |> IO.bind
                         (\fieldDict ->
                             mkFlexVar
@@ -817,12 +817,12 @@ constrainDef rtv def bodyCon =
                 newNames =
                     Dict.diff freeVars rtv
             in
-            Utils.mapTraverseWithKey (\n _ -> nameToRigid n) newNames
+            Utils.mapTraverseWithKey compare (\n _ -> nameToRigid n) newNames
                 |> IO.bind
                     (\newRigids ->
                         let
                             newRtv =
-                                Dict.union rtv (Dict.map (\_ -> VarN) newRigids)
+                                Dict.union compare rtv (Dict.map (\_ -> VarN) newRigids)
                         in
                         constrainTypedArgs newRtv name typedArgs srcResultType
                             |> IO.bind
@@ -907,7 +907,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
                                             recDefsHelp rtv otherDefs bodyCon rigidInfo <|
                                                 Info newFlexVars
                                                     (defCon :: flexCons)
-                                                    (Dict.insert name (A.At region tipe) flexHeaders)
+                                                    (Dict.insert compare name (A.At region tipe) flexHeaders)
                                         )
                             )
 
@@ -916,12 +916,12 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
                         newNames =
                             Dict.diff freeVars rtv
                     in
-                    Utils.mapTraverseWithKey (\n _ -> nameToRigid n) newNames
+                    Utils.mapTraverseWithKey compare (\n _ -> nameToRigid n) newNames
                         |> IO.bind
                             (\newRigids ->
                                 let
                                     newRtv =
-                                        Dict.union rtv (Dict.map (\_ -> VarN) newRigids)
+                                        Dict.union compare rtv (Dict.map (\_ -> VarN) newRigids)
                                 in
                                 constrainTypedArgs newRtv name typedArgs srcResultType
                                     |> IO.bind
@@ -946,7 +946,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
                                                             (Info
                                                                 (Dict.foldr (\_ -> (::)) rigidVars newRigids)
                                                                 (CLet (Dict.values newRigids) [] Dict.empty defCon CTrue :: rigidCons)
-                                                                (Dict.insert name (A.At region tipe) rigidHeaders)
+                                                                (Dict.insert compare name (A.At region tipe) rigidHeaders)
                                                             )
                                                             flexInfo
                                                     )

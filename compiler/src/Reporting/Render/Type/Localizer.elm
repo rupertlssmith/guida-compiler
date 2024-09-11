@@ -10,10 +10,10 @@ module Reporting.Render.Type.Localizer exposing
     )
 
 import AST.Source as Src
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
+import Data.Set as EverySet exposing (EverySet)
 import Elm.ModuleName as ModuleName
-import EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.DecodeX as DecodeX
 import Json.Encode as Encode
@@ -93,7 +93,7 @@ fromNames names =
 fromModule : Src.Module -> Localizer
 fromModule ((Src.Module _ _ _ imports _ _ _ _ _) as modul) =
     Localizer <|
-        Dict.fromList <|
+        Dict.fromList compare <|
             (( Src.getName modul, { alias = Nothing, exposing_ = All } ) :: List.map toPair imports)
 
 
@@ -121,7 +121,7 @@ addType exposed types =
             types
 
         Src.Upper (A.At _ name) _ ->
-            EverySet.insert name types
+            EverySet.insert compare name types
 
         Src.Operator _ _ ->
             types
@@ -138,7 +138,7 @@ localizerEncoder (Localizer localizer) =
 
 localizerDecoder : Decode.Decoder Localizer
 localizerDecoder =
-    Decode.map Localizer (DecodeX.assocListDict Decode.string importDecoder)
+    Decode.map Localizer (DecodeX.assocListDict compare Decode.string importDecoder)
 
 
 importEncoder : Import -> Encode.Value
@@ -182,7 +182,7 @@ exposingDecoder =
                         Decode.succeed All
 
                     "Only" ->
-                        Decode.map Only (Decode.field "set" (DecodeX.everySet Decode.string))
+                        Decode.map Only (Decode.field "set" (DecodeX.everySet compare Decode.string))
 
                     _ ->
                         Decode.fail ("Unknown Exposing's type: " ++ type_)

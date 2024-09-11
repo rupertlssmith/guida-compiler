@@ -16,8 +16,8 @@ module Nitpick.PatternMatches exposing
 -}
 
 import AST.Canonical as Can
-import AssocList as Dict exposing (Dict)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
 import Data.NonEmptyList as NE
 import Elm.ModuleName as ModuleName
@@ -26,7 +26,8 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra as List
 import Reporting.Annotation as A
-import Utils
+import Utils.Crash exposing (crash)
+import Utils.Main as Utils
 
 
 
@@ -591,11 +592,11 @@ specializeRowByCtor ctorName arity row =
             Just (List.repeat arity Anything ++ patterns)
 
         (Literal _) :: _ ->
-            Utils.crash <|
+            crash <|
                 "Compiler bug! After type checking, constructors and literals should never align in pattern match exhaustiveness checks."
 
         [] ->
-            Utils.crash "Compiler error! Empty matrices should not get specialized."
+            crash "Compiler error! Empty matrices should not get specialized."
 
 
 
@@ -616,11 +617,11 @@ specializeRowByLiteral literal row =
             Just patterns
 
         (Ctor _ _ _) :: _ ->
-            Utils.crash <|
+            crash <|
                 "Compiler bug! After type checking, constructors and literals should never align in pattern match exhaustiveness checks."
 
         [] ->
-            Utils.crash "Compiler error! Empty matrices should not get specialized."
+            crash "Compiler error! Empty matrices should not get specialized."
 
 
 
@@ -689,7 +690,7 @@ collectCtorsHelp : Dict Name.Name Can.Union -> List Pattern -> Dict Name.Name Ca
 collectCtorsHelp ctors row =
     case row of
         (Ctor union name _) :: _ ->
-            Dict.insert name union ctors
+            Dict.insert compare name union ctors
 
         _ ->
             ctors

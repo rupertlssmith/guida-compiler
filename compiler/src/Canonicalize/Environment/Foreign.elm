@@ -2,8 +2,8 @@ module Canonicalize.Environment.Foreign exposing (createInitialEnv)
 
 import AST.Canonical as Can
 import AST.Source as Src
-import AssocList as Dict exposing (Dict)
 import Canonicalize.Environment as Env
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
 import Elm.Interface as I
 import Elm.Kernel exposing (Chunk(..))
@@ -12,7 +12,8 @@ import Elm.Package as Pkg
 import Reporting.Annotation as A
 import Reporting.Error.Canonicalize as Error
 import Reporting.Result as R
-import Utils
+import Utils.Crash exposing (crash)
+import Utils.Main as Utils
 
 
 type alias FResult i w a =
@@ -67,7 +68,7 @@ emptyState =
 
 emptyTypes : Env.Exposed Env.Type
 emptyTypes =
-    Dict.fromList [ ( "List", Env.Specific ModuleName.list (Env.Union 1 ModuleName.list) ) ]
+    Dict.fromList compare [ ( "List", Env.Specific ModuleName.list (Env.Union 1 ModuleName.list) ) ]
 
 
 
@@ -91,7 +92,7 @@ isNormal (Src.Import (A.At _ name) maybeAlias _) =
                 False
 
             Just _ ->
-                Utils.crash "kernel imports cannot use `as`"
+                crash "kernel imports cannot use `as`"
 
     else
         True
@@ -114,14 +115,14 @@ addImport ifaces state (Src.Import (A.At _ name) maybeAlias exposing_) =
             ModuleName.Canonical pkg name
 
         rawTypeInfo =
-            Dict.union
+            Dict.union compare
                 (Dict.toList unions
                     |> List.filterMap (\( k, a ) -> Maybe.map (Tuple.pair k) (unionToType home k a))
-                    |> Dict.fromList
+                    |> Dict.fromList compare
                 )
                 (Dict.toList aliases
                     |> List.filterMap (\( k, a ) -> Maybe.map (Tuple.pair k) (aliasToType home k a))
-                    |> Dict.fromList
+                    |> Dict.fromList compare
                 )
 
         vars =
@@ -168,12 +169,12 @@ addImport ifaces state (Src.Import (A.At _ name) maybeAlias exposing_) =
 
 addExposed : Env.Exposed a -> Env.Exposed a -> Env.Exposed a
 addExposed =
-    Utils.mapUnionWith Env.mergeInfo
+    Utils.mapUnionWith compare Env.mergeInfo
 
 
 addQualified : Name -> Env.Exposed a -> Env.Qualified a -> Env.Qualified a
 addQualified prefix exposed qualified =
-    Utils.mapInsertWith addExposed prefix exposed qualified
+    Utils.mapInsertWith compare addExposed prefix exposed qualified
 
 
 
@@ -189,7 +190,7 @@ unionToTypeHelp : ModuleName.Canonical -> Name -> Can.Union -> ( Env.Type, Env.E
 unionToTypeHelp home name ((Can.Union vars ctors _ _) as union) =
     let
         addCtor (Can.Ctor ctor index _ args) dict =
-            Dict.insert ctor (Env.Specific home (Env.Ctor home name union index args)) dict
+            Dict.insert compare ctor (Env.Specific home (Env.Ctor home name union index args)) dict
     in
     ( Env.Union (List.length vars) home
     , List.foldl addCtor Dict.empty ctors
@@ -253,7 +254,7 @@ addExposedValue home vars types binops state exposed =
         Src.Lower (A.At region name) ->
             case Dict.get name vars of
                 Just info ->
-                    R.ok { state | vars = Utils.mapInsertWith Env.mergeInfo name info state.vars }
+                    R.ok { state | vars = Utils.mapInsertWith compare Env.mergeInfo name info state.vars }
 
                 Nothing ->
                     R.throw (Error.ImportExposingNotFound region home name (Dict.keys vars))
@@ -267,14 +268,14 @@ addExposedValue home vars types binops state exposed =
                                 Env.Union _ _ ->
                                     let
                                         ts2 =
-                                            Dict.insert name (Env.Specific home tipe) state.types
+                                            Dict.insert compare name (Env.Specific home tipe) state.types
                                     in
                                     R.ok { state | types = ts2 }
 
                                 Env.Alias _ _ _ _ ->
                                     let
                                         ts2 =
-                                            Dict.insert name (Env.Specific home tipe) state.types
+                                            Dict.insert compare name (Env.Specific home tipe) state.types
 
                                         cs2 =
                                             addExposed state.ctors ctors
@@ -296,7 +297,7 @@ addExposedValue home vars types binops state exposed =
                                 Env.Union _ _ ->
                                     let
                                         ts2 =
-                                            Dict.insert name (Env.Specific home tipe) state.types
+                                            Dict.insert compare name (Env.Specific home tipe) state.types
 
                                         cs2 =
                                             addExposed state.ctors ctors
@@ -314,7 +315,7 @@ addExposedValue home vars types binops state exposed =
                 Just binop ->
                     let
                         bs2 =
-                            Dict.insert op (binopToBinop home op binop) state.binops
+                            Dict.insert compare op (binopToBinop home op binop) state.binops
                     in
                     R.ok { state | binops = bs2 }
 

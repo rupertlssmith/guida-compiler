@@ -5,7 +5,7 @@ module Develop.StaticFiles exposing
     , waitingPath
     )
 
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Develop.StaticFiles.Build as Build
 
 

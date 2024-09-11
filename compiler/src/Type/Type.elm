@@ -30,15 +30,16 @@ module Type.Type exposing
 
 import AST.Canonical as Can
 import AST.Utils.Type as Type
-import AssocList as Dict exposing (Dict)
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
 import Elm.ModuleName as ModuleName
 import Reporting.Annotation as A
 import Reporting.Error.Type as E
 import Type.Error as ET
 import Type.UnionFind as UF
-import Utils
+import Utils.Crash exposing (crash)
+import Utils.Main as Utils
 
 
 
@@ -350,7 +351,7 @@ variableToCanType variable =
                                 )
 
                     UF.Error ->
-                        Utils.crash "cannot handle Error types in variableToCanType"
+                        crash "cannot handle Error types in variableToCanType"
             )
 
 
@@ -370,7 +371,7 @@ termToCanType term =
             IO.pureStateT (Can.TRecord Dict.empty Nothing)
 
         UF.Record1 fields extension ->
-            Utils.mapTraverseStateT fieldToCanType fields
+            Utils.mapTraverseStateT compare fieldToCanType fields
                 |> IO.bindStateT
                     (\canFields ->
                         variableToCanType extension
@@ -379,13 +380,13 @@ termToCanType term =
                                 (\canExt ->
                                     case canExt of
                                         Can.TRecord subFields subExt ->
-                                            Can.TRecord (Dict.union subFields canFields) subExt
+                                            Can.TRecord (Dict.union compare subFields canFields) subExt
 
                                         Can.TVar name ->
                                             Can.TRecord canFields (Just name)
 
                                         _ ->
-                                            Utils.crash "Used toAnnotation on a type that is not well-formed"
+                                            crash "Used toAnnotation on a type that is not well-formed"
                                 )
                     )
 
@@ -546,7 +547,7 @@ termToErrorType term =
             IO.pureStateT (ET.Record Dict.empty ET.Closed)
 
         UF.Record1 fields extension ->
-            Utils.mapTraverseStateT variableToErrorType fields
+            Utils.mapTraverseStateT compare variableToErrorType fields
                 |> IO.bindStateT
                     (\errFields ->
                         variableToErrorType extension
@@ -555,7 +556,7 @@ termToErrorType term =
                                 (\errExt ->
                                     case errExt of
                                         ET.Record subFields subExt ->
-                                            ET.Record (Dict.union subFields errFields) subExt
+                                            ET.Record (Dict.union compare subFields errFields) subExt
 
                                         ET.FlexVar ext ->
                                             ET.Record errFields (ET.FlexOpen ext)
@@ -564,7 +565,7 @@ termToErrorType term =
                                             ET.Record errFields (ET.RigidOpen ext)
 
                                         _ ->
-                                            Utils.crash "Used toErrorType on a type that is not well-formed"
+                                            crash "Used toErrorType on a type that is not well-formed"
                                 )
                     )
 
@@ -626,7 +627,7 @@ getFreshVarNameHelp index taken =
         getFreshVarNameHelp (index + 1) taken
 
     else
-        ( name, index + 1, Dict.insert name () taken )
+        ( name, index + 1, Dict.insert compare name () taken )
 
 
 
@@ -696,7 +697,7 @@ getFreshSuperHelp prefix index taken =
         getFreshSuperHelp prefix (index + 1) taken
 
     else
-        ( name, index + 1, Dict.insert name () taken )
+        ( name, index + 1, Dict.insert compare name () taken )
 
 
 
@@ -794,7 +795,7 @@ addName index givenName var makeContent takenNames =
                         UF.Descriptor (makeContent indexedName) rank mark copy
                     )
             )
-                |> IO.fmap (\_ -> Dict.insert indexedName var takenNames)
+                |> IO.fmap (\_ -> Dict.insert compare indexedName var takenNames)
 
         Just otherVar ->
             UF.equivalent var otherVar

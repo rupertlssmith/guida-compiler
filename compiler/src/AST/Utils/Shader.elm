@@ -10,7 +10,7 @@ module AST.Utils.Shader exposing
     , typesEncoder
     )
 
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Data.Name exposing (Name)
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -122,9 +122,9 @@ typesEncoder (Types attribute uniform varying) =
 typesDecoder : Decode.Decoder Types
 typesDecoder =
     Decode.map3 Types
-        (Decode.field "attribute" (assocListDict Decode.string typeDecoder))
-        (Decode.field "uniform" (assocListDict Decode.string typeDecoder))
-        (Decode.field "varying" (assocListDict Decode.string typeDecoder))
+        (Decode.field "attribute" (assocListDict compare Decode.string typeDecoder))
+        (Decode.field "uniform" (assocListDict compare Decode.string typeDecoder))
+        (Decode.field "varying" (assocListDict compare Decode.string typeDecoder))
 
 
 typeEncoder : Type -> Encode.Value
@@ -188,10 +188,10 @@ typeDecoder =
 -- COPIED FROM JSON.DECODEX
 
 
-assocListDict : Decode.Decoder k -> Decode.Decoder v -> Decode.Decoder (Dict k v)
-assocListDict keyDecoder valueDecoder =
+assocListDict : (k -> k -> Order) -> Decode.Decoder k -> Decode.Decoder v -> Decode.Decoder (Dict k v)
+assocListDict keyComparison keyDecoder valueDecoder =
     Decode.list (jsonPair keyDecoder valueDecoder)
-        |> Decode.map Dict.fromList
+        |> Decode.map (Dict.fromList keyComparison)
 
 
 jsonPair : Decode.Decoder a -> Decode.Decoder b -> Decode.Decoder ( a, b )

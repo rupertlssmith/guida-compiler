@@ -6,12 +6,12 @@ module Generate.JavaScript exposing
 
 import AST.Canonical as Can
 import AST.Optimized as Opt
-import AssocList as Dict exposing (Dict)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
+import Data.Set as EverySet exposing (EverySet)
 import Elm.Kernel as K
 import Elm.ModuleName as ModuleName
-import EverySet exposing (EverySet)
 import Generate.JavaScript.Builder as JS
 import Generate.JavaScript.Expression as Expr
 import Generate.JavaScript.Functions as Functions
@@ -20,7 +20,8 @@ import Generate.Mode as Mode
 import Reporting.Doc as D
 import Reporting.Render.Type as RT
 import Reporting.Render.Type.Localizer as L
-import Utils
+import Utils.Crash exposing (crash)
+import Utils.Main as Utils
 
 
 
@@ -200,7 +201,7 @@ addGlobal mode graph ((State revKernels builders seen) as state) global =
 
     else
         addGlobalHelp mode graph global <|
-            State revKernels builders (EverySet.insert global seen)
+            State revKernels builders (EverySet.insert Opt.compareGlobal global seen)
 
 
 addGlobalHelp : Mode.Mode -> Graph -> Opt.Global -> State -> State
@@ -610,7 +611,7 @@ merge : Trie -> Trie -> Trie
 merge (Trie main1 subs1) (Trie main2 subs2) =
     Trie
         (checkedMerge main1 main2)
-        (Utils.mapUnionWith merge subs1 subs2)
+        (Utils.mapUnionWith compare merge subs1 subs2)
 
 
 checkedMerge : Maybe a -> Maybe a -> Maybe a
@@ -623,4 +624,4 @@ checkedMerge a b =
             main
 
         ( Just _, Just _ ) ->
-            Utils.crash "cannot have two modules with the same name"
+            crash "cannot have two modules with the same name"

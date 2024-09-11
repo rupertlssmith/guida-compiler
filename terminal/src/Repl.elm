@@ -12,10 +12,10 @@ module Repl exposing
     )
 
 import AST.Source as Src
-import AssocList as Dict exposing (Dict)
 import BackgroundWriter as BW
 import Build
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as N
 import Elm.Constraint as C
 import Elm.Details as Details
@@ -42,7 +42,8 @@ import Reporting.Render.Code as Code
 import Reporting.Report as Report
 import Reporting.Task as Task
 import Stuff
-import Utils exposing (FilePath)
+import Utils.Crash exposing (crash)
+import Utils.Main as Utils exposing (FilePath)
 
 
 
@@ -630,7 +631,7 @@ interpret interpreter javascript =
                         |> IO.bind (\_ -> Utils.procWaitForProcess handle)
 
                 Nothing ->
-                    Utils.crash "not implemented"
+                    crash "not implemented"
 
 
 

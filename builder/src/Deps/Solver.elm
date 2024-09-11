@@ -13,8 +13,8 @@ module Deps.Solver exposing
     , verify
     )
 
-import AssocList as Dict exposing (Dict)
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Deps.Registry as Registry
 import Deps.Website as Website
 import Elm.Constraint as C
@@ -28,7 +28,8 @@ import Json.DecodeX as D
 import Json.Encode as Encode
 import Reporting.Exit as Exit
 import Stuff
-import Utils
+import Utils.Crash exposing (crash)
+import Utils.Main as Utils
 
 
 
@@ -108,7 +109,7 @@ addDeps (State _ _ _ constraints) name vsn =
             Details vsn deps
 
         Nothing ->
-            Utils.crash "compiler bug manifesting in Deps.Solver.addDeps"
+            crash "compiler bug manifesting in Deps.Solver.addDeps"
 
 
 noSolution : Connection -> SolverResult a
@@ -134,16 +135,16 @@ addToApp cache connection registry pkg ((Outline.AppOutline _ _ direct indirect 
     Stuff.withRegistryLock cache <|
         let
             allIndirects =
-                Dict.union indirect testIndirect
+                Dict.union Pkg.compareName indirect testIndirect
 
             allDirects =
-                Dict.union direct testDirect
+                Dict.union Pkg.compareName direct testDirect
 
             allDeps =
-                Dict.union allDirects allIndirects
+                Dict.union Pkg.compareName allDirects allIndirects
 
             attempt toConstraint deps =
-                try (Dict.insert pkg C.anything (Dict.map (\_ -> toConstraint) deps))
+                try (Dict.insert Pkg.compareName pkg C.anything (Dict.map (\_ -> toConstraint) deps))
         in
         case
             oneOf
@@ -174,16 +175,16 @@ toApp : State -> Pkg.Name -> Outline.AppOutline -> Dict Pkg.Name V.Version -> Di
 toApp (State _ _ _ constraints) pkg (Outline.AppOutline elm srcDirs direct _ testDirect _) old new =
     let
         d =
-            Utils.mapIntersection new (Dict.insert pkg V.one direct)
+            Dict.intersection new (Dict.insert Pkg.compareName pkg V.one direct)
 
         i =
             Dict.diff (getTransitive constraints new (Dict.toList d) Dict.empty) d
 
         td =
-            Utils.mapIntersection new (Dict.remove pkg testDirect)
+            Dict.intersection new (Dict.remove pkg testDirect)
 
         ti =
-            Dict.diff new (Utils.mapUnions [ d, i, td ])
+            Dict.diff new (Utils.mapUnions Pkg.compareName [ d, i, td ])
     in
     AppSolution old new (Outline.AppOutline elm srcDirs d i td ti)
 
@@ -204,10 +205,10 @@ getTransitive constraints solution unvisited visited =
                         Utils.find info constraints
 
                     newUnvisited =
-                        Dict.toList (Utils.mapIntersection solution (Dict.diff newDeps visited))
+                        Dict.toList (Dict.intersection solution (Dict.diff newDeps visited))
 
                     newVisited =
-                        Dict.insert pkg vsn visited
+                        Dict.insert Pkg.compareName pkg vsn visited
                 in
                 getTransitive constraints solution infos <|
                     getTransitive constraints solution newUnvisited newVisited
@@ -236,7 +237,7 @@ exploreGoals (Goals pending solved) =
         compare ( name, _ ) =
             Pkg.toString name
     in
-    case Utils.mapMinViewWithKey compare pending of
+    case Utils.mapMinViewWithKey Pkg.compareName compare pending of
         Nothing ->
             pure solved
 
@@ -262,7 +263,7 @@ addVersion (Goals pending solved) name version =
                     foldM (addConstraint solved) pending (Dict.toList deps)
                         |> fmap
                             (\newPending ->
-                                Goals newPending (Dict.insert name version solved)
+                                Goals newPending (Dict.insert Pkg.compareName name version solved)
                             )
 
                 else
@@ -283,7 +284,7 @@ addConstraint solved unsolved ( name, newConstraint ) =
         Nothing ->
             case Dict.get name unsolved of
                 Nothing ->
-                    pure (Dict.insert name newConstraint unsolved)
+                    pure (Dict.insert Pkg.compareName name newConstraint unsolved)
 
                 Just oldConstraint ->
                     case C.intersect oldConstraint newConstraint of
@@ -295,7 +296,7 @@ addConstraint solved unsolved ( name, newConstraint ) =
                                 pure unsolved
 
                             else
-                                pure (Dict.insert name mergedConstraint unsolved)
+                                pure (Dict.insert Pkg.compareName name mergedConstraint unsolved)
 
 
 
@@ -330,6 +331,14 @@ getConstraints pkg vsn =
             let
                 key =
                     ( pkg, vsn )
+
+                compare ( pkg1, vsn1 ) ( pkg2, vsn2 ) =
+                    case Pkg.compareName pkg1 pkg2 of
+                        EQ ->
+                            V.compare vsn1 vsn2
+
+                        order ->
+                            order
             in
             case Dict.get key cDict of
                 Just cs ->
@@ -338,7 +347,7 @@ getConstraints pkg vsn =
                 Nothing ->
                     let
                         toNewState cs =
-                            State cache connection registry (Dict.insert key cs cDict)
+                            State cache connection registry (Dict.insert compare key cs cDict)
 
                         home =
                             Stuff.package cache pkg vsn

@@ -27,7 +27,7 @@ import Terminal.Internal
         , Summary(..)
         , toName
         )
-import Utils
+import Utils.Main as Utils
 
 
 

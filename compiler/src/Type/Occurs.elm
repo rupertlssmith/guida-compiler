@@ -1,7 +1,7 @@
 module Type.Occurs exposing (occurs)
 
-import AssocList as Dict
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict
 import Type.Type as Type
 import Type.UnionFind as UF
 

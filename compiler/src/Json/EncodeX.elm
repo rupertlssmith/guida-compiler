@@ -25,11 +25,11 @@ module Json.EncodeX exposing
     , writeUgly
     )
 
-import AssocList as Dict exposing (Dict)
 import Data.IO as IO exposing (IO(..))
+import Data.Map as Dict exposing (Dict)
 import Data.NonEmptyList as NE
 import Data.OneOrMore as OneOrMore exposing (OneOrMore(..))
-import EverySet exposing (EverySet)
+import Data.Set as EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Json.StringX as Json

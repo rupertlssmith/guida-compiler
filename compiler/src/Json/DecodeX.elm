@@ -32,10 +32,10 @@ module Json.DecodeX exposing
     , string
     )
 
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Data.NonEmptyList as NE
 import Data.OneOrMore as OneOrMore exposing (OneOrMore)
-import EverySet exposing (EverySet)
+import Data.Set as EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.StringX as Json
 import Parse.Keyword as K
@@ -47,10 +47,10 @@ import Reporting.Annotation as A
 -- CORE HELPERS
 
 
-assocListDict : Decode.Decoder k -> Decode.Decoder v -> Decode.Decoder (Dict k v)
-assocListDict keyDecoder valueDecoder =
+assocListDict : (k -> k -> Order) -> Decode.Decoder k -> Decode.Decoder v -> Decode.Decoder (Dict k v)
+assocListDict keyComparison keyDecoder valueDecoder =
     Decode.list (jsonPair keyDecoder valueDecoder)
-        |> Decode.map Dict.fromList
+        |> Decode.map (Dict.fromList keyComparison)
 
 
 jsonPair : Decode.Decoder a -> Decode.Decoder b -> Decode.Decoder ( a, b )
@@ -60,10 +60,10 @@ jsonPair firstDecoder secondDecoder =
         (Decode.field "b" secondDecoder)
 
 
-everySet : Decode.Decoder a -> Decode.Decoder (EverySet a)
-everySet decoder =
+everySet : (a -> a -> Order) -> Decode.Decoder a -> Decode.Decoder (EverySet a)
+everySet keyComparison decoder =
     Decode.list decoder
-        |> Decode.map EverySet.fromList
+        |> Decode.map (EverySet.fromList keyComparison)
 
 
 nonempty : Decode.Decoder a -> Decode.Decoder (NE.Nonempty a)
@@ -351,9 +351,9 @@ type KeyDecoder x a
     = KeyDecoder (P.Parser x a) (Row -> Col -> x)
 
 
-dict : KeyDecoder x k -> Decoder x a -> Decoder x (Dict k a)
-dict keyDecoder valueDecoder =
-    fmap Dict.fromList (pairs keyDecoder valueDecoder)
+dict : (k -> k -> Order) -> KeyDecoder x k -> Decoder x a -> Decoder x (Dict k a)
+dict keyComparison keyDecoder valueDecoder =
+    fmap (Dict.fromList keyComparison) (pairs keyDecoder valueDecoder)
 
 
 pairs : KeyDecoder x k -> Decoder x a -> Decoder x (List ( k, a ))

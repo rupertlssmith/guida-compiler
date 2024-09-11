@@ -25,7 +25,7 @@ import Elm.Package as Pkg
 import Elm.Version as V
 import Json.Decode as Decode
 import Json.Encode as Encode
-import Utils
+import Utils.Main as Utils
 
 
 

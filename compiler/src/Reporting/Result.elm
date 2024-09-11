@@ -18,8 +18,8 @@ module Reporting.Result exposing
     , warn
     )
 
-import AssocList as Dict exposing (Dict)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.OneOrMore as OneOrMore
 import Reporting.Warning as Warning
 
@@ -152,15 +152,15 @@ traverse func =
     List.foldr (\a -> bind (\acc -> fmap (\b -> b :: acc) (func a))) (ok [])
 
 
-mapTraverseWithKey : (k -> a -> RResult i w x b) -> Dict k a -> RResult i w x (Dict k b)
-mapTraverseWithKey f =
-    Dict.foldr (\k a -> bind (\c -> fmap (\va -> Dict.insert k va c) (f k a)))
+mapTraverseWithKey : (k -> k -> Order) -> (k -> a -> RResult i w x b) -> Dict k a -> RResult i w x (Dict k b)
+mapTraverseWithKey keyComparison f =
+    Dict.foldr (\k a -> bind (\c -> fmap (\va -> Dict.insert keyComparison k va c) (f k a)))
         (pure Dict.empty)
 
 
-traverseDict : (a -> RResult i w x b) -> Dict k a -> RResult i w x (Dict k b)
-traverseDict func =
-    Dict.foldr (\k a -> bind (\acc -> fmap (\b -> Dict.insert k b acc) (func a))) (ok Dict.empty)
+traverseDict : (k -> k -> Order) -> (a -> RResult i w x b) -> Dict k a -> RResult i w x (Dict k b)
+traverseDict keyComparison func =
+    Dict.foldr (\k a -> bind (\acc -> fmap (\b -> Dict.insert keyComparison k b acc) (func a))) (ok Dict.empty)
 
 
 indexedTraverse : (Index.ZeroBased -> a -> RResult i w error b) -> List a -> RResult i w error (List b)

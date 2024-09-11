@@ -22,7 +22,7 @@ import Reporting.Annotation as A
 import Reporting.Doc as D
 import Reporting.Render.Type as RT
 import Reporting.Render.Type.Localizer as L
-import Utils
+import Utils.Crash exposing (crash)
 
 
 
@@ -63,7 +63,7 @@ toDoc localizer context tipe =
                     RT.lambda context a b cs
 
                 _ ->
-                    Utils.crash "toDoc Lambda"
+                    crash "toDoc Lambda"
 
         Var name ->
             D.fromName name

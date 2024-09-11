@@ -15,7 +15,7 @@ module Parse.Variable exposing
 import AST.Source as Src
 import Bitwise
 import Data.Name as Name exposing (Name)
-import EverySet exposing (EverySet)
+import Data.Set as EverySet exposing (EverySet)
 import Parse.Primitives as P exposing (Col, Row)
 
 
@@ -75,7 +75,7 @@ lower toError =
 
 reservedWords : EverySet Name
 reservedWords =
-    EverySet.fromList
+    EverySet.fromList compare
         [ "if"
         , "then"
         , "else"

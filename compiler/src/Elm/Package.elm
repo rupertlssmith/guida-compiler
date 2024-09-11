@@ -31,7 +31,7 @@ module Elm.Package exposing
     , webgl
     )
 
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Elm.Version as V
 import Json.Decode as Decode
 import Json.DecodeX as D
@@ -198,7 +198,7 @@ suggestions =
         file =
             toName elm "file"
     in
-    Dict.fromList
+    Dict.fromList compare
         [ ( "Browser", browser )
         , ( "File", file )
         , ( "File.Download", file )

@@ -10,13 +10,13 @@ import AST.Canonical as Can
 import AST.Source as Src
 import AST.Utils.Binop as Binop
 import AST.Utils.Type as Type
-import AssocList as Dict exposing (Dict)
 import Canonicalize.Environment as Env
 import Canonicalize.Environment.Dups as Dups
 import Canonicalize.Pattern as Pattern
 import Canonicalize.Type as Type
 import Data.Graph as Graph
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
 import Elm.Kernel exposing (Chunk(..))
 import Elm.ModuleName as ModuleName
@@ -26,7 +26,7 @@ import Reporting.Annotation as A
 import Reporting.Error.Canonicalize as Error
 import Reporting.Result as R
 import Reporting.Warning as W
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -151,13 +151,13 @@ canonicalize env (A.At region expression) =
                 in
                 R.pure (Can.Update name)
                     |> R.apply (R.fmap (A.At reg) (findVar reg env name))
-                    |> R.apply (R.bind Utils.sequenceADict makeCanFields)
+                    |> R.apply (R.bind (Utils.sequenceADict compare) makeCanFields)
 
             Src.Record fields ->
                 Dups.checkFields fields
                     |> R.bind
                         (\fieldDict ->
-                            R.fmap Can.Record (R.traverseDict (canonicalize env) fieldDict)
+                            R.fmap Can.Record (R.traverseDict compare (canonicalize env) fieldDict)
                         )
 
             Src.Unit ->
@@ -473,13 +473,13 @@ addDefNodes env nodes (A.At _ def) =
                                                 in
                                                 Ok
                                                     (R.ROk
-                                                        (Utils.mapUnionWith combineUses fs freeLocals)
+                                                        (Utils.mapUnionWith compare combineUses fs freeLocals)
                                                         warnings
                                                         (List.foldl (addEdge [ name ]) (node :: nodes) names)
                                                     )
 
                                             Err (R.RErr freeLocals warnings errors) ->
-                                                Err (R.RErr (Utils.mapUnionWith combineUses freeLocals fs) warnings errors)
+                                                Err (R.RErr (Utils.mapUnionWith compare combineUses freeLocals fs) warnings errors)
                             )
                     )
 
@@ -490,7 +490,8 @@ logLetLocals args letLocals value =
         (\freeLocals warnings ->
             Ok
                 (R.ROk
-                    (Utils.mapUnionWith combineUses
+                    (Utils.mapUnionWith compare
+                        combineUses
                         freeLocals
                         (case args of
                             [] ->
@@ -678,7 +679,7 @@ logVar : Name.Name -> a -> EResult FreeLocals w a
 logVar name value =
     R.RResult <|
         \freeLocals warnings ->
-            Ok (R.ROk (Utils.mapInsertWith combineUses name oneDirectUse freeLocals) warnings value)
+            Ok (R.ROk (Utils.mapInsertWith compare combineUses name oneDirectUse freeLocals) warnings value)
 
 
 oneDirectUse : Uses
@@ -751,7 +752,7 @@ directUsage (R.RResult k) =
         (\freeLocals warnings ->
             case k () warnings of
                 Ok (R.ROk () ws ( value, newFreeLocals )) ->
-                    Ok (R.ROk (Utils.mapUnionWith combineUses freeLocals newFreeLocals) ws value)
+                    Ok (R.ROk (Utils.mapUnionWith compare combineUses freeLocals newFreeLocals) ws value)
 
                 Err (R.RErr () ws es) ->
                     Err (R.RErr freeLocals ws es)
@@ -768,7 +769,7 @@ delayedUsage (R.RResult k) =
                         delayedLocals =
                             Dict.map (\_ -> delayUse) newFreeLocals
                     in
-                    Ok (R.ROk (Utils.mapUnionWith combineUses freeLocals delayedLocals) ws value)
+                    Ok (R.ROk (Utils.mapUnionWith compare combineUses freeLocals delayedLocals) ws value)
 
                 Err (R.RErr () ws es) ->
                     Err (R.RErr freeLocals ws es)
@@ -839,7 +840,7 @@ findVarQual region env prefix name =
 
 toPossibleNames : Dict Name Env.Var -> Env.Qualified Can.Annotation -> Error.PossibleNames
 toPossibleNames exposed qualified =
-    Error.PossibleNames (Utils.keysSet exposed) (Dict.map (\_ -> Utils.keysSet) qualified)
+    Error.PossibleNames (Utils.keysSet compare exposed) (Dict.map (\_ -> Utils.keysSet compare) qualified)
 
 
 
@@ -852,7 +853,7 @@ toVarCtor name ctor =
         Env.Ctor home typeName (Can.Union vars _ _ opts) index args ->
             let
                 freeVars =
-                    Dict.fromList (List.map (\v -> ( v, () )) vars)
+                    Dict.fromList compare (List.map (\v -> ( v, () )) vars)
 
                 result =
                     Can.TType home typeName (List.map Can.TVar vars)
@@ -865,6 +866,6 @@ toVarCtor name ctor =
         Env.RecordCtor home vars tipe ->
             let
                 freeVars =
-                    Dict.fromList (List.map (\v -> ( v, () )) vars)
+                    Dict.fromList compare (List.map (\v -> ( v, () )) vars)
             in
             Can.VarCtor Can.Normal home name Index.first (Can.Forall freeVars tipe)

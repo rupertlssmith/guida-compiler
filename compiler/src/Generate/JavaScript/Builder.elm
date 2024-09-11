@@ -16,7 +16,7 @@ module Generate.JavaScript.Builder exposing
 
 import Generate.JavaScript.Name as Name
 import Json.EncodeX as Json
-import Utils
+import Utils.Main as Utils
 
 
 

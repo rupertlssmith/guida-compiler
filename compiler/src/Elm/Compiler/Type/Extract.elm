@@ -14,18 +14,18 @@ module Elm.Compiler.Type.Extract exposing
 import AST.Canonical as Can
 import AST.Optimized as Opt
 import AST.Utils.Type as Type
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
+import Data.Set as EverySet exposing (EverySet)
 import Elm.Compiler.Type as T
 import Elm.Interface as I
 import Elm.ModuleName as ModuleName
-import EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.DecodeX as D
 import Json.Encode as Encode
 import Json.EncodeX as E
 import Maybe.Extra as Maybe
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -115,7 +115,7 @@ mergeMany listOfTypes =
 
 merge : Types -> Types -> Types
 merge (Types types1) (Types types2) =
-    Types (Dict.union types1 types2)
+    Types (Dict.union ModuleName.compareCanonical types1 types2)
 
 
 fromInterface : ModuleName.Raw -> I.Interface -> Types
@@ -176,7 +176,7 @@ extractTransitive types (Deps seenAliases seenUnions) (Deps nextAliases nextUnio
                     )
 
             oldDeps =
-                Deps (EverySet.union seenAliases nextAliases) (EverySet.union seenUnions nextUnions)
+                Deps (EverySet.union Opt.compareGlobal seenAliases nextAliases) (EverySet.union Opt.compareGlobal seenUnions nextUnions)
 
             ( remainingResultAlias, remainingResultUnion ) =
                 extractTransitive types oldDeps newDeps
@@ -254,14 +254,14 @@ addAlias : Opt.Global -> a -> Extractor a
 addAlias alias value =
     Extractor <|
         \aliases unions ->
-            EResult (EverySet.insert alias aliases) unions value
+            EResult (EverySet.insert Opt.compareGlobal alias aliases) unions value
 
 
 addUnion : Opt.Global -> a -> Extractor a
 addUnion union value =
     Extractor <|
         \aliases unions ->
-            EResult aliases (EverySet.insert union unions) value
+            EResult aliases (EverySet.insert Opt.compareGlobal union unions) value
 
 
 fmap : (a -> b) -> Extractor a -> Extractor b
@@ -322,7 +322,7 @@ typesEncoder (Types types) =
 
 typesDecoder : Decode.Decoder Types
 typesDecoder =
-    Decode.map Types (D.assocListDict ModuleName.canonicalDecoder types_Decoder)
+    Decode.map Types (D.assocListDict ModuleName.compareCanonical ModuleName.canonicalDecoder types_Decoder)
 
 
 types_Encoder : Types_ -> Encode.Value
@@ -337,5 +337,5 @@ types_Encoder (Types_ unionInfo aliasInfo) =
 types_Decoder : Decode.Decoder Types_
 types_Decoder =
     Decode.map2 Types_
-        (Decode.field "unionInfo" (D.assocListDict Decode.string Can.unionDecoder))
-        (Decode.field "aliasInfo" (D.assocListDict Decode.string Can.aliasDecoder))
+        (Decode.field "unionInfo" (D.assocListDict compare Decode.string Can.unionDecoder))
+        (Decode.field "aliasInfo" (D.assocListDict compare Decode.string Can.aliasDecoder))

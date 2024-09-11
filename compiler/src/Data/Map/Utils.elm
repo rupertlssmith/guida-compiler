@@ -4,7 +4,7 @@ module Data.Map.Utils exposing
     , fromValues
     )
 
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 
 
 
@@ -13,12 +13,12 @@ import AssocList as Dict exposing (Dict)
 
 fromKeys : (comparable -> v) -> List comparable -> Dict comparable v
 fromKeys toValue keys =
-    Dict.fromList (List.map (\k -> ( k, toValue k )) keys)
+    Dict.fromList compare (List.map (\k -> ( k, toValue k )) keys)
 
 
 fromValues : (v -> comparable) -> List v -> Dict comparable v
 fromValues toKey values =
-    Dict.fromList (List.map (\v -> ( toKey v, v )) values)
+    Dict.fromList compare (List.map (\v -> ( toKey v, v )) values)
 
 
 

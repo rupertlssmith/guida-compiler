@@ -5,14 +5,14 @@ module Canonicalize.Type exposing
 
 import AST.Canonical as Can
 import AST.Source as Src
-import AssocList as Dict exposing (Dict)
 import Canonicalize.Environment as Env
 import Canonicalize.Environment.Dups as Dups
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
 import Reporting.Annotation as A
 import Reporting.Error.Canonicalize as Error
 import Reporting.Result as R
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -61,7 +61,7 @@ canonicalize env (A.At typeRegion tipe) =
 
         Src.TRecord fields ext ->
             Dups.checkFields (canonicalizeFields env fields)
-                |> R.bind Utils.sequenceADict
+                |> R.bind (Utils.sequenceADict compare)
                 |> R.fmap (\cfields -> Can.TRecord cfields (Maybe.map A.toValue ext))
 
         Src.TUnit ->
@@ -139,7 +139,7 @@ addFreeVars freeVars tipe =
             addFreeVars (addFreeVars freeVars result) arg
 
         Can.TVar var ->
-            Dict.insert var () freeVars
+            Dict.insert compare var () freeVars
 
         Can.TType _ _ args ->
             List.foldl (\b c -> addFreeVars c b) freeVars args
@@ -148,7 +148,7 @@ addFreeVars freeVars tipe =
             Dict.foldl (\_ b c -> addFieldFreeVars c b) freeVars fields
 
         Can.TRecord fields (Just ext) ->
-            Dict.foldl (\_ b c -> addFieldFreeVars c b) (Dict.insert ext () freeVars) fields
+            Dict.foldl (\_ b c -> addFieldFreeVars c b) (Dict.insert compare ext () freeVars) fields
 
         Can.TUnit ->
             freeVars

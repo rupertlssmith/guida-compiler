@@ -12,22 +12,23 @@ module Generate.JavaScript.Expression exposing
 import AST.Canonical as Can
 import AST.Optimized as Opt
 import AST.Utils.Shader as Shader
-import AssocList as Dict exposing (Dict)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
+import Data.Set as EverySet
 import Elm.Compiler.Type as Type
 import Elm.Compiler.Type.Extract as Extract
 import Elm.ModuleName as ModuleName
 import Elm.Package as Pkg
 import Elm.Version as V
-import EverySet
 import Generate.JavaScript.Builder as JS
 import Generate.JavaScript.Name as JsName
 import Generate.Mode as Mode
 import Json.EncodeX as Encode
 import Optimize.DecisionTree as DT
 import Reporting.Annotation as A
-import Utils
+import Utils.Crash exposing (crash)
+import Utils.Main as Utils
 
 
 generateJsExpr : Mode.Mode -> Opt.Expr -> JS.Expr
@@ -374,7 +375,7 @@ generateFunction args body =
 
 funcHelpers : Dict Int JS.Expr
 funcHelpers =
-    Dict.fromList <|
+    Dict.fromList compare <|
         List.map (\n -> ( n, JS.ExprRef (JsName.makeF n) )) (List.range 2 9)
 
 
@@ -433,7 +434,7 @@ generateNormalCall func args =
 
 callHelpers : Dict Int JS.Expr
 callHelpers =
-    Dict.fromList <|
+    Dict.fromList compare <|
         List.map (\n -> ( n, JS.ExprRef (JsName.makeA n) )) (List.range 2 9)
 
 
@@ -1044,7 +1045,7 @@ generateIfTest mode root ( path, test ) =
                 JS.ExprAccess value (JsName.fromLocal "b")
 
         DT.IsTuple ->
-            Utils.crash "COMPILER BUG - there should never be tests on a tuple"
+            crash "COMPILER BUG - there should never be tests on a tuple"
 
 
 generateCaseBranch : Mode.Mode -> Name.Name -> Name.Name -> ( DT.Test, Opt.Decider Opt.Choice ) -> JS.Case
@@ -1075,16 +1076,16 @@ generateCaseValue mode test =
             JS.ExprString string
 
         DT.IsBool _ ->
-            Utils.crash "COMPILER BUG - there should never be three tests on a boolean"
+            crash "COMPILER BUG - there should never be three tests on a boolean"
 
         DT.IsCons ->
-            Utils.crash "COMPILER BUG - there should never be three tests on a list"
+            crash "COMPILER BUG - there should never be three tests on a list"
 
         DT.IsNil ->
-            Utils.crash "COMPILER BUG - there should never be three tests on a list"
+            crash "COMPILER BUG - there should never be three tests on a list"
 
         DT.IsTuple ->
-            Utils.crash "COMPILER BUG - there should never be three tests on a tuple"
+            crash "COMPILER BUG - there should never be three tests on a tuple"
 
 
 generateCaseTest : Mode.Mode -> Name.Name -> DT.Path -> DT.Test -> JS.Expr
@@ -1129,16 +1130,16 @@ generateCaseTest mode root path exampleTest =
                     value
 
         DT.IsBool _ ->
-            Utils.crash "COMPILER BUG - there should never be three tests on a list"
+            crash "COMPILER BUG - there should never be three tests on a list"
 
         DT.IsCons ->
-            Utils.crash "COMPILER BUG - there should never be three tests on a list"
+            crash "COMPILER BUG - there should never be three tests on a list"
 
         DT.IsNil ->
-            Utils.crash "COMPILER BUG - there should never be three tests on a list"
+            crash "COMPILER BUG - there should never be three tests on a list"
 
         DT.IsTuple ->
-            Utils.crash "COMPILER BUG - there should never be three tests on a list"
+            crash "COMPILER BUG - there should never be three tests on a list"
 
 
 

@@ -25,13 +25,13 @@ module AST.Optimized exposing
 
 import AST.Canonical as Can
 import AST.Utils.Shader as Shader
-import AssocList as Dict exposing (Dict)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
+import Data.Set as EverySet exposing (EverySet)
 import Elm.Kernel as K
 import Elm.ModuleName as ModuleName
 import Elm.Package as Pkg
-import EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.DecodeX as D
 import Json.Encode as Encode
@@ -180,15 +180,15 @@ empty =
 addGlobalGraph : GlobalGraph -> GlobalGraph -> GlobalGraph
 addGlobalGraph (GlobalGraph nodes1 fields1) (GlobalGraph nodes2 fields2) =
     GlobalGraph
-        (Dict.union nodes1 nodes2)
-        (Dict.union fields1 fields2)
+        (Dict.union compareGlobal nodes1 nodes2)
+        (Dict.union compare fields1 fields2)
 
 
 addLocalGraph : LocalGraph -> GlobalGraph -> GlobalGraph
 addLocalGraph (LocalGraph _ nodes1 fields1) (GlobalGraph nodes2 fields2) =
     GlobalGraph
-        (Dict.union nodes1 nodes2)
-        (Dict.union fields1 fields2)
+        (Dict.union compareGlobal nodes1 nodes2)
+        (Dict.union compare fields1 fields2)
 
 
 addKernel : Name -> List K.Chunk -> GlobalGraph -> GlobalGraph
@@ -201,8 +201,8 @@ addKernel shortName chunks (GlobalGraph nodes fields) =
             Kernel chunks (List.foldr addKernelDep EverySet.empty chunks)
     in
     GlobalGraph
-        (Dict.insert global node nodes)
-        (Dict.union (K.countFields chunks) fields)
+        (Dict.insert compareGlobal global node nodes)
+        (Dict.union compare (K.countFields chunks) fields)
 
 
 addKernelDep : K.Chunk -> EverySet Global -> EverySet Global
@@ -212,10 +212,10 @@ addKernelDep chunk deps =
             deps
 
         K.ElmVar home name ->
-            EverySet.insert (Global home name) deps
+            EverySet.insert compareGlobal (Global home name) deps
 
         K.JsVar shortName _ ->
-            EverySet.insert (toKernelGlobal shortName) deps
+            EverySet.insert compareGlobal (toKernelGlobal shortName) deps
 
         K.ElmField _ ->
             deps
@@ -254,8 +254,8 @@ globalGraphEncoder (GlobalGraph nodes fields) =
 globalGraphDecoder : Decode.Decoder GlobalGraph
 globalGraphDecoder =
     Decode.map2 GlobalGraph
-        (Decode.field "nodes" (D.assocListDict globalDecoder nodeDecoder))
-        (Decode.field "fields" (D.assocListDict Decode.string Decode.int))
+        (Decode.field "nodes" (D.assocListDict compareGlobal globalDecoder nodeDecoder))
+        (Decode.field "fields" (D.assocListDict compare Decode.string Decode.int))
 
 
 localGraphEncoder : LocalGraph -> Encode.Value
@@ -272,8 +272,8 @@ localGraphDecoder : Decode.Decoder LocalGraph
 localGraphDecoder =
     Decode.map3 LocalGraph
         (Decode.field "main" (Decode.maybe mainDecoder))
-        (Decode.field "nodes" (D.assocListDict globalDecoder nodeDecoder))
-        (Decode.field "fields" (D.assocListDict Decode.string Decode.int))
+        (Decode.field "nodes" (D.assocListDict compareGlobal globalDecoder nodeDecoder))
+        (Decode.field "fields" (D.assocListDict compare Decode.string Decode.int))
 
 
 mainEncoder : Main -> Encode.Value
@@ -415,13 +415,13 @@ nodeDecoder =
                     "Define" ->
                         Decode.map2 Define
                             (Decode.field "expr" exprDecoder)
-                            (Decode.field "deps" (D.everySet globalDecoder))
+                            (Decode.field "deps" (D.everySet compareGlobal globalDecoder))
 
                     "DefineTailFunc" ->
                         Decode.map3 DefineTailFunc
                             (Decode.field "argNames" (Decode.list Decode.string))
                             (Decode.field "body" exprDecoder)
-                            (Decode.field "deps" (D.everySet globalDecoder))
+                            (Decode.field "deps" (D.everySet compareGlobal globalDecoder))
 
                     "Ctor" ->
                         Decode.map2 Ctor
@@ -443,7 +443,7 @@ nodeDecoder =
                             (Decode.field "names" (Decode.list Decode.string))
                             (Decode.field "values" (Decode.list (D.jsonPair Decode.string exprDecoder)))
                             (Decode.field "functions" (Decode.list defDecoder))
-                            (Decode.field "deps" (D.everySet globalDecoder))
+                            (Decode.field "deps" (D.everySet compareGlobal globalDecoder))
 
                     "Manager" ->
                         Decode.map Manager (Decode.field "effectsType" effectsTypeDecoder)
@@ -451,17 +451,17 @@ nodeDecoder =
                     "Kernel" ->
                         Decode.map2 Kernel
                             (Decode.field "chunks" (Decode.list K.chunkDecoder))
-                            (Decode.field "deps" (D.everySet globalDecoder))
+                            (Decode.field "deps" (D.everySet compareGlobal globalDecoder))
 
                     "PortIncoming" ->
                         Decode.map2 PortIncoming
                             (Decode.field "decoder" exprDecoder)
-                            (Decode.field "deps" (D.everySet globalDecoder))
+                            (Decode.field "deps" (D.everySet compareGlobal globalDecoder))
 
                     "PortOutgoing" ->
                         Decode.map2 PortOutgoing
                             (Decode.field "encoder" exprDecoder)
-                            (Decode.field "deps" (D.everySet globalDecoder))
+                            (Decode.field "deps" (D.everySet compareGlobal globalDecoder))
 
                     _ ->
                         Decode.fail ("Unknown Node's type: " ++ type_)
@@ -757,10 +757,10 @@ exprDecoder =
                     "Update" ->
                         Decode.map2 Update
                             (Decode.field "record" exprDecoder)
-                            (Decode.field "fields" (D.assocListDict Decode.string exprDecoder))
+                            (Decode.field "fields" (D.assocListDict compare Decode.string exprDecoder))
 
                     "Record" ->
-                        Decode.map Record (Decode.field "value" (D.assocListDict Decode.string exprDecoder))
+                        Decode.map Record (Decode.field "value" (D.assocListDict compare Decode.string exprDecoder))
 
                     "Unit" ->
                         Decode.succeed Unit
@@ -774,8 +774,8 @@ exprDecoder =
                     "Shader" ->
                         Decode.map3 Shader
                             (Decode.field "src" Shader.sourceDecoder)
-                            (Decode.field "attributes" (D.everySet Decode.string))
-                            (Decode.field "uniforms" (D.everySet Decode.string))
+                            (Decode.field "attributes" (D.everySet compare Decode.string))
+                            (Decode.field "uniforms" (D.everySet compare Decode.string))
 
                     _ ->
                         Decode.fail ("Unknown Expr's type: " ++ type_)

@@ -6,10 +6,11 @@ module Generate.Mode exposing
     )
 
 import AST.Optimized as Opt
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
 import Elm.Compiler.Type.Extract as Extract
 import Generate.JavaScript.Name as JsName
+import Utils.Main as Utils
 
 
 
@@ -50,12 +51,7 @@ shortenFieldNames (Opt.GlobalGraph _ frequencies) =
 
 addToBuckets : Name.Name -> Int -> Dict Int (List Name.Name) -> Dict Int (List Name.Name)
 addToBuckets field frequency buckets =
-    Dict.update frequency
-        (Maybe.map ((::) field)
-            >> Maybe.withDefault [ field ]
-            >> Just
-        )
-        buckets
+    Utils.mapInsertWith compare (++) frequency [ field ] buckets
 
 
 addToShortNames : List Name.Name -> ShortFieldNames -> ShortFieldNames
@@ -69,4 +65,4 @@ addField field shortNames =
         rename =
             JsName.fromInt (Dict.size shortNames)
     in
-    Dict.insert field rename shortNames
+    Dict.insert compare field rename shortNames

@@ -26,7 +26,7 @@ import Elm.Version as V
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Parse.Keyword exposing (type_)
-import Utils exposing (HTTPResponse(..), SomeException(..))
+import Utils.Main as Utils exposing (HTTPResponse(..), SomeException(..))
 
 
 

@@ -7,12 +7,12 @@ module Optimize.Port exposing
 import AST.Canonical as Can
 import AST.Optimized as Opt
 import AST.Utils.Type as Type
-import AssocList as Dict exposing (Dict)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
 import Elm.ModuleName as ModuleName
 import Optimize.Names as Names
-import Utils
+import Utils.Crash exposing (crash)
 
 
 
@@ -26,10 +26,10 @@ toEncoder tipe =
             toEncoder (Type.dealias args alias)
 
         Can.TLambda _ _ ->
-            Utils.crash "toEncoder: function"
+            crash "toEncoder: function"
 
         Can.TVar _ ->
-            Utils.crash "toEncoder: type variable"
+            crash "toEncoder: type variable"
 
         Can.TUnit ->
             Names.fmap (Opt.Function [ Name.dollar ]) (encode "null")
@@ -56,7 +56,7 @@ toEncoder tipe =
                         Names.registerGlobal ModuleName.basics Name.identity_
 
                     else
-                        Utils.crash "toEncoder: bad custom type"
+                        crash "toEncoder: bad custom type"
 
                 [ arg ] ->
                     if name == Name.maybe then
@@ -69,13 +69,13 @@ toEncoder tipe =
                         encodeArray arg
 
                     else
-                        Utils.crash "toEncoder: bad custom type"
+                        crash "toEncoder: bad custom type"
 
                 _ ->
-                    Utils.crash "toEncoder: bad custom type"
+                    crash "toEncoder: bad custom type"
 
         Can.TRecord _ (Just _) ->
-            Utils.crash "toEncoder: bad record"
+            crash "toEncoder: bad record"
 
         Can.TRecord fields Nothing ->
             let
@@ -237,10 +237,10 @@ toDecoder : Can.Type -> Names.Tracker Opt.Expr
 toDecoder tipe =
     case tipe of
         Can.TLambda _ _ ->
-            Utils.crash "functions should not be allowed through input ports"
+            crash "functions should not be allowed through input ports"
 
         Can.TVar _ ->
-            Utils.crash "type variables should not be allowed through input ports"
+            crash "type variables should not be allowed through input ports"
 
         Can.TAlias _ _ args alias ->
             toDecoder (Type.dealias args alias)
@@ -278,10 +278,10 @@ toDecoder tipe =
                     decodeArray arg
 
                 _ ->
-                    Utils.crash "toDecoder: bad type"
+                    crash "toDecoder: bad type"
 
         Can.TRecord _ (Just _) ->
-            Utils.crash "toDecoder: bad record"
+            crash "toDecoder: bad record"
 
         Can.TRecord fields Nothing ->
             decodeRecord fields

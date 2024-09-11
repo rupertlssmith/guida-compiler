@@ -8,7 +8,7 @@ module Elm.Kernel exposing
     )
 
 import AST.Source as Src
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
 import Elm.ModuleName as ModuleName
 import Elm.Package as Pkg
@@ -19,7 +19,7 @@ import Parse.Primitives as P exposing (Col, Row)
 import Parse.Space as Space
 import Parse.Variable as Var
 import Reporting.Annotation as A
-import Utils
+import Utils.Crash exposing (crash)
 
 
 
@@ -59,7 +59,8 @@ addField chunk fields =
             fields
 
         ElmField f ->
-            Dict.update f
+            Dict.update compare
+                f
                 (Maybe.map ((+) 1)
                     >> Maybe.withDefault 1
                     >> Just
@@ -279,7 +280,7 @@ lookupField name fields =
                 n =
                     Dict.size fields
             in
-            ( n, Dict.insert name n fields )
+            ( n, Dict.insert compare name n fields )
 
 
 lookupEnum : Char -> Name -> Enums -> ( Int, Enums )
@@ -301,7 +302,7 @@ lookupEnum word var allEnums =
                 n =
                     Dict.size enums
             in
-            ( n, Dict.insert code (Dict.insert var n enums) allEnums )
+            ( n, Dict.insert compare code (Dict.insert compare var n enums) allEnums )
 
 
 
@@ -322,7 +323,7 @@ addImport pkg foreigns (Src.Import (A.At _ importName) maybeAlias exposing_) vta
     if Name.isKernel importName then
         case maybeAlias of
             Just _ ->
-                Utils.crash ("cannot use `as` with kernel import of: " ++ importName)
+                crash ("cannot use `as` with kernel import of: " ++ importName)
 
             Nothing ->
                 let
@@ -330,7 +331,7 @@ addImport pkg foreigns (Src.Import (A.At _ importName) maybeAlias exposing_) vta
                         Name.getKernel importName
 
                     add name table =
-                        Dict.insert (Name.sepBy '_' home name) (JsVar home name) table
+                        Dict.insert compare (Name.sepBy '_' home name) (JsVar home name) table
                 in
                 List.foldl add vtable (toNames exposing_)
 
@@ -343,7 +344,7 @@ addImport pkg foreigns (Src.Import (A.At _ importName) maybeAlias exposing_) vta
                 toPrefix importName maybeAlias
 
             add name table =
-                Dict.insert (Name.sepBy '_' prefix name) (ElmVar home name) table
+                Dict.insert compare (Name.sepBy '_' prefix name) (ElmVar home name) table
         in
         List.foldl add vtable (toNames exposing_)
 
@@ -356,7 +357,7 @@ toPrefix home maybeAlias =
 
         Nothing ->
             if Name.hasDot home then
-                Utils.crash ("kernel imports with dots need an alias: " ++ home)
+                crash ("kernel imports with dots need an alias: " ++ home)
 
             else
                 home
@@ -366,7 +367,7 @@ toNames : Src.Exposing -> List Name
 toNames exposing_ =
     case exposing_ of
         Src.Open ->
-            Utils.crash "cannot have `exposing (..)` in kernel code."
+            crash "cannot have `exposing (..)` in kernel code."
 
         Src.Explicit exposedList ->
             List.map toName exposedList
@@ -382,10 +383,10 @@ toName exposed =
             name
 
         Src.Upper _ (Src.Public _) ->
-            Utils.crash "cannot have Maybe(..) syntax in kernel code header"
+            crash "cannot have Maybe(..) syntax in kernel code header"
 
         Src.Operator _ _ ->
-            Utils.crash "cannot use binops in kernel code"
+            crash "cannot use binops in kernel code"
 
 
 

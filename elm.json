@@ -1,6 +1,7 @@
 {
     "type": "application",
     "source-directories": [
+        "src",
         "compiler/src",
         "builder/src",
         "terminal/impl",
@@ -9,7 +10,6 @@
     "elm-version": "0.19.1",
     "dependencies": {
         "direct": {
-            "Gizra/elm-all-set": "1.0.1",
             "dasch/levenshtein": "1.0.3",
             "elm/browser": "1.0.2",
             "elm/bytes": "1.0.8",
@@ -23,7 +23,6 @@
             "elm-community/list-extra": "8.7.0",
             "elm-community/maybe-extra": "5.3.0",
             "mgold/elm-nonempty-list": "4.2.0",
-            "pzp1997/assoc-list": "1.0.0",
             "rtfeldman/elm-hex": "1.0.0",
             "the-sett/elm-pretty-printer": "3.1.0",
             "zwilias/elm-rosetree": "1.5.0"

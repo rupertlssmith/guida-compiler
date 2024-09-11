@@ -1,7 +1,7 @@
 module Init exposing (run)
 
-import AssocList as Dict exposing (Dict)
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Data.NonEmptyList as NE
 import Deps.Solver as Solver
 import Elm.Constraint as Con
@@ -11,7 +11,7 @@ import Elm.Version as V
 import Reporting
 import Reporting.Doc as D
 import Reporting.Exit as Exit
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -107,7 +107,7 @@ init =
                                                     Dict.map (\_ (Solver.Details vsn _) -> vsn) details
 
                                                 directs =
-                                                    Utils.mapIntersection solution defaults
+                                                    Dict.intersection solution defaults
 
                                                 indirects =
                                                     Dict.diff solution defaults
@@ -127,7 +127,7 @@ init =
 
 defaults : Dict Pkg.Name Con.Constraint
 defaults =
-    Dict.fromList
+    Dict.fromList Pkg.compareName
         [ ( Pkg.core, Con.anything )
         , ( Pkg.browser, Con.anything )
         , ( Pkg.html, Con.anything )

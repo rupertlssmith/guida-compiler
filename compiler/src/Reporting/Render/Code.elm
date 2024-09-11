@@ -10,7 +10,7 @@ module Reporting.Render.Code exposing
     )
 
 import Char
-import EverySet
+import Data.Set as EverySet
 import List.Extra as List
 import Parse.Primitives exposing (Col, Row)
 import Parse.Symbol exposing (binopCharSet)

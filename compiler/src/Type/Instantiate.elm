@@ -4,11 +4,11 @@ module Type.Instantiate exposing
     )
 
 import AST.Canonical as Can
-import AssocList as Dict exposing (Dict)
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Data.Name exposing (Name)
 import Type.Type exposing (Type(..))
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -48,7 +48,7 @@ fromSrcType freeVars sourceType =
                                     fromSrcType freeVars realType
 
                                 Can.Holey realType ->
-                                    fromSrcType (Dict.fromList targs) realType
+                                    fromSrcType (Dict.fromList compare targs) realType
                             )
                     )
 
@@ -63,7 +63,7 @@ fromSrcType freeVars sourceType =
 
         Can.TRecord fields maybeExt ->
             IO.pure RecordN
-                |> IO.apply (Utils.mapTraverse (fromSrcFieldType freeVars) fields)
+                |> IO.apply (Utils.mapTraverse compare (fromSrcFieldType freeVars) fields)
                 |> IO.apply
                     (case maybeExt of
                         Nothing ->

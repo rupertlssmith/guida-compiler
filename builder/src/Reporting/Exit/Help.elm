@@ -15,7 +15,7 @@ import Data.IO as IO exposing (IO)
 import Json.EncodeX as E
 import Reporting.Doc as D
 import Reporting.Error as Error
-import Utils
+import Utils.Main as Utils
 
 
 

@@ -2,18 +2,18 @@ module Canonicalize.Environment.Local exposing (add)
 
 import AST.Canonical as Can
 import AST.Source as Src
-import AssocList as Dict exposing (Dict)
 import Canonicalize.Environment as Env
 import Canonicalize.Environment.Dups as Dups
 import Canonicalize.Type as Type
 import Data.Graph as Graph
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
 import Elm.ModuleName as ModuleName
 import Reporting.Annotation as A
 import Reporting.Error.Canonicalize as Error
 import Reporting.Result as R
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -50,7 +50,7 @@ addVars module_ env =
             (\topLevelVars ->
                 let
                     vs2 =
-                        Dict.union topLevelVars env.vars
+                        Dict.union compare topLevelVars env.vars
                 in
                 -- Use union to overwrite foreign stuff.
                 { env | vars = vs2 }
@@ -126,7 +126,7 @@ addUnion home types ((A.At _ (Src.Union (A.At _ name) _ _)) as union) =
                 one =
                     Env.Specific home (Env.Union arity home)
             in
-            Dict.insert name one types
+            Dict.insert compare name one types
         )
         (checkUnionFreeVars union)
 
@@ -162,7 +162,7 @@ addAlias ({ home, vars, types, ctors, binops, q_vars, q_types, q_ctors } as env)
                                             Env.Specific home (Env.Alias (List.length args) home args ctype)
 
                                         ts1 =
-                                            Dict.insert name one types
+                                            Dict.insert compare name one types
                                     in
                                     R.ok (Env.Env home vars ts1 ctors binops q_vars q_types q_ctors)
                                 )
@@ -261,7 +261,7 @@ checkAliasFreeVars (A.At aliasRegion (Src.Alias (A.At _ name) args tipe)) =
                         addFreeVars tipe Dict.empty
 
                     overlap =
-                        Dict.size (Utils.mapIntersection boundVars freeVars)
+                        Dict.size (Dict.intersection boundVars freeVars)
                 in
                 if Dict.size boundVars == overlap && Dict.size freeVars == overlap then
                     R.ok (List.map A.toValue args)
@@ -283,7 +283,7 @@ addFreeVars (A.At region tipe) freeVars =
             addFreeVars result (addFreeVars arg freeVars)
 
         Src.TVar name ->
-            Dict.insert name region freeVars
+            Dict.insert compare name region freeVars
 
         Src.TType _ _ args ->
             List.foldl addFreeVars freeVars args
@@ -299,7 +299,7 @@ addFreeVars (A.At region tipe) freeVars =
                             freeVars
 
                         Just (A.At extRegion ext) ->
-                            Dict.insert ext extRegion freeVars
+                            Dict.insert compare ext extRegion freeVars
             in
             List.foldl (\( _, t ) fvs -> addFreeVars t fvs) extFreeVars fields
 
@@ -331,12 +331,12 @@ addCtors (Src.Module _ _ _ _ _ unions aliases _ _) env =
                                     (\ctors ->
                                         let
                                             cs2 =
-                                                Dict.union ctors env.ctors
+                                                Dict.union compare ctors env.ctors
                                         in
                                         R.ok
                                             ( { env | ctors = cs2 }
-                                            , Dict.fromList (List.map Tuple.first unionInfo)
-                                            , Dict.fromList (List.map Tuple.first aliasInfo)
+                                            , Dict.fromList compare (List.map Tuple.first unionInfo)
+                                            , Dict.fromList compare (List.map Tuple.first aliasInfo)
                                             )
                                     )
                         )

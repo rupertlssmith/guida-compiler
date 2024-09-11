@@ -1,7 +1,7 @@
 module Nitpick.Debug exposing (hasDebugUses)
 
 import AST.Optimized as Opt
-import AssocList as Dict
+import Data.Map as Dict
 
 
 

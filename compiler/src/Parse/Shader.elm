@@ -2,7 +2,7 @@ module Parse.Shader exposing (shader)
 
 import AST.Source as Src
 import AST.Utils.Shader as Shader
-import AssocList as Dict
+import Data.Map as Dict
 import Data.Name as Name
 import Parse.Primitives as P exposing (Col, Parser, Row)
 import Reporting.Annotation as A

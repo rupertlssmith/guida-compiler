@@ -2,8 +2,8 @@ module Type.Solve exposing (run)
 
 import AST.Canonical as Can
 import Array exposing (Array)
-import AssocList as Dict exposing (Dict)
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
 import Data.NonEmptyList as NE
 import Elm.Kernel exposing (Chunk(..))
@@ -18,7 +18,8 @@ import Type.Occurs as Occurs
 import Type.Type as Type exposing (Constraint(..), Type, nextMark)
 import Type.Unify as Unify
 import Type.UnionFind as UF exposing (Content, Descriptor(..), Mark, Variable)
-import Utils
+import Utils.Crash exposing (crash)
+import Utils.Main as Utils
 
 
 
@@ -35,7 +36,7 @@ run constraint =
                         (\(State env _ errors) ->
                             case errors of
                                 [] ->
-                                    Utils.mapTraverse Type.toAnnotation env
+                                    Utils.mapTraverse compare Type.toAnnotation env
                                         |> IO.fmap Ok
 
                                 e :: es ->
@@ -195,12 +196,12 @@ solve env rank pools ((State _ sMark sErrors) as state) constraint =
             solve env rank pools state headerCon
                 |> IO.bind
                     (\state1 ->
-                        Utils.mapTraverse (A.traverse (typeToVariable rank pools)) header
+                        Utils.mapTraverse compare (A.traverse (typeToVariable rank pools)) header
                             |> IO.bind
                                 (\locals ->
                                     let
                                         newEnv =
-                                            Dict.union env (Dict.map (\_ -> A.toValue) locals)
+                                            Dict.union compare env (Dict.map (\_ -> A.toValue) locals)
                                     in
                                     solve newEnv rank pools state1 subCon
                                         |> IO.bind
@@ -247,7 +248,7 @@ solve env rank pools ((State _ sMark sErrors) as state) constraint =
                                                     |> IO.bind
                                                         (\_ ->
                                                             -- run solver in next pool
-                                                            Utils.mapTraverse (A.traverse (typeToVariable nextRank nextPools)) header
+                                                            Utils.mapTraverse compare (A.traverse (typeToVariable nextRank nextPools)) header
                                                                 |> IO.bind
                                                                     (\locals ->
                                                                         solve env nextRank nextPools state headerCon
@@ -276,7 +277,7 @@ solve env rank pools ((State _ sMark sErrors) as state) constraint =
                                                                                                                     (\_ ->
                                                                                                                         let
                                                                                                                             newEnv =
-                                                                                                                                Dict.union env (Dict.map (\_ -> A.toValue) locals)
+                                                                                                                                Dict.union compare env (Dict.map (\_ -> A.toValue) locals)
 
                                                                                                                             tempState =
                                                                                                                                 State savedEnv finalMark errors
@@ -313,7 +314,7 @@ isGeneric var =
                     Type.toErrorType var
                         |> IO.bind
                             (\tipe ->
-                                Utils.crash <|
+                                crash <|
                                     "You ran into a compiler bug. Here are some details for the developers:\n\n"
                                         ++ "    "
                                         ++ Debug.toString (ET.toDoc L.empty RT.None tipe)
@@ -670,7 +671,7 @@ typeToVar rank pools aliasDict tipe =
             Utils.listTraverse (Utils.tupleTraverse go) args
                 |> IO.bind
                     (\argVars ->
-                        typeToVar rank pools (Dict.fromList argVars) aliasType
+                        typeToVar rank pools (Dict.fromList compare argVars) aliasType
                             |> IO.bind
                                 (\aliasVar ->
                                     register rank pools (UF.Alias home name argVars aliasVar)
@@ -681,7 +682,7 @@ typeToVar rank pools aliasDict tipe =
             IO.pure (Utils.find name aliasDict)
 
         Type.RecordN fields ext ->
-            Utils.mapTraverse go fields
+            Utils.mapTraverse compare go fields
                 |> IO.bind
                     (\fieldVars ->
                         go ext
@@ -759,7 +760,7 @@ srcTypeToVariable rank pools freeVars srcType =
         makeVar name _ =
             UF.fresh (Descriptor (nameToContent name) rank Type.noMark Nothing)
     in
-    Utils.mapTraverseWithKey makeVar freeVars
+    Utils.mapTraverseWithKey compare makeVar freeVars
         |> IO.bind
             (\flexVars ->
                 IO.mVectorModify (Decode.list UF.variableDecoder) (Encode.list UF.variableEncoder) pools ((++) (Dict.values flexVars)) rank
@@ -796,7 +797,7 @@ srcTypeToVar rank pools flexVars srcType =
                     )
 
         Can.TRecord fields maybeExt ->
-            Utils.mapTraverse (srcFieldTypeToVar rank pools flexVars) fields
+            Utils.mapTraverse compare (srcFieldTypeToVar rank pools flexVars) fields
                 |> IO.bind
                     (\fieldVars ->
                         (case maybeExt of
@@ -836,7 +837,7 @@ srcTypeToVar rank pools flexVars srcType =
                     (\argVars ->
                         (case aliasType of
                             Can.Holey tipe ->
-                                srcTypeToVar rank pools (Dict.fromList argVars) tipe
+                                srcTypeToVar rank pools (Dict.fromList compare argVars) tipe
 
                             Can.Filled tipe ->
                                 go tipe
@@ -1038,7 +1039,7 @@ traverseFlatType f flatType =
 
         UF.Record1 fields ext ->
             IO.pure UF.Record1
-                |> IO.apply (Utils.mapTraverse f fields)
+                |> IO.apply (Utils.mapTraverse compare f fields)
                 |> IO.apply (f ext)
 
         UF.Unit1 ->

@@ -2,7 +2,7 @@ module Terminal.Chomp exposing (chomp)
 
 import Data.IO as IO exposing (IO)
 import Terminal.Internal exposing (ArgError(..), Args(..), CompleteArgs(..), Error(..), Expectation(..), Flag(..), FlagError(..), Flags(..), Parser(..), RequiredArgs(..))
-import Utils
+import Utils.Main as Utils
 
 
 

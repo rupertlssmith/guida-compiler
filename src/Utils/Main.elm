@@ -1,4 +1,4 @@
-module Utils exposing
+module Utils.Main exposing
     ( AsyncException(..)
     , Chan
     , FilePath
@@ -19,7 +19,6 @@ module Utils exposing
     , bsReadFile
     , builderHPutBuilder
     , chItemDecoder
-    , crash
     , dictMapM_
     , dirCanonicalizePath
     , dirCreateDirectoryIfMissing
@@ -93,7 +92,6 @@ module Utils exposing
     , mapFromKeysA
     , mapFromListWith
     , mapInsertWith
-    , mapIntersection
     , mapIntersectionWith
     , mapIntersectionWithKey
     , mapLookupMin
@@ -158,17 +156,18 @@ module Utils exposing
     )
 
 import Array exposing (Array)
-import AssocList as Dict exposing (Dict)
 import Data.IO as IO exposing (IO(..), IORef(..))
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.NonEmptyList as NE
-import EverySet exposing (EverySet)
+import Data.Set as EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra as List
 import Reporting.Result as R
 import Reporting.Task as Task exposing (Task)
 import Time
+import Utils.Crash exposing (crash)
 
 
 lift : ()
@@ -225,11 +224,11 @@ mapFromKeysA _ _ =
     Debug.todo "mapFromKeysA"
 
 
-mapFromListWith : (a -> a -> a) -> List ( k, a ) -> Dict k a
-mapFromListWith f =
+mapFromListWith : (k -> k -> Order) -> (a -> a -> a) -> List ( k, a ) -> Dict k a
+mapFromListWith keyComparison f =
     List.foldl
         (\( k, a ) ->
-            Dict.update k (Maybe.map (flip f a))
+            Dict.update keyComparison k (Maybe.map (flip f a))
         )
         Dict.empty
 
@@ -257,10 +256,10 @@ eitherLefts =
         )
 
 
-mapFromKeys : (k -> v) -> List k -> Dict k v
-mapFromKeys f =
+mapFromKeys : (k -> k -> Order) -> (k -> v) -> List k -> Dict k v
+mapFromKeys keyComparison f =
     List.map (\k -> ( k, f k ))
-        >> Dict.fromList
+        >> Dict.fromList keyComparison
 
 
 flip : (a -> b -> c) -> b -> a -> c
@@ -317,47 +316,34 @@ mapFindMin dict =
             crash "Error: empty map has no minimal element"
 
 
-mapInsertWith : (a -> a -> a) -> k -> a -> Dict k a -> Dict k a
-mapInsertWith f k a =
-    Dict.update k
-        (Maybe.map (f a)
-            >> Maybe.withDefault a
-            >> Just
-        )
+mapInsertWith : (k -> k -> Order) -> (a -> a -> a) -> k -> a -> Dict k a -> Dict k a
+mapInsertWith keyComparison f k a =
+    Dict.update keyComparison k (Maybe.map (f a) >> Maybe.withDefault a >> Just)
 
 
-mapIntersection : Dict k a -> Dict k b -> Dict k a
-mapIntersection dict1 dict2 =
-    let
-        keys2 =
-            Dict.keys dict2
-    in
-    Dict.filter (\k _ -> List.member k keys2) dict1
+mapIntersectionWith : (k -> k -> Order) -> (a -> b -> c) -> Dict k a -> Dict k b -> Dict k c
+mapIntersectionWith keyComparison func =
+    mapIntersectionWithKey keyComparison (\_ -> func)
 
 
-mapIntersectionWith : (a -> b -> c) -> Dict k a -> Dict k b -> Dict k c
-mapIntersectionWith func =
-    mapIntersectionWithKey (\_ -> func)
+mapIntersectionWithKey : (k -> k -> Order) -> (k -> a -> b -> c) -> Dict k a -> Dict k b -> Dict k c
+mapIntersectionWithKey keyComparison func dict1 dict2 =
+    Dict.merge (\_ _ -> identity) (\k v1 v2 -> Dict.insert keyComparison k (func k v1 v2)) (\_ _ -> identity) dict1 dict2 Dict.empty
 
 
-mapIntersectionWithKey : (k -> a -> b -> c) -> Dict k a -> Dict k b -> Dict k c
-mapIntersectionWithKey func dict1 dict2 =
-    Dict.merge (\_ _ -> identity) (\k v1 v2 -> Dict.insert k (func k v1 v2)) (\_ _ -> identity) dict1 dict2 Dict.empty
+mapUnionWith : (k -> k -> Order) -> (a -> a -> a) -> Dict k a -> Dict k a -> Dict k a
+mapUnionWith keyComparison f a b =
+    Dict.merge (Dict.insert keyComparison) (\k va vb -> Dict.insert keyComparison k (f va vb)) (Dict.insert keyComparison) a b Dict.empty
 
 
-mapUnionWith : (a -> a -> a) -> Dict k a -> Dict k a -> Dict k a
-mapUnionWith f a b =
-    Dict.merge Dict.insert (\k va vb -> Dict.insert k (f va vb)) Dict.insert a b Dict.empty
+mapUnionsWith : (k -> k -> Order) -> (a -> a -> a) -> List (Dict k a) -> Dict k a
+mapUnionsWith keyComparison f =
+    List.foldl (mapUnionWith keyComparison f) Dict.empty
 
 
-mapUnionsWith : (a -> a -> a) -> List (Dict k a) -> Dict k a
-mapUnionsWith f =
-    List.foldl (mapUnionWith f) Dict.empty
-
-
-mapUnions : List (Dict k a) -> Dict k a
-mapUnions =
-    List.foldr Dict.union Dict.empty
+mapUnions : (k -> k -> Order) -> List (Dict k a) -> Dict k a
+mapUnions keyComparison =
+    List.foldr (Dict.union keyComparison) Dict.empty
 
 
 foldM : (b -> a -> R.RResult info warnings error b) -> b -> List a -> R.RResult info warnings error b
@@ -431,9 +417,9 @@ indexedForA xs func =
     sequenceAListIO (Index.indexedMap func xs)
 
 
-sequenceADict : Dict k (R.RResult i w e v) -> R.RResult i w e (Dict k v)
-sequenceADict =
-    Dict.foldr (\k x acc -> R.apply acc (R.fmap (Dict.insert k) x)) (R.pure Dict.empty)
+sequenceADict : (k -> k -> Order) -> Dict k (R.RResult i w e v) -> R.RResult i w e (Dict k v)
+sequenceADict keyComparison =
+    Dict.foldr (\k x acc -> R.apply acc (R.fmap (Dict.insert keyComparison k) x)) (R.pure Dict.empty)
 
 
 sequenceAList : List (R.RResult i w e v) -> R.RResult i w e (List v)
@@ -446,19 +432,19 @@ sequenceAListIO =
     List.foldr (\x acc -> IO.apply acc (IO.fmap (::) x)) (IO.pure [])
 
 
-sequenceDictMaybe : Dict k (Maybe a) -> Maybe (Dict k a)
-sequenceDictMaybe =
-    Dict.foldr (\k -> Maybe.map2 (Dict.insert k)) (Just Dict.empty)
+sequenceDictMaybe : (k -> k -> Order) -> Dict k (Maybe a) -> Maybe (Dict k a)
+sequenceDictMaybe keyComparison =
+    Dict.foldr (\k -> Maybe.map2 (Dict.insert keyComparison k)) (Just Dict.empty)
 
 
-sequenceDictResult : Dict k (Result e v) -> Result e (Dict k v)
-sequenceDictResult =
-    Dict.foldr (\k -> Result.map2 (Dict.insert k)) (Ok Dict.empty)
+sequenceDictResult : (k -> k -> Order) -> Dict k (Result e v) -> Result e (Dict k v)
+sequenceDictResult keyComparison =
+    Dict.foldr (\k -> Result.map2 (Dict.insert keyComparison k)) (Ok Dict.empty)
 
 
-sequenceDictResult_ : Dict k (Result e a) -> Result e ()
-sequenceDictResult_ =
-    sequenceDictResult >> Result.map (\_ -> ())
+sequenceDictResult_ : (k -> k -> Order) -> Dict k (Result e a) -> Result e ()
+sequenceDictResult_ keyComparison =
+    sequenceDictResult keyComparison >> Result.map (\_ -> ())
 
 
 sequenceListMaybe : List (Maybe a) -> Maybe (List a)
@@ -471,9 +457,9 @@ sequenceNonemptyListResult (NE.Nonempty x xs) =
     List.foldr (\a acc -> Result.map2 NE.cons a acc) (Result.map NE.singleton x) xs
 
 
-keysSet : Dict k a -> EverySet k
-keysSet =
-    Dict.keys >> EverySet.fromList
+keysSet : (k -> k -> Order) -> Dict k a -> EverySet k
+keysSet keyComparison =
+    Dict.keys >> EverySet.fromList keyComparison
 
 
 maybe : b -> (a -> b) -> Maybe a -> b
@@ -519,21 +505,21 @@ mapMArray =
     arrayTraverse
 
 
-mapMinViewWithKey : (( k, a ) -> comparable) -> Dict k a -> Maybe ( ( k, a ), Dict k a )
-mapMinViewWithKey compare dict =
+mapMinViewWithKey : (k -> k -> Order) -> (( k, a ) -> comparable) -> Dict k a -> Maybe ( ( k, a ), Dict k a )
+mapMinViewWithKey keyComparison compare dict =
     case List.sortBy compare (Dict.toList dict) of
         first :: tail ->
-            Just ( first, Dict.fromList tail )
+            Just ( first, Dict.fromList keyComparison tail )
 
         _ ->
             Nothing
 
 
-mapMapMaybe : (a -> Maybe b) -> Dict k a -> Dict k b
-mapMapMaybe func =
+mapMapMaybe : (k -> k -> Order) -> (a -> Maybe b) -> Dict k a -> Dict k b
+mapMapMaybe keyComparison func =
     Dict.toList
         >> List.filterMap (\( k, a ) -> Maybe.map (Tuple.pair k) (func a))
-        >> Dict.fromList
+        >> Dict.fromList keyComparison
 
 
 forMArray : Array a -> (a -> IO b) -> IO (Array b)
@@ -546,36 +532,36 @@ forM_ list f =
     mapM_ f list
 
 
-mapTraverse : (a -> IO b) -> Dict k a -> IO (Dict k b)
-mapTraverse f =
-    mapTraverseWithKey (\_ -> f)
+mapTraverse : (k -> k -> Order) -> (a -> IO b) -> Dict k a -> IO (Dict k b)
+mapTraverse keyComparison f =
+    mapTraverseWithKey keyComparison (\_ -> f)
 
 
-mapTraverseWithKey : (k -> a -> IO b) -> Dict k a -> IO (Dict k b)
-mapTraverseWithKey f =
-    Dict.foldl (\k a -> IO.bind (\c -> IO.fmap (\va -> Dict.insert k va c) (f k a)))
+mapTraverseWithKey : (k -> k -> Order) -> (k -> a -> IO b) -> Dict k a -> IO (Dict k b)
+mapTraverseWithKey keyComparison f =
+    Dict.foldl (\k a -> IO.bind (\c -> IO.fmap (\va -> Dict.insert keyComparison k va c) (f k a)))
         (IO.pure Dict.empty)
 
 
-mapTraverseResult : (a -> Result e b) -> Dict k a -> Result e (Dict k b)
-mapTraverseResult f =
-    mapTraverseWithKeyResult (\_ -> f)
+mapTraverseResult : (k -> k -> Order) -> (a -> Result e b) -> Dict k a -> Result e (Dict k b)
+mapTraverseResult keyComparison f =
+    mapTraverseWithKeyResult keyComparison (\_ -> f)
 
 
-mapTraverseWithKeyResult : (k -> a -> Result e b) -> Dict k a -> Result e (Dict k b)
-mapTraverseWithKeyResult f =
-    Dict.foldl (\k a -> Result.map2 (Dict.insert k) (f k a))
+mapTraverseWithKeyResult : (k -> k -> Order) -> (k -> a -> Result e b) -> Dict k a -> Result e (Dict k b)
+mapTraverseWithKeyResult keyComparison f =
+    Dict.foldl (\k a -> Result.map2 (Dict.insert keyComparison k) (f k a))
         (Ok Dict.empty)
 
 
-mapTraverseStateT : (a -> IO.StateT s b) -> Dict k a -> IO.StateT s (Dict k b)
-mapTraverseStateT f =
-    mapTraverseWithKeyStateT (\_ -> f)
+mapTraverseStateT : (k -> k -> Order) -> (a -> IO.StateT s b) -> Dict k a -> IO.StateT s (Dict k b)
+mapTraverseStateT keyComparison f =
+    mapTraverseWithKeyStateT keyComparison (\_ -> f)
 
 
-mapTraverseWithKeyStateT : (k -> a -> IO.StateT s b) -> Dict k a -> IO.StateT s (Dict k b)
-mapTraverseWithKeyStateT f =
-    Dict.foldl (\k a -> IO.bindStateT (\c -> IO.fmapStateT (\va -> Dict.insert k va c) (f k a)))
+mapTraverseWithKeyStateT : (k -> k -> Order) -> (k -> a -> IO.StateT s b) -> Dict k a -> IO.StateT s (Dict k b)
+mapTraverseWithKeyStateT keyComparison f =
+    Dict.foldl (\k a -> IO.bindStateT (\c -> IO.fmapStateT (\va -> Dict.insert keyComparison k va c) (f k a)))
         (IO.pureStateT Dict.empty)
 
 
@@ -734,13 +720,6 @@ lines =
 unlines : List String -> String
 unlines xs =
     String.join "\n" xs ++ "\n"
-
-
-{-| Used to distingush from TODOs and crash situations
--}
-crash : String -> a
-crash =
-    Debug.todo
 
 
 

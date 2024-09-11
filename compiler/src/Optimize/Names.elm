@@ -19,13 +19,13 @@ module Optimize.Names exposing
 
 import AST.Canonical as Can
 import AST.Optimized as Opt
-import AssocList as Dict exposing (Dict)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
+import Data.Set as EverySet exposing (EverySet)
 import Elm.ModuleName as ModuleName
-import EverySet exposing (EverySet)
 import Reporting.Annotation as A
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -63,7 +63,7 @@ registerKernel : Name -> a -> Tracker a
 registerKernel home value =
     Tracker <|
         \uid deps fields ->
-            TResult uid (EverySet.insert (Opt.toKernelGlobal home) deps) fields value
+            TResult uid (EverySet.insert Opt.compareGlobal (Opt.toKernelGlobal home) deps) fields value
 
 
 registerGlobal : ModuleName.Canonical -> Name -> Tracker Opt.Expr
@@ -74,7 +74,7 @@ registerGlobal home name =
                 global =
                     Opt.Global home name
             in
-            TResult uid (EverySet.insert global deps) fields (Opt.VarGlobal global)
+            TResult uid (EverySet.insert Opt.compareGlobal global deps) fields (Opt.VarGlobal global)
 
 
 registerDebug : Name -> ModuleName.Canonical -> A.Region -> Tracker Opt.Expr
@@ -85,7 +85,7 @@ registerDebug name home region =
                 global =
                     Opt.Global ModuleName.debug name
             in
-            TResult uid (EverySet.insert global deps) fields (Opt.VarDebug name home region Nothing)
+            TResult uid (EverySet.insert Opt.compareGlobal global deps) fields (Opt.VarDebug name home region Nothing)
 
 
 registerCtor : ModuleName.Canonical -> Name -> Index.ZeroBased -> Can.CtorOpts -> Tracker Opt.Expr
@@ -97,7 +97,7 @@ registerCtor home name index opts =
                     Opt.Global home name
 
                 newDeps =
-                    EverySet.insert global deps
+                    EverySet.insert Opt.compareGlobal global deps
             in
             case opts of
                 Can.Normal ->
@@ -124,7 +124,7 @@ registerCtor home name index opts =
                                 Opt.VarEnum global index
 
                 Can.Unbox ->
-                    TResult uid (EverySet.insert identity newDeps) fields (Opt.VarBox global)
+                    TResult uid (EverySet.insert Opt.compareGlobal identity newDeps) fields (Opt.VarBox global)
 
 
 identity : Opt.Global
@@ -136,7 +136,7 @@ registerField : Name -> a -> Tracker a
 registerField name value =
     Tracker <|
         \uid d fields ->
-            TResult uid d (Utils.mapInsertWith (+) name 1 fields) value
+            TResult uid d (Utils.mapInsertWith compare (+) name 1 fields) value
 
 
 registerFieldDict : Dict Name v -> a -> Tracker a
@@ -145,7 +145,7 @@ registerFieldDict newFields value =
         \uid d fields ->
             TResult uid
                 d
-                (Utils.mapUnionWith (+) fields (Dict.map (\_ -> toOne) newFields))
+                (Utils.mapUnionWith compare (+) fields (Dict.map (\_ -> toOne) newFields))
                 value
 
 
@@ -163,7 +163,7 @@ registerFieldList names value =
 
 addOne : Name -> Dict Name Int -> Dict Name Int
 addOne name fields =
-    Utils.mapInsertWith (+) name 1 fields
+    Utils.mapInsertWith compare (+) name 1 fields
 
 
 
@@ -211,6 +211,6 @@ traverse func =
     List.foldl (\a -> bind (\acc -> fmap (\b -> acc ++ [ b ]) (func a))) (pure [])
 
 
-mapTraverse : (a -> Tracker b) -> Dict k a -> Tracker (Dict k b)
-mapTraverse func =
-    Dict.foldl (\k a -> bind (\c -> fmap (\va -> Dict.insert k va c) (func a))) (pure Dict.empty)
+mapTraverse : (k -> k -> Order) -> (a -> Tracker b) -> Dict k a -> Tracker (Dict k b)
+mapTraverse keyComparison func =
+    Dict.foldl (\k a -> bind (\c -> fmap (\va -> Dict.insert keyComparison k va c) (func a))) (pure Dict.empty)

@@ -3,10 +3,10 @@ module Diff exposing
     , run
     )
 
-import AssocList as Dict
 import BackgroundWriter as BW
 import Build
 import Data.IO exposing (IO)
+import Data.Map as Dict
 import Data.Name as Name
 import Data.NonEmptyList as NE
 import Deps.Diff as DD exposing (Changes(..), ModuleChanges(..), PackageChanges(..))

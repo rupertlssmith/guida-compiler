@@ -7,7 +7,7 @@ module Parse.Symbol exposing
     )
 
 import Data.Name exposing (Name)
-import EverySet exposing (EverySet)
+import Data.Set as EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Parse.Primitives as P exposing (Col, Parser, Row)
@@ -94,7 +94,7 @@ isBinopCharHelp char =
 
 binopCharSet : EverySet Int
 binopCharSet =
-    EverySet.fromList (List.map Char.toCode (String.toList "+-/*=.<>:&|^?%!"))
+    EverySet.fromList compare (List.map Char.toCode (String.toList "+-/*=.<>:&|^?%!"))
 
 
 

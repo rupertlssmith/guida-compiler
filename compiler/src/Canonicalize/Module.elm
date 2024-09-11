@@ -2,7 +2,6 @@ module Canonicalize.Module exposing (canonicalize)
 
 import AST.Canonical as Can
 import AST.Source as Src
-import AssocList as Dict exposing (Dict)
 import Canonicalize.Effects as Effects
 import Canonicalize.Environment as Env
 import Canonicalize.Environment.Dups as Dups
@@ -13,6 +12,7 @@ import Canonicalize.Pattern as Pattern
 import Canonicalize.Type as Type
 import Data.Graph as Graph
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
 import Elm.Interface as I
 import Elm.Kernel exposing (Chunk(..))
@@ -23,7 +23,7 @@ import Reporting.Error.Canonicalize as Error
 import Reporting.Error.Syntax exposing (Let(..))
 import Reporting.Result as R
 import Reporting.Warning as W
-import Utils
+import Utils.Crash exposing (crash)
 
 
 
@@ -45,7 +45,7 @@ canonicalize pkg ifaces ((Src.Module _ exports docs imports values _ _ binops ef
             ModuleName.Canonical pkg (Src.getName modul)
 
         cbinops =
-            Dict.fromList (List.map canonicalizeBinop binops)
+            Dict.fromList compare (List.map canonicalizeBinop binops)
     in
     Foreign.createInitialEnv home ifaces imports
         |> R.bind (Local.add modul)
@@ -122,7 +122,7 @@ detectBadCycles scc =
             R.ok def
 
         Graph.CyclicSCC [] ->
-            Utils.crash "The definition of Data.Graph.SCC should not allow empty CyclicSCC!"
+            crash "The definition of Data.Graph.SCC should not allow empty CyclicSCC!"
 
         Graph.CyclicSCC (def :: defs) ->
             let
@@ -260,7 +260,7 @@ canonicalizeExports values unions aliases binops effects (A.At region exposing_)
         Src.Explicit exposeds ->
             let
                 names =
-                    Dict.fromList (List.map valueToName values)
+                    Dict.fromList compare (List.map valueToName values)
             in
             R.traverse (checkExposed names unions aliases binops effects) exposeds
                 |> R.bind

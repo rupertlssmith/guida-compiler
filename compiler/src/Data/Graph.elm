@@ -28,10 +28,10 @@ module Data.Graph exposing
     , vertices
     )
 
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Set exposing (Set)
 import Tree exposing (Tree)
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -71,7 +71,7 @@ assocs arr =
 array : ( Int, Int ) -> List ( Int, e ) -> Array i e
 array ( l, u ) =
     List.filter (\( i, _ ) -> i >= l && i <= u + 1)
-        >> Dict.fromList
+        >> Dict.fromList compare
         >> Array l u
 
 
@@ -81,11 +81,11 @@ accumArray f initial ( l, u ) ies =
         initialArr =
             List.repeat ((u + 1) - l) ()
                 |> List.indexedMap (\i _ -> ( l + i, initial ))
-                |> Dict.fromList
+                |> Dict.fromList compare
     in
     List.foldr
         (\( i, a ) acc ->
-            Dict.update i (Maybe.map (\v -> f v a)) acc
+            Dict.update compare i (Maybe.map (\v -> f v a)) acc
         )
         initialArr
         ies

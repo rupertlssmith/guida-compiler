@@ -18,12 +18,12 @@ module Canonicalize.Environment exposing
 
 import AST.Canonical as Can
 import AST.Utils.Binop as Binop
-import AssocList as Dict exposing (Dict)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
 import Data.OneOrMore as OneOrMore
+import Data.Set as EverySet
 import Elm.ModuleName exposing (Canonical)
-import EverySet
 import Maybe exposing (Maybe(..))
 import Reporting.Annotation as A
 import Reporting.Error.Canonicalize as Error
@@ -139,12 +139,12 @@ type Binop
 addLocals : Dict Name.Name A.Region -> Env -> EResult i w Env
 addLocals names env =
     R.fmap (\newVars -> { env | vars = newVars })
-        (Dict.merge (\name region -> R.fmap (Dict.insert name (addLocalLeft name region)))
+        (Dict.merge (\name region -> R.fmap (Dict.insert compare name (addLocalLeft name region)))
             (\name region var acc ->
                 addLocalBoth name region var
-                    |> R.bind (\var_ -> R.fmap (Dict.insert name var_) acc)
+                    |> R.bind (\var_ -> R.fmap (Dict.insert compare name var_) acc)
             )
-            (\name var -> R.fmap (Dict.insert name var))
+            (\name var -> R.fmap (Dict.insert compare name var))
             names
             env.vars
             (R.ok Dict.empty)
@@ -256,7 +256,7 @@ findBinop region { binops } name =
             R.throw (Error.AmbiguousBinop region name h hs)
 
         Nothing ->
-            R.throw (Error.NotFoundBinop region name (EverySet.fromList (Dict.keys binops)))
+            R.throw (Error.NotFoundBinop region name (EverySet.fromList compare (Dict.keys binops)))
 
 
 
@@ -265,4 +265,4 @@ findBinop region { binops } name =
 
 toPossibleNames : Exposed a -> Qualified a -> Error.PossibleNames
 toPossibleNames exposed qualified =
-    Error.PossibleNames (EverySet.fromList (Dict.keys exposed)) (Dict.map (\_ -> Dict.keys >> EverySet.fromList) qualified)
+    Error.PossibleNames (EverySet.fromList compare (Dict.keys exposed)) (Dict.map (\_ -> Dict.keys >> EverySet.fromList compare) qualified)

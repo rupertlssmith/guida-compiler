@@ -12,7 +12,8 @@ import Generate
 import Reporting
 import Reporting.Exit as Exit
 import Reporting.Task as Task
-import Utils exposing (FilePath)
+import Utils.Crash exposing (crash)
+import Utils.Main as Utils exposing (FilePath)
 
 
 
@@ -44,7 +45,6 @@ buildReactorFrontEnd =
                                                 |> Task.bind
                                                     (\artifacts ->
                                                         Task.mapError Exit.ReactorBadGenerate (Generate.prod root details artifacts)
-                                                            |> Task.fmap (\javascript -> javascript)
                                                     )
                                         )
                                 )
@@ -73,9 +73,5 @@ runTaskUnsafe task =
 
                     Err exit ->
                         Exit.toStderr (Exit.reactorToReport exit)
-                            |> IO.fmap
-                                (\_ ->
-                                    Utils.crash
-                                        "\n--------------------------------------------------------\nError in Develop.StaticFiles.Build.buildReactorFrontEnd\nCompile with `elm make` directly to figure it out faster\n--------------------------------------------------------\n"
-                                )
+                            |> IO.fmap (\_ -> crash "\n--------------------------------------------------------\nError in Develop.StaticFiles.Build.buildReactorFrontEnd\nCompile with `elm make` directly to figure it out faster\n--------------------------------------------------------\n")
             )

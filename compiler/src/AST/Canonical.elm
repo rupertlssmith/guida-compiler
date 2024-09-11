@@ -60,8 +60,8 @@ module AST.Canonical exposing
 import AST.Source as Src
 import AST.Utils.Binop as Binop
 import AST.Utils.Shader as Shader
-import AssocList as Dict exposing (Dict)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name exposing (Name)
 import Elm.ModuleName as ModuleName
 import Json.Decode as Decode
@@ -339,7 +339,7 @@ freeVarsEncoder =
 
 freeVarsDecoder : Decode.Decoder FreeVars
 freeVarsDecoder =
-    D.assocListDict Decode.string (Decode.succeed ())
+    D.assocListDict compare Decode.string (Decode.succeed ())
 
 
 aliasEncoder : Alias -> Encode.Value
@@ -434,7 +434,7 @@ typeDecoder =
 
                     "TRecord" ->
                         Decode.map2 TRecord
-                            (Decode.field "fields" (D.assocListDict Decode.string fieldTypeDecoder))
+                            (Decode.field "fields" (D.assocListDict compare Decode.string fieldTypeDecoder))
                             (Decode.field "ext" (Decode.maybe Decode.string))
 
                     "TUnit" ->
@@ -932,11 +932,11 @@ expr_Decoder =
                         Decode.map3 Update
                             (Decode.field "name" Decode.string)
                             (Decode.field "record" exprDecoder)
-                            (Decode.field "updates" (D.assocListDict Decode.string fieldUpdateDecoder))
+                            (Decode.field "updates" (D.assocListDict compare Decode.string fieldUpdateDecoder))
 
                     "Record" ->
                         Decode.map Record
-                            (Decode.field "fields" (D.assocListDict Decode.string exprDecoder))
+                            (Decode.field "fields" (D.assocListDict compare Decode.string exprDecoder))
 
                     "Unit" ->
                         Decode.succeed Unit

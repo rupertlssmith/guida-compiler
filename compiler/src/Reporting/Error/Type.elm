@@ -16,8 +16,8 @@ module Reporting.Error.Type exposing
     )
 
 import AST.Canonical as Can
-import AssocList as Dict exposing (Dict)
 import Data.Index as Index
+import Data.Map as Dict exposing (Dict)
 import Data.Name exposing (Name)
 import Json.Decode as Decode
 import Json.DecodeX as DecodeX
@@ -2832,7 +2832,7 @@ contextDecoder =
                     "RecordUpdateKeys" ->
                         Decode.map2 RecordUpdateKeys
                             (Decode.field "record" Decode.string)
-                            (Decode.field "expectedFields" (DecodeX.assocListDict Decode.string Can.fieldUpdateDecoder))
+                            (Decode.field "expectedFields" (DecodeX.assocListDict compare Decode.string Can.fieldUpdateDecoder))
 
                     "RecordUpdateValue" ->
                         Decode.map RecordUpdateValue (Decode.field "field" Decode.string)

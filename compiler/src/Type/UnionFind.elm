@@ -31,14 +31,14 @@ module Type.UnionFind exposing
 
 -}
 
-import AssocList as Dict exposing (Dict)
 import Data.IO as IO exposing (IO, IORef)
+import Data.Map as Dict exposing (Dict)
 import Data.Name exposing (Name)
 import Elm.ModuleName as ModuleName
 import Json.Decode as Decode
 import Json.DecodeX as D
 import Json.Encode as Encode
-import Utils
+import Utils.Crash exposing (crash)
 
 
 
@@ -318,7 +318,7 @@ flatTypeDecoder =
 
                     "Record1" ->
                         Decode.map2 Record1
-                            (Decode.field "variableDict" (D.assocListDict Decode.string variableDecoder))
+                            (Decode.field "variableDict" (D.assocListDict compare Decode.string variableDecoder))
                             (Decode.field "variable" variableDecoder)
 
                     "Unit1" ->
@@ -582,7 +582,7 @@ union p1 p2 newDesc =
                                                                         )
 
                                                         _ ->
-                                                            Utils.crash "Unexpected pattern"
+                                                            crash "Unexpected pattern"
                                                 )
                                     )
                         )

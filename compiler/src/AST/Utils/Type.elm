@@ -6,7 +6,7 @@ module AST.Utils.Type exposing
     )
 
 import AST.Canonical exposing (AliasType(..), FieldType(..), Type(..))
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Data.Name exposing (Name)
 
 
@@ -32,7 +32,7 @@ dealias : List ( Name, Type ) -> AliasType -> Type
 dealias args aliasType =
     case aliasType of
         Holey tipe ->
-            dealiasHelp (Dict.fromList args) tipe
+            dealiasHelp (Dict.fromList compare args) tipe
 
         Filled tipe ->
             tipe

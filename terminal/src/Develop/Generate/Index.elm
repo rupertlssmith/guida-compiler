@@ -1,8 +1,8 @@
 module Develop.Generate.Index exposing (generate)
 
-import AssocList as Dict exposing (Dict)
 import BackgroundWriter as BW
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Develop.Generate.Help as Help
 import Elm.Details as Details
 import Elm.Outline as Outline
@@ -11,7 +11,7 @@ import Elm.Version as V
 import Json.EncodeX as E
 import Reporting
 import Stuff
-import Utils exposing (FilePath)
+import Utils.Main as Utils exposing (FilePath)
 
 
 
@@ -230,7 +230,7 @@ encode (Flags root pwd dirs files readme outline exactDeps) =
         , ( "files", E.list encodeFile files )
         , ( "readme", Utils.maybe E.null E.string readme )
         , ( "outline", Utils.maybe E.null Outline.encode outline )
-        , ( "exactDeps", E.dict Pkg.toJsonString V.encode exactDeps )
+        , ( "exactDeps", E.dict Pkg.compareName Pkg.toJsonString V.encode exactDeps )
         ]
 
 

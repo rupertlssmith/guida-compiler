@@ -4,8 +4,8 @@ module Terminal.Helpers exposing
     , version
     )
 
-import AssocList as Dict
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict
 import Deps.Registry as Registry
 import Elm.Package as Pkg
 import Elm.Version as V
@@ -13,7 +13,7 @@ import Parse.Primitives as P
 import Reporting.Suggest as Suggest
 import Stuff
 import Terminal.Internal exposing (Parser(..))
-import Utils exposing (FilePath)
+import Utils.Main as Utils exposing (FilePath)
 
 
 

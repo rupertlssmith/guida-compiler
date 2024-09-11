@@ -6,9 +6,9 @@ module Compile exposing
 import AST.Canonical as Can
 import AST.Optimized as Opt
 import AST.Source as Src
-import AssocList exposing (Dict)
 import Canonicalize.Module as Canonicalize
 import Data.IO as IO exposing (IO)
+import Data.Map exposing (Dict)
 import Data.Name as Name exposing (Name)
 import Elm.Interface as I
 import Elm.ModuleName as ModuleName

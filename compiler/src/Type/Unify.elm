@@ -3,15 +3,15 @@ module Type.Unify exposing
     , unify
     )
 
-import AssocList as Dict exposing (Dict)
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
 import Elm.ModuleName as ModuleName
 import Type.Error as Error
 import Type.Occurs as Occurs
 import Type.Type as Type
 import Type.UnionFind as UF
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -749,7 +749,7 @@ unifyRecord : Context -> RecordStructure -> RecordStructure -> Unify ()
 unifyRecord context (RecordStructure fields1 ext1) (RecordStructure fields2 ext2) =
     let
         sharedFields =
-            Utils.mapIntersectionWith Tuple.pair fields1 fields2
+            Utils.mapIntersectionWith compare Tuple.pair fields1 fields2
 
         uniqueFields1 =
             Dict.diff fields1 fields2
@@ -781,7 +781,7 @@ unifyRecord context (RecordStructure fields1 ext1) (RecordStructure fields2 ext2
     else
         let
             otherFields =
-                Dict.union uniqueFields1 uniqueFields2
+                Dict.union compare uniqueFields1 uniqueFields2
         in
         fresh context Type.unnamedFlexVar
             |> bind
@@ -802,19 +802,19 @@ unifyRecord context (RecordStructure fields1 ext1) (RecordStructure fields2 ext2
 
 unifySharedFields : Context -> Dict Name.Name ( UF.Variable, UF.Variable ) -> Dict Name.Name UF.Variable -> UF.Variable -> Unify ()
 unifySharedFields context sharedFields otherFields ext =
-    traverseMaybe unifyField sharedFields
+    traverseMaybe compare unifyField sharedFields
         |> bind
             (\matchingFields ->
                 if Dict.size sharedFields == Dict.size matchingFields then
-                    merge context (UF.Structure (UF.Record1 (Dict.union matchingFields otherFields) ext))
+                    merge context (UF.Structure (UF.Record1 (Dict.union compare matchingFields otherFields) ext))
 
                 else
                     mismatch
             )
 
 
-traverseMaybe : (a -> b -> Unify (Maybe c)) -> Dict a b -> Unify (Dict a c)
-traverseMaybe func =
+traverseMaybe : (a -> a -> Order) -> (a -> b -> Unify (Maybe c)) -> Dict a b -> Unify (Dict a c)
+traverseMaybe keyComparison func =
     Dict.foldl
         (\a b ->
             bind
@@ -822,7 +822,7 @@ traverseMaybe func =
                     fmap
                         (\maybeC ->
                             maybeC
-                                |> Maybe.map (\c -> Dict.insert a c acc)
+                                |> Maybe.map (\c -> Dict.insert keyComparison a c acc)
                                 |> Maybe.withDefault acc
                         )
                         (func a b)
@@ -865,7 +865,7 @@ gatherFields fields variable =
             (\(UF.Descriptor content _ _ _) ->
                 case content of
                     UF.Structure (UF.Record1 subFields subExt) ->
-                        gatherFields (Dict.union fields subFields) subExt
+                        gatherFields (Dict.union compare fields subFields) subExt
 
                     UF.Alias _ _ _ var ->
                         -- TODO may be dropping useful alias info here

@@ -16,8 +16,8 @@ module Type.Error exposing
     , typeEncoder
     )
 
-import AssocList as Dict exposing (Dict)
 import Data.Bag as Bag
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name exposing (Name)
 import Elm.ModuleName as ModuleName
 import Json.Decode as Decode
@@ -28,7 +28,7 @@ import Maybe.Extra as Maybe
 import Reporting.Doc as D
 import Reporting.Render.Type as RT
 import Reporting.Render.Type.Localizer as L
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -656,7 +656,7 @@ diffRecord localizer fields1 ext1 fields2 ext2 =
         both : Dict Name (Diff ( D.Doc, D.Doc ))
         both =
             Dict.merge (\_ _ acc -> acc)
-                (\field t1 t2 acc -> Dict.insert field (toOverlapDocs field t1 t2) acc)
+                (\field t1 t2 acc -> Dict.insert compare field (toOverlapDocs field t1 t2) acc)
                 (\_ _ acc -> acc)
                 fields1
                 fields2
@@ -673,7 +673,7 @@ diffRecord localizer fields1 ext1 fields2 ext2 =
                     let
                         sequenceA : Dict Name (Diff ( D.Doc, D.Doc )) -> Diff (Dict Name ( D.Doc, D.Doc ))
                         sequenceA =
-                            Dict.foldr (\k x acc -> applyDiff acc (fmapDiff (Dict.insert k) x)) (pureDiff Dict.empty)
+                            Dict.foldr (\k x acc -> applyDiff acc (fmapDiff (Dict.insert compare k) x)) (pureDiff Dict.empty)
                     in
                     if Dict.isEmpty left && Dict.isEmpty right then
                         sequenceA both
@@ -682,7 +682,7 @@ diffRecord localizer fields1 ext1 fields2 ext2 =
                         -- Map.union
                         --     <$> sequenceA both
                         --     <*> Diff left right (Different Bag.empty)
-                        liftA2 Dict.union
+                        liftA2 (Dict.union compare)
                             (sequenceA both)
                             (Diff left right (Different Bag.empty))
             in
@@ -947,7 +947,7 @@ typeDecoder =
 
                     "Record" ->
                         Decode.map2 Record
-                            (Decode.field "msgType" (DecodeX.assocListDict Decode.string typeDecoder))
+                            (Decode.field "msgType" (DecodeX.assocListDict compare Decode.string typeDecoder))
                             (Decode.field "decoder" extensionDecoder)
 
                     "Unit" ->

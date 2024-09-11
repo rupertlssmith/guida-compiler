@@ -10,13 +10,13 @@ module Canonicalize.Environment.Dups exposing
     , unions
     )
 
-import AssocList as Dict exposing (Dict)
+import Data.Map as Dict exposing (Dict)
 import Data.Name exposing (Name)
 import Data.OneOrMore as OneOrMore exposing (OneOrMore)
 import Reporting.Annotation as A
 import Reporting.Error.Canonicalize as Error exposing (Error)
 import Reporting.Result as R
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -47,7 +47,7 @@ detect toError dict =
         (\name values ->
             R.bind
                 (\acc ->
-                    R.fmap (\b -> Dict.insert name b acc)
+                    R.fmap (\b -> Dict.insert compare name b acc)
                         (detectHelp toError name values)
                 )
         )
@@ -80,7 +80,7 @@ checkFields fields =
 
 addField : ( A.Located Name, a ) -> Tracker a -> Tracker a
 addField ( A.At region name, value ) dups =
-    Utils.mapInsertWith OneOrMore.more name (OneOrMore.one (Info region value)) dups
+    Utils.mapInsertWith compare OneOrMore.more name (OneOrMore.one (Info region value)) dups
 
 
 checkFields_ : (A.Region -> a -> b) -> List ( A.Located Name, a ) -> R.RResult i w Error (Dict Name b)
@@ -90,7 +90,7 @@ checkFields_ toValue fields =
 
 addField_ : (A.Region -> a -> b) -> ( A.Located Name, a ) -> Tracker b -> Tracker b
 addField_ toValue ( A.At region name, value ) dups =
-    Utils.mapInsertWith OneOrMore.more name (OneOrMore.one (Info region (toValue region value))) dups
+    Utils.mapInsertWith compare OneOrMore.more name (OneOrMore.one (Info region (toValue region value))) dups
 
 
 
@@ -109,12 +109,12 @@ one name region value =
 
 insert : Name -> A.Region -> a -> Tracker a -> Tracker a
 insert name region value dict =
-    Utils.mapInsertWith (\new old -> OneOrMore.more old new) name (OneOrMore.one (Info region value)) dict
+    Utils.mapInsertWith compare (\new old -> OneOrMore.more old new) name (OneOrMore.one (Info region value)) dict
 
 
 union : Tracker a -> Tracker a -> Tracker a
 union a b =
-    Utils.mapUnionWith OneOrMore.more a b
+    Utils.mapUnionWith compare OneOrMore.more a b
 
 
 unions : List (Tracker a) -> Tracker a

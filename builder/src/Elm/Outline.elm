@@ -14,9 +14,9 @@ module Elm.Outline exposing
     , write
     )
 
-import AssocList as Dict exposing (Dict)
 import Basics.Extra as Basics
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Data.NonEmptyList as NE
 import Data.OneOrMore as OneOrMore
 import Elm.Constraint as Con
@@ -31,7 +31,7 @@ import Json.Encode as Encode
 import Json.EncodeX as E
 import Parse.Primitives as P
 import Reporting.Exit as Exit
-import Utils exposing (FilePath)
+import Utils.Main as Utils exposing (FilePath)
 
 
 
@@ -247,8 +247,8 @@ detectDuplicates root srcDirs =
         |> IO.fmap
             (\pairs ->
                 Utils.mapLookupMin <|
-                    Utils.mapMapMaybe isDup <|
-                        Utils.mapFromListWith OneOrMore.more pairs
+                    Utils.mapMapMaybe compare isDup <|
+                        Utils.mapFromListWith compare OneOrMore.more pairs
             )
 
 
@@ -354,7 +354,7 @@ constraintDecoder =
 
 depsDecoder : Decoder a -> Decoder (Dict Pkg.Name a)
 depsDecoder valueDecoder =
-    D.dict (Pkg.keyDecoder Exit.OP_BadDependencyName) valueDecoder
+    D.dict Pkg.compareName (Pkg.keyDecoder Exit.OP_BadDependencyName) valueDecoder
 
 
 dirsDecoder : Decoder (NE.Nonempty SrcDir)

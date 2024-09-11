@@ -19,7 +19,7 @@ import Data.IO as IO exposing (IO(..))
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Time
-import Utils exposing (FilePath, ZipArchive, ZipEntry)
+import Utils.Main as Utils exposing (FilePath, ZipArchive, ZipEntry)
 
 
 

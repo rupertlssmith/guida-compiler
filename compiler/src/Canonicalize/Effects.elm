@@ -6,10 +6,10 @@ module Canonicalize.Effects exposing
 import AST.Canonical as Can
 import AST.Source as Src
 import AST.Utils.Type as Type
-import AssocList as Dict exposing (Dict)
 import Basics exposing (..)
 import Canonicalize.Environment as Env
 import Canonicalize.Type as Type
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
 import Elm.ModuleName as ModuleName
 import Maybe exposing (Maybe(..))
@@ -46,12 +46,12 @@ canonicalize env values unions effects =
                 pairs =
                     R.traverse (canonicalizePort env) ports
             in
-            R.fmap (Can.Ports << Dict.fromList) pairs
+            R.fmap (Can.Ports << Dict.fromList compare) pairs
 
         Src.Manager region manager ->
             let
                 dict =
-                    Dict.fromList (List.map toNameRegion values)
+                    Dict.fromList compare (List.map toNameRegion values)
             in
             R.ok Can.Manager
                 |> R.apply (verifyManager region dict "init")

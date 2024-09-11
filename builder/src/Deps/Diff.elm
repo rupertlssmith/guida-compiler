@@ -9,10 +9,11 @@ module Deps.Diff exposing
     , toMagnitude
     )
 
-import AssocList as Dict exposing (Dict)
 import Basics.Extra exposing (uncurry)
 import Data.IO as IO exposing (IO)
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
+import Data.Set as EverySet
 import Deps.Website as Website
 import Elm.Compiler.Type as Type
 import Elm.Docs as Docs
@@ -20,7 +21,6 @@ import Elm.Magnitude as M
 import Elm.ModuleName as ModuleName
 import Elm.Package as Pkg
 import Elm.Version as V exposing (Version)
-import EverySet
 import File
 import Http
 import Json.DecodeX as D
@@ -29,7 +29,7 @@ import Maybe.Extra
 import Reporting.Exit as Exit exposing (DocsProblem(..))
 import Stuff
 import Task
-import Utils
+import Utils.Main as Utils
 
 
 type PackageChanges
@@ -44,11 +44,11 @@ type Changes k v
     = Changes (Dict k v) (Dict k ( v, v )) (Dict k v)
 
 
-getChanges : (v -> v -> Bool) -> Dict k v -> Dict k v -> Changes k v
-getChanges isEquivalent old new =
+getChanges : (k -> k -> Order) -> (v -> v -> Bool) -> Dict k v -> Dict k v -> Changes k v
+getChanges keyComparison isEquivalent old new =
     let
         overlap =
-            Utils.mapIntersectionWith Tuple.pair old new
+            Utils.mapIntersectionWith keyComparison Tuple.pair old new
 
         changed =
             Dict.filter (\_ ( v1, v2 ) -> not (isEquivalent v1 v2)) overlap
@@ -70,7 +70,7 @@ diff oldDocs newDocs =
             Dict.filter (\_ chng -> moduleChangeMagnitude chng /= M.PATCH) chngs
 
         (Changes added changed removed) =
-            getChanges (\_ _ -> False) oldDocs newDocs
+            getChanges compare (\_ _ -> False) oldDocs newDocs
     in
     PackageChanges
         (Dict.keys added)
@@ -81,10 +81,10 @@ diff oldDocs newDocs =
 diffModule : ( Docs.Module, Docs.Module ) -> ModuleChanges
 diffModule ( Docs.Module _ _ u1 a1 v1 b1, Docs.Module _ _ u2 a2 v2 b2 ) =
     ModuleChanges
-        (getChanges isEquivalentUnion u1 u2)
-        (getChanges isEquivalentAlias a1 a2)
-        (getChanges isEquivalentValue v1 v2)
-        (getChanges isEquivalentBinop b1 b2)
+        (getChanges compare isEquivalentUnion u1 u2)
+        (getChanges compare isEquivalentAlias a1 a2)
+        (getChanges compare isEquivalentValue v1 v2)
+        (getChanges compare isEquivalentBinop b1 b2)
 
 
 

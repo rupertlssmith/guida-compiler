@@ -30,7 +30,7 @@ import Json.EncodeX as Encode
 import Reporting.Doc as D
 import Reporting.Exit as Exit
 import Reporting.Exit.Help as Help
-import Utils exposing (AsyncException(..), Chan, MVar, SomeException)
+import Utils.Main as Utils exposing (AsyncException(..), Chan, MVar, SomeException)
 
 
 

@@ -3,11 +3,11 @@ module Optimize.Module exposing (optimize)
 import AST.Canonical as Can
 import AST.Optimized as Opt
 import AST.Utils.Type as Type
-import AssocList as Dict exposing (Dict)
 import Canonicalize.Effects as Effects
+import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
+import Data.Set as EverySet exposing (EverySet)
 import Elm.ModuleName as ModuleName
-import EverySet exposing (EverySet)
 import Optimize.Expression as Expr
 import Optimize.Names as Names
 import Optimize.Port as Port
@@ -15,7 +15,7 @@ import Reporting.Annotation as A
 import Reporting.Error.Main as E
 import Reporting.Result as R
 import Reporting.Warning as W
-import Utils
+import Utils.Main as Utils
 
 
 
@@ -71,7 +71,7 @@ addCtorNode home opts (Can.Ctor name index numArgs _) nodes =
                 Can.Enum ->
                     Opt.Enum index
     in
-    Dict.insert (Opt.Global home name) node nodes
+    Dict.insert Opt.compareGlobal (Opt.Global home name) node nodes
 
 
 
@@ -96,7 +96,7 @@ addAlias home name (Can.Alias _ tipe) ((Opt.LocalGraph main nodes fieldCounts) a
             in
             Opt.LocalGraph
                 main
-                (Dict.insert (Opt.Global home name) node nodes)
+                (Dict.insert Opt.compareGlobal (Opt.Global home name) node nodes)
                 (Dict.foldr addRecordCtorField fieldCounts fields)
 
         _ ->
@@ -105,7 +105,7 @@ addAlias home name (Can.Alias _ tipe) ((Opt.LocalGraph main nodes fieldCounts) a
 
 addRecordCtorField : Name.Name -> Can.FieldType -> Dict Name.Name Int -> Dict Name.Name Int
 addRecordCtorField name _ fields =
-    Utils.mapInsertWith (+) name 1 fields
+    Utils.mapInsertWith compare (+) name 1 fields
 
 
 
@@ -138,17 +138,17 @@ addEffects home effects ((Opt.LocalGraph main nodes fields) as graph) =
                 newNodes =
                     case manager of
                         Can.Cmd _ ->
-                            Dict.insert cmd link <|
-                                Dict.insert fx (Opt.Manager Opt.Cmd) nodes
+                            Dict.insert Opt.compareGlobal cmd link <|
+                                Dict.insert Opt.compareGlobal fx (Opt.Manager Opt.Cmd) nodes
 
                         Can.Sub _ ->
-                            Dict.insert sub link <|
-                                Dict.insert fx (Opt.Manager Opt.Sub) nodes
+                            Dict.insert Opt.compareGlobal sub link <|
+                                Dict.insert Opt.compareGlobal fx (Opt.Manager Opt.Sub) nodes
 
                         Can.Fx _ _ ->
-                            Dict.insert cmd link <|
-                                Dict.insert sub link <|
-                                    Dict.insert fx (Opt.Manager Opt.Fx) nodes
+                            Dict.insert Opt.compareGlobal cmd link <|
+                                Dict.insert Opt.compareGlobal sub link <|
+                                    Dict.insert Opt.compareGlobal fx (Opt.Manager Opt.Fx) nodes
             in
             Opt.LocalGraph main newNodes fields
 
@@ -185,8 +185,8 @@ addToGraph : Opt.Global -> Opt.Node -> Dict Name.Name Int -> Opt.LocalGraph -> O
 addToGraph name node fields (Opt.LocalGraph main nodes fieldCounts) =
     Opt.LocalGraph
         main
-        (Dict.insert name node nodes)
-        (Utils.mapUnionWith (+) fields fieldCounts)
+        (Dict.insert Opt.compareGlobal name node nodes)
+        (Utils.mapUnionWith compare (+) fields fieldCounts)
 
 
 
@@ -280,7 +280,7 @@ addDefHelp region annotations home name args body ((Opt.LocalGraph _ nodes field
 
             addMain ( deps, fields, main ) =
                 addDefNode home name args body deps <|
-                    Opt.LocalGraph (Just main) nodes (Utils.mapUnionWith (+) fields fieldCounts)
+                    Opt.LocalGraph (Just main) nodes (Utils.mapUnionWith compare (+) fields fieldCounts)
         in
         case Type.deepDealias tipe of
             Can.TType hm nm [ _ ] ->
@@ -327,7 +327,7 @@ addDefNode home name args body mainDeps graph =
                                             )
                                 )
     in
-    addToGraph (Opt.Global home name) (Opt.Define def (EverySet.union deps mainDeps)) fields graph
+    addToGraph (Opt.Global home name) (Opt.Define def (EverySet.union Opt.compareGlobal deps mainDeps)) fields graph
 
 
 
@@ -364,8 +364,8 @@ addRecDefs home defs (Opt.LocalGraph main nodes fieldCounts) =
     in
     Opt.LocalGraph
         main
-        (Dict.insert cycleName (Opt.Cycle names values functions deps) (Dict.union links nodes))
-        (Utils.mapUnionWith (+) fields fieldCounts)
+        (Dict.insert Opt.compareGlobal cycleName (Opt.Cycle names values functions deps) (Dict.union Opt.compareGlobal links nodes))
+        (Utils.mapUnionWith compare (+) fields fieldCounts)
 
 
 toName : Can.Def -> Name.Name
@@ -383,14 +383,14 @@ addValueName def names =
     case def of
         Can.Def (A.At _ name) args _ ->
             if List.isEmpty args then
-                EverySet.insert name names
+                EverySet.insert compare name names
 
             else
                 names
 
         Can.TypedDef (A.At _ name) _ args _ _ ->
             if List.isEmpty args then
-                EverySet.insert name names
+                EverySet.insert compare name names
 
             else
                 names
@@ -400,10 +400,10 @@ addLink : ModuleName.Canonical -> Opt.Node -> Can.Def -> Dict Opt.Global Opt.Nod
 addLink home link def links =
     case def of
         Can.Def (A.At _ name) _ _ ->
-            Dict.insert (Opt.Global home name) link links
+            Dict.insert Opt.compareGlobal (Opt.Global home name) link links
 
         Can.TypedDef (A.At _ name) _ _ _ _ ->
-            Dict.insert (Opt.Global home name) link links
+            Dict.insert Opt.compareGlobal (Opt.Global home name) link links
 
 
 
