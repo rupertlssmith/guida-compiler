@@ -414,7 +414,7 @@ fromExpr ((Level indent nextLevel) as level) grouping expression =
         ExprObject fields ->
             let
                 ( anyMany, builders ) =
-                    linesMap (fromField (nextLevel ())) (List.sortBy Tuple.first fields)
+                    linesMap (fromField (nextLevel ())) fields
             in
             ( Many
             , if anyMany then

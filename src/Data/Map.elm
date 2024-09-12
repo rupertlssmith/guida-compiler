@@ -191,9 +191,9 @@ insert keyComparison key value dict =
             remove key dict
     in
     D
-        -- (List.sortWith (\( ka, _ ) ( kb, _ ) -> keyComparison ka kb)
-        -- )
-        (( key, value ) :: alteredAlist)
+        (List.sortWith (\( ka, _ ) ( kb, _ ) -> keyComparison ka kb)
+            (( key, value ) :: alteredAlist)
+        )
 
 
 {-| Remove a key-value pair from a dictionary. If the key is not found,
