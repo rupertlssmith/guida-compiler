@@ -89,7 +89,9 @@ addAlias home name (Can.Alias _ tipe) ((Opt.LocalGraph main nodes fieldCounts) a
         Can.TRecord fields Nothing ->
             let
                 function =
-                    Opt.Function (List.map Tuple.first (Can.fieldsToList fields)) <| Opt.Record <| Dict.map (\field _ -> Opt.VarLocal field) fields
+                    Opt.Function (List.map Tuple.first (Can.fieldsToList fields)) <|
+                        Opt.Record <|
+                            Dict.map (\field _ -> Opt.VarLocal field) fields
 
                 node =
                     Opt.Define function EverySet.empty

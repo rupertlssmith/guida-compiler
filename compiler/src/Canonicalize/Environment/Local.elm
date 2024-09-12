@@ -379,7 +379,10 @@ toRecordCtor home name vars fields =
             List.map (\var -> ( var, Can.TVar var )) vars
 
         alias =
-            List.foldr (\( _, t1 ) t2 -> Can.TLambda t1 t2) (Can.TAlias home name avars (Can.Filled (Can.TRecord fields Nothing))) (Can.fieldsToList fields)
+            List.foldr
+                (\( _, t1 ) t2 -> Can.TLambda t1 t2)
+                (Can.TAlias home name avars (Can.Filled (Can.TRecord fields Nothing)))
+                (Can.fieldsToList fields)
     in
     Env.RecordCtor home vars alias
 
