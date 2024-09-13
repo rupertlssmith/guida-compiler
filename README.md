@@ -3,6 +3,33 @@
 Guida is a functional programming language that builds upon the solid foundation of Elm, offering
 backward compatibility with all existing Elm 0.19.1 projects.
 
+# Vision
+
+Guida builds on the foundations of Elm, aiming to advance the future of functional programming.
+By translating Elm's compiler from Haskell to a self-hosted environment, Guida helps developers to
+build reliable, maintainable, and performant applications without leaving the language they love.
+
+**Continuity and Confidence (Version 1.x):**
+Guida starts by ensuring full backward compatibility with Elm v0.19.1, allowing developers to migrate
+effortlessly and explore Guida with complete confidence.
+
+This commitment to continuity means that this version will faithfully replicate not only the
+features and behaviors of Elm v0.19.1, but also any existing bugs and quirks.
+By doing so, we provide a stable and predictable environment for developers, ensuring that their
+existing Elm projects work exactly as expected when migrated to Guida.
+
+**Evolution and Innovation (Version 2.x and Beyond):**
+As Guida evolves, we will introduce new features and improvements.
+This phase will foster a unified ecosystem that adapts to the needs of its users.
+
+**Core Principles:**
+
+- **Backward Compatibility:** Respect for existing Elm projects, ensuring a frictionless migration.
+- **Accessibility:** Lowering barriers for developers by implementing Guida’s core in its own syntax.
+
+Our ultimate goal is to create a language that inherits the best aspects of Elm while adapting and
+growing to meet the needs of its users.
+
 # Development
 
 Start by installing [Node Version Manager](https://github.com/nvm-sh/nvm).
@@ -56,32 +83,11 @@ To clear all cache and re-generate `./bin/guida.js` run the following:
 rm -rf ~/.guida guida-stuff; npm start
 ```
 
-# Vision
+# Run tests
 
-Guida builds on the foundations of Elm, aiming to advance the future of functional programming.
-By translating Elm's compiler from Haskell to a self-hosted environment, Guida helps developers to
-build reliable, maintainable, and performant applications without leaving the language they love.
-
-**Continuity and Confidence (Version 1.x):**
-Guida starts by ensuring full backward compatibility with Elm v0.19.1, allowing developers to migrate
-effortlessly and explore Guida with complete confidence.
-
-This commitment to continuity means that this version will faithfully replicate not only the
-features and behaviors of Elm v0.19.1, but also any existing bugs and quirks.
-By doing so, we provide a stable and predictable environment for developers, ensuring that their
-existing Elm projects work exactly as expected when migrated to Guida.
-
-**Evolution and Innovation (Version 2.x and Beyond):**
-As Guida evolves, we will introduce new features and improvements.
-This phase will foster a unified ecosystem that adapts to the needs of its users.
-
-**Core Principles:**
-
-- **Backward Compatibility:** Respect for existing Elm projects, ensuring a frictionless migration.
-- **Accessibility:** Lowering barriers for developers by implementing Guida’s core in its own syntax.
-
-Our ultimate goal is to create a language that inherits the best aspects of Elm while adapting and
-growing to meet the needs of its users.
+```
+npm test
+```
 
 # References
 
