@@ -95,12 +95,12 @@ toChain path test successTree failureTree =
             treeToDecider failureTree
     in
     case treeToDecider successTree of
-        Opt.Chain testChain success subFailure ->
+        (Opt.Chain testChain success subFailure) as success_ ->
             if failure == subFailure then
                 Opt.Chain (( path, test ) :: testChain) success failure
 
             else
-                Opt.Chain [ ( path, test ) ] success failure
+                Opt.Chain [ ( path, test ) ] success_ failure
 
         success ->
             Opt.Chain [ ( path, test ) ] success failure
