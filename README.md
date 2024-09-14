@@ -85,8 +85,16 @@ rm -rf ~/.guida guida-stuff; npm start
 
 # Run tests
 
+Run `jest` tests:
+
 ```
 npm test
+```
+
+Run `elm-test` tests:
+
+```
+npm run elm-test
 ```
 
 # References
