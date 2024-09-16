@@ -26,14 +26,16 @@ module Reporting.Doc exposing
     , fromPackage
     , fromVersion
     , green
-    , hang
-      -- , hcat
+    ,  hang
+       -- , hcat
+
     , hsep
     , indent
     , intToOrdinal
     , join
-    , link
-      -- , magenta
+    ,  link
+       -- , magenta
+
     , makeLink
     , makeNakedLink
     , moreArgs

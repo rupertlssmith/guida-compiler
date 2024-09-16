@@ -747,13 +747,15 @@ fpSplitDirectories : String -> List String
 fpSplitDirectories path =
     String.split "/" path
         |> List.filter ((/=) "")
-        |> (++)
-            (if String.startsWith "/" path then
-                [ "/" ]
+        |> (\a ->
+                (if String.startsWith "/" path then
+                    [ "/" ]
 
-             else
-                []
-            )
+                 else
+                    []
+                )
+                    ++ a
+           )
 
 
 fpSplitExtension : String -> ( String, String )
@@ -1049,7 +1051,7 @@ forkIO : IO () -> IO ThreadId
 forkIO ioArg =
     IO
         (\next ->
-            ( IO.Process (Decode.map next (Decode.succeed ThreadId))
+            ( IO.Process (Decode.succeed (next ThreadId))
             , IO.NoOp
             , Just ioArg
             )
