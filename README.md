@@ -49,7 +49,7 @@ npm install
 Generate guida:
 
 ```
-npm start
+npm run build
 ```
 
 Link the project to run `guida` command:
@@ -80,7 +80,7 @@ You can then `open index.html`.
 To clear all cache and re-generate `./bin/guida.js` run the following:
 
 ```
-rm -rf ~/.guida guida-stuff; npm start
+rm -rf ~/.guida guida-stuff; npm run build
 ```
 
 # Run tests

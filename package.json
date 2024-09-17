@@ -9,9 +9,10 @@
     "guida": "./bin/index.js"
   },
   "scripts": {
-    "start": "./lib/guida.js",
+    "build": "./lib/guida.js",
     "test": "jest",
-    "elm-test": "elm-test"
+    "elm-test": "elm-test",
+    "elm-review": "elm-review"
   },
   "dependencies": {
     "adm-zip": "^0.5.15",
