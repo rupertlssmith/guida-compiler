@@ -58,7 +58,14 @@ generate mode expression =
             JsExpr <| JS.ExprInt int
 
         Opt.Float float ->
-            JsExpr <| JS.ExprFloat (String.fromFloat float)
+            JsExpr <|
+                JS.ExprFloat
+                    (if float == toFloat (floor float) then
+                        String.fromFloat float ++ ".0"
+
+                     else
+                        String.fromFloat float
+                    )
 
         Opt.VarLocal name ->
             JsExpr <| JS.ExprRef (JsName.fromLocal name)

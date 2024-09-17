@@ -87,7 +87,7 @@ accumArray f initial ( l, u ) ies =
                 |> List.indexedMap (\i _ -> ( l + i, initial ))
                 |> Dict.fromList compare
     in
-    List.foldr
+    List.foldl
         (\( i, a ) acc ->
             Dict.update compare i (Maybe.map (\v -> f v a)) acc
         )

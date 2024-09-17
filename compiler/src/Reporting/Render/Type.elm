@@ -89,9 +89,7 @@ record entries maybeExt =
             D.align <|
                 D.sep
                     [ D.cat
-                        (List.interweave (D.fromChars "{" :: List.repeat (List.length fields - 1) (D.fromChars ",")) fields
-                            |> List.intersperse (D.fromChars " ")
-                        )
+                        (List.interweave (D.fromChars "{ " :: List.repeat (List.length fields - 1) (D.fromChars ", ")) fields)
                     , D.fromChars "}"
                     ]
 
@@ -100,11 +98,9 @@ record entries maybeExt =
                 D.sep
                     [ D.hang 4 <|
                         D.sep
-                            [ D.fromChars "{" |> D.plus ext
+                            [ D.fromChars "{ " |> D.plus ext
                             , D.cat
-                                (List.interweave (D.fromChars "|" :: List.repeat (List.length fields - 1) (D.fromChars ",")) fields
-                                    |> List.intersperse (D.fromChars " ")
-                                )
+                                (List.interweave (D.fromChars "|" :: List.repeat (List.length fields - 1) (D.fromChars ", ")) fields)
                             ]
                     , D.fromChars "}"
                     ]
