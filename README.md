@@ -97,6 +97,12 @@ Run `elm-test` tests:
 npm run elm-test
 ```
 
+# Format elm source code
+
+```
+npm run elm-format
+```
+
 # References
 
 - Initial transpilation from Haskell to Elm done based on [Elm compiler v0.19.1](https://github.com/elm/compiler/releases/tag/0.19.1)
