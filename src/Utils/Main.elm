@@ -1195,8 +1195,8 @@ bsReadFile _ =
 
 
 builderHPutBuilder : IO.Handle -> String -> IO ()
-builderHPutBuilder _ _ =
-    Debug.todo "builderHPutBuilder"
+builderHPutBuilder handle str =
+    IO.make (Decode.succeed ()) (IO.HPutStr handle str)
 
 
 

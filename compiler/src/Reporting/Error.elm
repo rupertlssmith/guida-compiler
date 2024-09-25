@@ -196,7 +196,7 @@ toJson { name, absolutePath, source, error } =
             toReports (Code.toSource source) error
     in
     E.object
-        [ ( "absolutePath", E.string absolutePath )
+        [ ( "path", E.string absolutePath )
         , ( "name", E.string name )
         , ( "problems", E.list reportToJson (NE.toList reports) )
         ]

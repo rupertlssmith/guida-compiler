@@ -292,31 +292,31 @@ toAnsi handle doc =
                         colorChar =
                             case color of
                                 Just Black ->
-                                    "\u{001B}[30m"
+                                    "\u{001B}[90m"
 
                                 Just Red ->
-                                    "\u{001B}[31m"
-
-                                Just Green ->
-                                    "\u{001B}[32m"
-
-                                Just Yellow ->
-                                    "\u{001B}[33m"
-
-                                Just Blue ->
-                                    "\u{001B}[34m"
-
-                                Just Cyan ->
-                                    "\u{001B}[36m"
-
-                                Just DullRed ->
                                     "\u{001B}[91m"
 
-                                Just DullYellow ->
+                                Just Green ->
+                                    "\u{001B}[92m"
+
+                                Just Yellow ->
                                     "\u{001B}[93m"
 
-                                Just DullCyan ->
+                                Just Blue ->
+                                    "\u{001B}[94m"
+
+                                Just Cyan ->
                                     "\u{001B}[96m"
+
+                                Just DullRed ->
+                                    "\u{001B}[31m"
+
+                                Just DullYellow ->
+                                    "\u{001B}[33m"
+
+                                Just DullCyan ->
+                                    "\u{001B}[36m"
 
                                 Nothing ->
                                     ""
