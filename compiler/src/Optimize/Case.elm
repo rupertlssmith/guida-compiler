@@ -6,6 +6,7 @@ import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
 import List.Extra as List
 import Optimize.DecisionTree as DT
+import Prelude
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils
 
@@ -77,7 +78,7 @@ treeToDecider tree =
         DT.Decision path edges Nothing ->
             let
                 ( necessaryTests, fallback ) =
-                    ( Utils.init edges, Tuple.second (Utils.last edges) )
+                    ( Prelude.init edges, Tuple.second (Prelude.last edges) )
             in
             Opt.FanOut
                 path

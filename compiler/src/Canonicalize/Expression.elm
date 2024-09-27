@@ -22,6 +22,7 @@ import Elm.Kernel exposing (Chunk(..))
 import Elm.ModuleName as ModuleName
 import Elm.Package as Pkg
 import List.Extra as List
+import Prelude
 import Reporting.Annotation as A
 import Reporting.Error.Canonicalize as Error
 import Reporting.Result as R
@@ -581,7 +582,7 @@ gatherTypedArgs env name srcArgs tipe index revTypedArgs =
                 _ ->
                     let
                         ( A.At start _, A.At end _ ) =
-                            ( Utils.head srcArgs, Utils.last srcArgs )
+                            ( Prelude.head srcArgs, Prelude.last srcArgs )
                     in
                     R.throw (Error.AnnotationTooShort (A.mergeRegions start end) name index (List.length srcArgs))
 

@@ -32,6 +32,7 @@ import AST.Canonical as Can
 import AST.Utils.Type as Type
 import Data.IO as IO exposing (IO)
 import Data.Map as Dict exposing (Dict)
+import Data.Maybe as Maybe
 import Data.Name as Name exposing (Name)
 import Elm.ModuleName as ModuleName
 import Reporting.Annotation as A
@@ -243,14 +244,14 @@ nameToFlex : Name -> IO UF.Variable
 nameToFlex name =
     UF.fresh <|
         makeDescriptor <|
-            Utils.maybe UF.FlexVar UF.FlexSuper (toSuper name) (Just name)
+            Maybe.maybe UF.FlexVar UF.FlexSuper (toSuper name) (Just name)
 
 
 nameToRigid : Name -> IO UF.Variable
 nameToRigid name =
     UF.fresh <|
         makeDescriptor <|
-            Utils.maybe UF.RigidVar UF.RigidSuper (toSuper name) name
+            Maybe.maybe UF.RigidVar UF.RigidSuper (toSuper name) name
 
 
 toSuper : Name -> Maybe UF.SuperType

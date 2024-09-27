@@ -24,6 +24,7 @@ module Terminal exposing
 import Data.IO as IO exposing (IO)
 import Elm.Version as V
 import List.Extra as List
+import Prelude
 import Reporting.Doc as D
 import Terminal.Chomp as Chomp
 import Terminal.Error as Error
@@ -129,10 +130,10 @@ findIndex index point chunks =
         chunk :: cs ->
             let
                 lo =
-                    Tuple.second (Utils.head chunk)
+                    Tuple.second (Prelude.head chunk)
 
                 hi =
-                    Tuple.second (Utils.last chunk)
+                    Tuple.second (Prelude.last chunk)
             in
             if point < lo then
                 0

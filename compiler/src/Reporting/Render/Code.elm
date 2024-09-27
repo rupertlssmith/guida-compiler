@@ -40,7 +40,7 @@ toSnippet : Source -> A.Region -> Maybe A.Region -> ( Doc, Doc ) -> Doc
 toSnippet source region highlight ( preHint, postHint ) =
     D.vcat
         [ preHint
-        , D.empty
+        , D.fromChars ""
         , render source region highlight
         , postHint
         ]
@@ -52,7 +52,7 @@ toPair source r1 r2 ( oneStart, oneEnd ) ( twoStart, twoMiddle, twoEnd ) =
         OneLine codeDocs ->
             D.vcat
                 [ oneStart
-                , D.empty
+                , D.fromChars ""
                 , codeDocs
                 , oneEnd
                 ]
@@ -60,10 +60,10 @@ toPair source r1 r2 ( oneStart, oneEnd ) ( twoStart, twoMiddle, twoEnd ) =
         TwoChunks code1 code2 ->
             D.vcat
                 [ twoStart
-                , D.empty
+                , D.fromChars ""
                 , code1
                 , twoMiddle
-                , D.empty
+                , D.fromChars ""
                 , code2
                 , twoEnd
                 ]
@@ -127,7 +127,9 @@ makeUnderline width realEndLine (A.Region (A.Position start c1) (A.Position end 
 
 drawLines : Bool -> Int -> A.Region -> Source -> Doc -> Doc
 drawLines addZigZag width (A.Region (A.Position startLine _) (A.Position endLine _)) sourceLines finalLine =
-    D.vcat (List.map (drawLine addZigZag width startLine endLine) sourceLines ++ [ finalLine ])
+    D.vcat <|
+        List.map (drawLine addZigZag width startLine endLine) sourceLines
+            ++ [ finalLine ]
 
 
 drawLine : Bool -> Int -> Int -> Int -> ( Int, String ) -> Doc
@@ -151,9 +153,7 @@ addLineNumber addZigZag width start end n line =
             else
                 D.fromChars " "
     in
-    D.fromChars lineNumber
-        |> D.a spacer
-        |> D.a line
+    D.fromChars lineNumber |> D.a spacer |> D.a line
 
 
 

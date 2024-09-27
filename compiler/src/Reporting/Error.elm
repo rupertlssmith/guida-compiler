@@ -163,9 +163,9 @@ reportToDoc : String -> Report.Report -> D.Doc
 reportToDoc relativePath (Report.Report title _ _ message) =
     D.vcat
         [ toMessageBar title relativePath
-        , D.empty
+        , D.fromChars ""
         , message
-        , D.empty
+        , D.fromChars ""
         ]
 
 

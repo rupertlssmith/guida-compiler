@@ -14,9 +14,9 @@ module Generate.JavaScript.Builder exposing
 -- They did the hard work of reading the spec to figure out
 -- how all the types should fit together.
 
+import Data.Maybe as Maybe
 import Generate.JavaScript.Name as Name
 import Json.EncodeX as Json
-import Utils.Main as Utils
 
 
 
@@ -505,7 +505,7 @@ fromExpr ((Level indent nextLevel) as level) grouping expression =
         ExprFunction maybeName args stmts ->
             ( Many
             , "function "
-                ++ Utils.maybe "" identity maybeName
+                ++ Maybe.maybe "" identity maybeName
                 ++ "("
                 ++ commaSep args
                 ++ ") {\n"

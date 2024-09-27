@@ -8,6 +8,7 @@ import AST.Canonical as Can
 import AST.Optimized as Opt
 import Data.Index as Index
 import Data.Map as Dict exposing (Dict)
+import Data.Maybe as Maybe
 import Data.Name as Name
 import Data.Set as EverySet exposing (EverySet)
 import Elm.Kernel as K
@@ -130,7 +131,7 @@ generateForReplEndpoint : L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical
 generateForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName (Can.Forall _ tipe) =
     let
         name =
-            Utils.maybe Name.replValueToPrint identity maybeName
+            Maybe.maybe Name.replValueToPrint identity maybeName
 
         mode =
             Mode.Dev Nothing
@@ -150,7 +151,7 @@ postMessage : L.Localizer -> ModuleName.Canonical -> Maybe Name.Name -> Can.Type
 postMessage localizer home maybeName tipe =
     let
         name =
-            Utils.maybe Name.replValueToPrint identity maybeName
+            Maybe.maybe Name.replValueToPrint identity maybeName
 
         value =
             JsName.fromGlobal home name
@@ -165,7 +166,7 @@ postMessage localizer home maybeName tipe =
             "\"" ++ n ++ "\""
     in
     "self.postMessage({\n  name: "
-        ++ Utils.maybe "null" toName maybeName
+        ++ Maybe.maybe "null" toName maybeName
         ++ ",\n  value: "
         ++ toString
         ++ "(true, "

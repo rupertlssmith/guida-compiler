@@ -64,18 +64,15 @@ module Utils.Main exposing
     , fpTakeExtension
     , fpTakeFileName
     , fromException
-    , head
     , httpResponseDecoder
     , httpResponseEncoder
     , indexedForA
     , indexedTraverse
     , indexedZipWithA
-    , init
     , ioDictFoldM
     , ioFoldM
     , ioFoldrM
     , keysSet
-    , last
     , lift
     , lines
     , listGroupBy
@@ -107,7 +104,6 @@ module Utils.Main exposing
     , mapUnionWith
     , mapUnions
     , mapUnionsWith
-    , maybe
     , maybeEncoder
     , maybeTraverse
     , maybeTraverseStateT
@@ -120,7 +116,6 @@ module Utils.Main exposing
     , procWaitForProcess
     , procWithCreateProcess
     , putMVar
-    , putStrLn
     , readChan
     , readMVar
     , replCompleteWord
@@ -164,6 +159,7 @@ import Data.Set as EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra as List
+import Prelude
 import Reporting.Result as R
 import Reporting.Task as Task exposing (Task)
 import Time
@@ -366,36 +362,6 @@ ioDictFoldM f b =
     Dict.foldl (\_ a -> IO.bind (\acc -> f acc a)) (IO.pure b)
 
 
-head : List a -> a
-head items =
-    case List.head items of
-        Just item ->
-            item
-
-        Nothing ->
-            crash "*** Exception: Prelude.head: empty list"
-
-
-init : List a -> List a
-init items =
-    case List.init items of
-        Just initItems ->
-            initItems
-
-        Nothing ->
-            crash "*** Exception: Prelude.init: empty list"
-
-
-last : List a -> a
-last items =
-    case List.last items of
-        Just item ->
-            item
-
-        Nothing ->
-            crash "*** Exception: Prelude.last: empty list"
-
-
 indexedTraverse : (Index.ZeroBased -> a -> IO b) -> List a -> IO (List b)
 indexedTraverse func xs =
     sequenceAListIO (Index.indexedMap func xs)
@@ -460,12 +426,6 @@ sequenceNonemptyListResult (NE.Nonempty x xs) =
 keysSet : (k -> k -> Order) -> Dict k a -> EverySet k
 keysSet keyComparison =
     Dict.keys >> EverySet.fromList keyComparison
-
-
-maybe : b -> (a -> b) -> Maybe a -> b
-maybe defaultValue f =
-    Maybe.map f
-        >> Maybe.withDefault defaultValue
 
 
 unzip3 : List ( a, b, c ) -> ( List a, List b, List c )
@@ -731,15 +691,6 @@ type alias FilePath =
 
 
 
--- Prelude
-
-
-putStrLn : String -> IO ()
-putStrLn s =
-    IO.make (Decode.succeed ()) (IO.PutStrLn s)
-
-
-
 -- System.FilePath
 
 
@@ -809,7 +760,7 @@ fpIsRelative =
 
 fpTakeFileName : FilePath -> FilePath
 fpTakeFileName filename =
-    last (String.split "/" filename)
+    Prelude.last (String.split "/" filename)
 
 
 fpSplitFileName : FilePath -> ( String, String )

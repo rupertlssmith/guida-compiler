@@ -12,10 +12,10 @@ module Reporting.Exit.Help exposing
     )
 
 import Data.IO as IO exposing (IO)
+import Data.Maybe as Maybe
 import Json.EncodeX as E
 import Reporting.Doc as D
 import Reporting.Error as Error
-import Utils.Main as Utils
 
 
 
@@ -98,7 +98,7 @@ reportToJson report_ =
         Report title maybePath message ->
             E.object
                 [ ( "type", E.string "error" )
-                , ( "path", Utils.maybe E.null E.string maybePath )
+                , ( "path", Maybe.maybe E.null E.string maybePath )
                 , ( "title", E.string title )
                 , ( "message", D.encode message )
                 ]

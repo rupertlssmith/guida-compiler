@@ -25,6 +25,7 @@ import Elm.Package as Pkg
 import Elm.Version as V
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Prelude
 import Utils.Main as Utils
 
 
@@ -117,7 +118,7 @@ findRootHelp dirs =
                             IO.pure (Just (Utils.fpJoinPath dirs))
 
                         else
-                            findRootHelp (Utils.init dirs)
+                            findRootHelp (Prelude.init dirs)
                     )
 
 

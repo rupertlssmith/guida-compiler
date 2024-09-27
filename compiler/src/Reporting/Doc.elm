@@ -1,244 +1,35 @@
 module Reporting.Doc exposing
-    ( Color(..)
-    , Doc
-    , a
-    , align
-    , append
-    , args
-    , black
-    , blue
-    , cat
-    , commaSep
-    , cyan
-    , cycle
-    , displayIO
-    , dullcyan
-    , dullred
-    , dullyellow
-    , empty
-    , encode
-    , fancyLink
-    , fill
-    , fillSep
-    , fromChars
-    , fromInt
-    , fromName
-    , fromPackage
-    , fromVersion
-    , green
-    , hang
-      -- , hcat
-    , hsep
-    , indent
-    , intToOrdinal
-    , join
-    , link
-      -- , magenta
-    , makeLink
-    , makeNakedLink
-    , moreArgs
-    , ordinal
-    , plus
-    , red
-    , reflow
-    , reflowLink
-    , renderPretty
-    , sep
-    , stack
-    , toAnsi
-    , toFancyHint
-    , toFancyNote
-    , toLine
-    , toSimpleHint
-    , toSimpleNote
-    , toString
-    , vcat
-    , yellow
+    ( Doc
+    , plus, append
+    , align, cat, empty, fill, fillSep, hang
+    , hcat, hsep, indent, sep, vcat
+    , red, cyan, magenta, green, blue, black, yellow
+    , dullred, dullcyan, dullyellow
+    , Color(..), a, args, commaSep, cycle, encode, fancyLink, fromChars, fromInt, fromName, fromPackage, fromVersion, intToOrdinal, link, makeLink, makeNakedLink, moreArgs, ordinal, reflow, reflowLink, stack, toAnsi, toFancyHint, toFancyNote, toLine, toSimpleHint, toSimpleNote, toString
     )
 
-import Data.IO as IO exposing (Handle, IO)
+{-|
+
+@docs Doc
+@docs plus, append
+@docs align, cat, empty, fill, fillSep, hang
+@docs hcat, hsep, indent, sep, vcat
+@docs red, cyan, magenta, green, blue, black, yellow
+@docs dullred, dullcyan, dullyellow
+
+-}
+
+import Data.IO exposing (Handle, IO)
 import Data.Index as Index
+import Data.Maybe as Maybe
 import Data.Name exposing (Name)
 import Elm.Package as Pkg
 import Elm.Version as V
 import Json.EncodeX as E
 import List.Extra as List
-import Pretty as P
-import Pretty.Renderer
-
-
-type alias Doc =
-    P.Doc Style
-
-
-type alias Style =
-    { bold : Bool
-    , underline : Bool
-    , color : Maybe Color
-    }
-
-
-noStyle : Style
-noStyle =
-    Style False False Nothing
-
-
-type Color
-    = Red
-    | DullRed
-    | Yellow
-    | DullYellow
-    | Green
-    | Cyan
-    | DullCyan
-    | Blue
-    | Black
-
-
-encode : Doc -> E.Value
-encode doc =
-    let
-        _ =
-            Debug.log "doc" (Debug.toString (P.pretty 0 doc))
-    in
-    -- E.array (toJsonHelp noStyle [] (P.renderPretty 1 80 doc))
-    E.array []
-
-
-
--- toJsonHelp : Style -> List String -> P.SimpleDoc -> List E.Value
--- toJsonHelp style revChunks simpleDoc =
---     case simpleDoc of
---         P.SFail ->
---             Debug.todo <|
---                 "according to the main implementation, @SFail@ can not appear uncaught in a rendered @SimpleDoc@"
---         P.SEmpty ->
---             [ encodeChunks style revChunks ]
---         P.SChar char rest ->
---             toJsonHelp style ([ char ] :: revChunks) rest
---         P.SText _ string rest ->
---             toJsonHelp style (string :: revChunks) rest
---         P.SLine indent rest ->
---             toJsonHelp style (replicate indent ' ' :: "\n" :: revChunks) rest
---         P.SSGR sgrs rest ->
---             encodeChunks style revChunks :: toJsonHelp (sgrToStyle sgrs style) [] rest
--- DOC
-
-
-empty : Doc
-empty =
-    P.empty
-
-
-align : Doc -> Doc
-align =
-    P.align
-
-
-hang : Int -> Doc -> Doc
-hang =
-    P.hang
-
-
-fill : Int -> Doc -> Doc
-fill _ doc =
-    -- TODO fix this
-    doc
-
-
-fillSep : List Doc -> Doc
-fillSep =
-    P.words
-
-
-cat : List Doc -> Doc
-cat =
-    P.join P.empty
-
-
-sep : List Doc -> Doc
-sep =
-    P.words
-
-
-hsep : List Doc -> Doc
-hsep =
-    P.words
-
-
-join : Doc -> List Doc -> Doc
-join =
-    P.join
-
-
-append : Doc -> Doc -> Doc
-append =
-    P.append
-
-
-a : Doc -> Doc -> Doc
-a =
-    P.a
-
-
-plus : Doc -> Doc -> Doc
-plus doc =
-    P.a P.space >> P.a doc
-
-
-indent : Int -> Doc -> Doc
-indent =
-    P.indent
-
-
-black : Doc -> Doc
-black =
-    P.setTag { noStyle | color = Just Black }
-
-
-green : Doc -> Doc
-green =
-    P.setTag { noStyle | color = Just Green }
-
-
-dullyellow : Doc -> Doc
-dullyellow =
-    P.setTag { noStyle | color = Just DullYellow }
-
-
-yellow : Doc -> Doc
-yellow =
-    P.setTag { noStyle | color = Just Yellow }
-
-
-red : Doc -> Doc
-red =
-    P.setTag { noStyle | color = Just Red }
-
-
-dullred : Doc -> Doc
-dullred =
-    P.setTag { noStyle | color = Just DullRed }
-
-
-cyan : Doc -> Doc
-cyan =
-    P.setTag { noStyle | color = Just Cyan }
-
-
-dullcyan : Doc -> Doc
-dullcyan =
-    P.setTag { noStyle | color = Just DullCyan }
-
-
-blue : Doc -> Doc
-blue =
-    P.setTag { noStyle | color = Just Blue }
-
-
-vcat : List Doc -> Doc
-vcat =
-    P.lines
+import Prelude
+import System.Console.Ansi as Ansi
+import Text.PrettyPrint.ANSI.Leijen as P
 
 
 
@@ -247,27 +38,27 @@ vcat =
 
 fromChars : String -> Doc
 fromChars =
-    P.string
+    P.text
 
 
 fromName : Name -> Doc
 fromName =
-    P.string
+    P.text
 
 
 fromVersion : V.Version -> Doc
 fromVersion vsn =
-    P.string (V.toChars vsn)
+    P.text (V.toChars vsn)
 
 
 fromPackage : Pkg.Name -> Doc
 fromPackage pkg =
-    P.string (Pkg.toChars pkg)
+    P.text (Pkg.toChars pkg)
 
 
 fromInt : Int -> Doc
 fromInt n =
-    P.string (String.fromInt n)
+    P.text (String.fromInt n)
 
 
 
@@ -276,79 +67,21 @@ fromInt n =
 
 toAnsi : Handle -> Doc -> IO ()
 toAnsi handle doc =
-    IO.hPutStr handle
-        (Pretty.Renderer.pretty 80
-            { init = ""
-            , tagged =
-                \{ bold, color, underline } str acc ->
-                    let
-                        boldChar =
-                            if bold then
-                                "\u{001B}[1m"
-
-                            else
-                                ""
-
-                        colorChar =
-                            case color of
-                                Just Black ->
-                                    "\u{001B}[90m"
-
-                                Just Red ->
-                                    "\u{001B}[91m"
-
-                                Just Green ->
-                                    "\u{001B}[92m"
-
-                                Just Yellow ->
-                                    "\u{001B}[93m"
-
-                                Just Blue ->
-                                    "\u{001B}[94m"
-
-                                Just Cyan ->
-                                    "\u{001B}[96m"
-
-                                Just DullRed ->
-                                    "\u{001B}[31m"
-
-                                Just DullYellow ->
-                                    "\u{001B}[33m"
-
-                                Just DullCyan ->
-                                    "\u{001B}[36m"
-
-                                Nothing ->
-                                    ""
-
-                        underlineChar =
-                            if underline then
-                                "\u{001B}[4m"
-
-                            else
-                                ""
-                    in
-                    acc ++ boldChar ++ colorChar ++ underlineChar ++ str
-            , untagged =
-                \str acc ->
-                    acc ++ str ++ "\u{001B}[0m"
-            , newline =
-                \acc ->
-                    acc ++ "\n\n"
-            , outer = identity
-            }
-            doc
-        )
+    P.displayIO handle (P.renderPretty 1 80 doc)
 
 
 toString : Doc -> String
 toString doc =
-    P.pretty 80 doc
+    P.displayS (P.renderPretty 1 80 (P.plain doc)) ""
 
 
 toLine : Doc -> String
 toLine doc =
-    P.pretty (2147483647 // 2) doc
+    let
+        maxBound =
+            2147483647
+    in
+    P.displayS (P.renderPretty 1 (maxBound // 2) (P.plain doc)) ""
 
 
 
@@ -357,12 +90,12 @@ toLine doc =
 
 stack : List Doc -> Doc
 stack docs =
-    P.lines docs
+    P.vcat (List.intersperse (P.text "") docs)
 
 
 reflow : String -> Doc
 reflow paragraph =
-    P.words (List.map P.string (String.words paragraph))
+    P.fillSep (List.map P.text (String.words paragraph))
 
 
 commaSep : Doc -> (Doc -> Doc) -> List Doc -> List Doc
@@ -375,9 +108,9 @@ commaSep conjunction addStyle names =
             [ addStyle name1, conjunction, addStyle name2 ]
 
         _ ->
-            List.map (addStyle >> P.append (P.char ',')) (List.init names |> Maybe.withDefault [])
+            List.map (\name -> P.append (addStyle name) (P.text ",")) (Prelude.init names)
                 ++ [ conjunction
-                   , addStyle (List.last names |> Maybe.withDefault P.empty)
+                   , addStyle (Prelude.last names)
                    ]
 
 
@@ -387,17 +120,12 @@ commaSep conjunction addStyle names =
 
 toSimpleNote : String -> Doc
 toSimpleNote message =
-    toFancyNote (List.map P.string (String.words message))
+    toFancyNote (List.map P.text (String.words message))
 
 
 toFancyNote : List Doc -> Doc
 toFancyNote chunks =
-    P.words
-        ((P.taggedString "Note" { noStyle | underline = True }
-            |> P.a (P.char ':')
-         )
-            :: chunks
-        )
+    P.fillSep (P.append (P.underline (P.text "Note")) (P.text ":") :: chunks)
 
 
 
@@ -406,17 +134,12 @@ toFancyNote chunks =
 
 toSimpleHint : String -> Doc
 toSimpleHint message =
-    toFancyHint (List.map P.string (String.words message))
+    toFancyHint (List.map P.text (String.words message))
 
 
 toFancyHint : List Doc -> Doc
 toFancyHint chunks =
-    P.words
-        ((P.taggedString "Hint" { noStyle | underline = True }
-            |> P.a (P.char ':')
-         )
-            :: chunks
-        )
+    P.fillSep (P.append (P.underline (P.text "Hint")) (P.text ":") :: chunks)
 
 
 
@@ -425,31 +148,25 @@ toFancyHint chunks =
 
 link : String -> String -> String -> String -> Doc
 link word before fileName after =
-    P.words
-        ((P.taggedString word { noStyle | underline = True }
-            |> P.a (P.char ':')
-         )
-            :: List.map P.string (String.words before)
-            ++ P.string (makeLink fileName)
-            :: List.map P.string (String.words after)
-        )
+    P.fillSep <|
+        P.append (P.underline (P.text word)) (P.text ":")
+            :: List.map P.text (String.words before)
+            ++ P.text (makeLink fileName)
+            :: List.map P.text (String.words after)
 
 
 fancyLink : String -> List Doc -> String -> List Doc -> Doc
 fancyLink word before fileName after =
-    P.words
-        ((P.taggedString word { noStyle | underline = True }
-            |> P.a (P.char ':')
-         )
+    P.fillSep <|
+        P.append (P.underline (P.text word)) (P.text ":")
             :: before
-            ++ P.string (makeLink fileName)
+            ++ P.text (makeLink fileName)
             :: after
-        )
 
 
 makeLink : String -> String
 makeLink fileName =
-    "<https://elm-lang.org/" ++ V.toChars V.compiler ++ "/" ++ fileName ++ ">"
+    "<" ++ makeNakedLink fileName ++ ">"
 
 
 makeNakedLink : String -> String
@@ -459,11 +176,10 @@ makeNakedLink fileName =
 
 reflowLink : String -> String -> String -> Doc
 reflowLink before fileName after =
-    P.words
-        (List.map P.string (String.words before)
-            ++ P.string (makeLink fileName)
-            :: List.map P.string (String.words after)
-        )
+    P.fillSep <|
+        List.map P.text (String.words before)
+            ++ P.text (makeLink fileName)
+            :: List.map P.text (String.words after)
 
 
 
@@ -530,44 +246,415 @@ cycle : Int -> Name -> List Name -> Doc
 cycle indent_ name names =
     let
         toLn n =
-            cycleLn
-                |> P.setTag { noStyle | color = Just Yellow }
-                |> P.a (fromName n)
+            P.append cycleLn (P.dullyellow (fromName n))
     in
-    P.indent indent_
-        (P.lines
-            (cycleTop
+    P.indent indent_ <|
+        P.vcat <|
+            cycleTop
                 :: List.intersperse cycleMid (toLn name :: List.map toLn names)
                 ++ [ cycleEnd ]
-            )
-        )
 
 
 cycleTop : Doc
 cycleTop =
-    P.string "┌─────┐"
+    if isWindows then
+        P.text "+-----+"
+
+    else
+        P.text "┌─────┐"
 
 
 cycleLn : Doc
 cycleLn =
-    P.string "│    "
+    if isWindows then
+        P.text "|    "
+
+    else
+        P.text "│    "
 
 
 cycleMid : Doc
 cycleMid =
-    P.string "│     ↓"
+    if isWindows then
+        P.text "|     |"
+
+    else
+        P.text "│     ↓"
 
 
 cycleEnd : Doc
 cycleEnd =
-    P.string "└─────┘"
+    if isWindows then
+        P.text "+-<---+"
+
+    else
+        P.text "└─────┘"
 
 
-displayIO : Handle -> Doc -> IO ()
-displayIO handle doc =
-    IO.hPutStr handle (P.pretty 80 doc)
+isWindows : Bool
+isWindows =
+    -- Info.os == "mingw32"
+    False
 
 
-renderPretty : Float -> Int -> Doc -> Doc
-renderPretty _ _ _ =
-    Debug.todo "renderPretty"
+
+-- JSON
+
+
+encode : Doc -> E.Value
+encode doc =
+    E.array (toJsonHelp noStyle [] (P.renderPretty 1 80 doc))
+
+
+type Style
+    = Style Bool Bool (Maybe Color)
+
+
+noStyle : Style
+noStyle =
+    Style False False Nothing
+
+
+type Color
+    = Red
+    | RED
+    | Magenta
+    | MAGENTA
+    | Yellow
+    | YELLOW
+    | Green
+    | GREEN
+    | Cyan
+    | CYAN
+    | Blue
+    | BLUE
+    | Black
+    | BLACK
+    | White
+    | WHITE
+
+
+toJsonHelp : Style -> List String -> P.SimpleDoc -> List E.Value
+toJsonHelp style revChunks simpleDoc =
+    case simpleDoc of
+        P.SFail ->
+            Debug.todo <|
+                "according to the main implementation, @SFail@ can not appear uncaught in a rendered @SimpleDoc@"
+
+        P.SEmpty ->
+            [ encodeChunks style revChunks ]
+
+        P.SChar char rest ->
+            toJsonHelp style (String.fromChar char :: revChunks) rest
+
+        P.SText _ string rest ->
+            toJsonHelp style (string :: revChunks) rest
+
+        P.SLine indent_ rest ->
+            toJsonHelp style (String.repeat indent_ " " :: "\n" :: revChunks) rest
+
+        P.SSGR sgrs rest ->
+            encodeChunks style revChunks :: toJsonHelp (sgrToStyle sgrs style) [] rest
+
+
+sgrToStyle : List Ansi.SGR -> Style -> Style
+sgrToStyle sgrs ((Style bold underline color) as style) =
+    case sgrs of
+        [] ->
+            style
+
+        sgr :: rest ->
+            sgrToStyle rest <|
+                case sgr of
+                    Ansi.Reset ->
+                        noStyle
+
+                    Ansi.SetConsoleIntensity i ->
+                        Style (isBold i) underline color
+
+                    Ansi.SetItalicized _ ->
+                        style
+
+                    Ansi.SetUnderlining u ->
+                        Style bold (isUnderline u) color
+
+                    Ansi.SetBlinkSpeed _ ->
+                        style
+
+                    Ansi.SetVisible _ ->
+                        style
+
+                    Ansi.SetSwapForegroundBackground _ ->
+                        style
+
+                    Ansi.SetColor l i c ->
+                        Style bold underline (toColor l i c)
+
+
+isBold : Ansi.ConsoleIntensity -> Bool
+isBold intensity =
+    case intensity of
+        Ansi.BoldIntensity ->
+            True
+
+        Ansi.FaintIntensity ->
+            False
+
+        Ansi.NormalIntensity ->
+            False
+
+
+isUnderline : Ansi.Underlining -> Bool
+isUnderline underlining =
+    case underlining of
+        Ansi.SingleUnderline ->
+            True
+
+        Ansi.DoubleUnderline ->
+            False
+
+        Ansi.NoUnderline ->
+            False
+
+
+toColor : Ansi.ConsoleLayer -> Ansi.ColorIntensity -> Ansi.Color -> Maybe Color
+toColor layer intensity color =
+    case layer of
+        Ansi.Background ->
+            Nothing
+
+        Ansi.Foreground ->
+            let
+                pick dull vivid =
+                    case intensity of
+                        Ansi.Dull ->
+                            dull
+
+                        Ansi.Vivid ->
+                            vivid
+            in
+            Just <|
+                case color of
+                    Ansi.Red ->
+                        pick Red RED
+
+                    Ansi.Magenta ->
+                        pick Magenta MAGENTA
+
+                    Ansi.Yellow ->
+                        pick Yellow YELLOW
+
+                    Ansi.Green ->
+                        pick Green GREEN
+
+                    Ansi.Cyan ->
+                        pick Cyan CYAN
+
+                    Ansi.Blue ->
+                        pick Blue BLUE
+
+                    Ansi.White ->
+                        pick White WHITE
+
+                    Ansi.Black ->
+                        pick Black BLACK
+
+
+encodeChunks : Style -> List String -> E.Value
+encodeChunks (Style bold underline color) revChunks =
+    let
+        chars =
+            String.concat (List.reverse revChunks)
+    in
+    case ( color, not bold && not underline ) of
+        ( Nothing, True ) ->
+            E.chars chars
+
+        _ ->
+            E.object
+                [ ( "bold", E.bool bold )
+                , ( "underline", E.bool underline )
+                , ( "color", Maybe.maybe E.null encodeColor color )
+                , ( "string", E.chars chars )
+                ]
+
+
+encodeColor : Color -> E.Value
+encodeColor color =
+    E.string <|
+        case color of
+            Red ->
+                "red"
+
+            RED ->
+                "RED"
+
+            Magenta ->
+                "magenta"
+
+            MAGENTA ->
+                "MAGENTA"
+
+            Yellow ->
+                "yellow"
+
+            YELLOW ->
+                "YELLOW"
+
+            Green ->
+                "green"
+
+            GREEN ->
+                "GREEN"
+
+            Cyan ->
+                "cyan"
+
+            CYAN ->
+                "CYAN"
+
+            Blue ->
+                "blue"
+
+            BLUE ->
+                "BLUE"
+
+            Black ->
+                "black"
+
+            BLACK ->
+                "BLACK"
+
+            White ->
+                "white"
+
+            WHITE ->
+                "WHITE"
+
+
+
+-- DOC
+
+
+type alias Doc =
+    P.Doc
+
+
+a : Doc -> Doc -> Doc
+a =
+    P.a
+
+
+plus : Doc -> Doc -> Doc
+plus =
+    P.plus
+
+
+append : Doc -> Doc -> Doc
+append =
+    P.append
+
+
+align : Doc -> Doc
+align =
+    P.align
+
+
+cat : List Doc -> Doc
+cat =
+    P.cat
+
+
+empty : Doc
+empty =
+    P.empty
+
+
+fill : Int -> Doc -> Doc
+fill =
+    P.fill
+
+
+fillSep : List Doc -> Doc
+fillSep =
+    P.fillSep
+
+
+hang : Int -> Doc -> Doc
+hang =
+    P.hang
+
+
+hcat : List Doc -> Doc
+hcat =
+    P.hcat
+
+
+hsep : List Doc -> Doc
+hsep =
+    P.hsep
+
+
+indent : Int -> Doc -> Doc
+indent =
+    P.indent
+
+
+sep : List Doc -> Doc
+sep =
+    P.sep
+
+
+vcat : List Doc -> Doc
+vcat =
+    P.vcat
+
+
+red : Doc -> Doc
+red =
+    P.red
+
+
+cyan : Doc -> Doc
+cyan =
+    P.cyan
+
+
+magenta : Doc -> Doc
+magenta =
+    P.magenta
+
+
+green : Doc -> Doc
+green =
+    P.green
+
+
+blue : Doc -> Doc
+blue =
+    P.blue
+
+
+black : Doc -> Doc
+black =
+    P.black
+
+
+yellow : Doc -> Doc
+yellow =
+    P.yellow
+
+
+dullred : Doc -> Doc
+dullred =
+    P.dullred
+
+
+dullcyan : Doc -> Doc
+dullcyan =
+    P.dullcyan
+
+
+dullyellow : Doc -> Doc
+dullyellow =
+    P.dullyellow

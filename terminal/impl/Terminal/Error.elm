@@ -6,6 +6,7 @@ module Terminal.Error exposing
     )
 
 import Data.IO as IO exposing (IO)
+import Prelude
 import Reporting.Doc as D
 import Reporting.Suggest as Suggest
 import Terminal.Internal
@@ -218,7 +219,7 @@ toSummary exeName (Command name summary _ _ (ArgDocs argDocs) _ _) =
         Common summaryString ->
             Just <|
                 D.vcat
-                    [ D.cyan <| Utils.head (argDocs (exeName ++ " " ++ name))
+                    [ D.cyan <| Prelude.head (argDocs (exeName ++ " " ++ name))
                     , D.indent 4 <| reflow summaryString
                     ]
 
@@ -267,8 +268,8 @@ exitWithUnknown unknown knowns =
 
                 (_ :: _ :: _ :: _) as abcs ->
                     D.fromChars "Try"
-                        :: List.map (D.a (D.fromChars ",")) (Utils.init abcs)
-                        ++ [ D.fromChars "or", Utils.last abcs, D.fromChars "instead?" ]
+                        :: List.map (D.a (D.fromChars ",")) (Prelude.init abcs)
+                        ++ [ D.fromChars "or", Prelude.last abcs, D.fromChars "instead?" ]
     in
     getExeName
         |> IO.bind
@@ -310,7 +311,7 @@ exitWithError err =
                         argErrorToDocs argError
 
                     _ :: _ :: _ ->
-                        argErrorToDocs <| Utils.head <| List.sortBy toArgErrorRank (List.map Tuple.second argErrors)
+                        argErrorToDocs <| Prelude.head <| List.sortBy toArgErrorRank (List.map Tuple.second argErrors)
         )
 
 

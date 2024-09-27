@@ -25,10 +25,10 @@ import Json.DecodeX as DecodeX
 import Json.Encode as Encode
 import Json.EncodeX as EncodeX
 import Maybe.Extra as Maybe
+import Prelude
 import Reporting.Doc as D
 import Reporting.Render.Type as RT
 import Reporting.Render.Type.Localizer as L
-import Utils.Main as Utils
 
 
 
@@ -585,13 +585,13 @@ isSuper super tipe =
                     isInt h n || isFloat h n
 
                 Comparable ->
-                    isInt h n || isFloat h n || isString h n || isChar h n || isList h n && isSuper super (Utils.head args)
+                    isInt h n || isFloat h n || isString h n || isChar h n || isList h n && isSuper super (Prelude.head args)
 
                 Appendable ->
                     isString h n || isList h n
 
                 CompAppend ->
-                    isString h n || isList h n && isSuper Comparable (Utils.head args)
+                    isString h n || isList h n && isSuper Comparable (Prelude.head args)
 
         Tuple a b maybeC ->
             case super of

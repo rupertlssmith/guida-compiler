@@ -153,7 +153,7 @@ patternToDoc context pattern =
                     List.map (patternToDoc Unambiguous) entries
             in
             D.fromChars "["
-                |> D.a (D.join (D.fromChars ",") entryDocs)
+                |> D.a (D.hcat (List.intersperse (D.fromChars ",") entryDocs))
                 |> D.a (D.fromChars "]")
 
         Conses conses finalPattern ->

@@ -167,7 +167,7 @@ parseErrorToReport path source parseError reason =
                     toSnippet "ENDLESS STRING"
                         row
                         col
-                        ( "I got to the end of the line without seeing the closing double quote:"
+                        ( "I got to the end of the line without seeing the closing double quote:2"
                         , D.fillSep
                             [ D.fromChars "Strings"
                             , D.fromChars "look"

@@ -28,7 +28,7 @@ module Json.EncodeX exposing
 import Data.IO as IO exposing (IO(..))
 import Data.Map as Dict exposing (Dict)
 import Data.NonEmptyList as NE
-import Data.OneOrMore as OneOrMore exposing (OneOrMore(..))
+import Data.OneOrMore exposing (OneOrMore(..))
 import Data.Set as EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -173,14 +173,14 @@ list encodeEntry entries =
 -- CHARS
 
 
-chars : List Char -> Value
+chars : String -> Value
 chars chrs =
     String ("\"" ++ escape chrs ++ "\"")
 
 
-escape : List Char -> String
+escape : String -> String
 escape chrs =
-    case chrs of
+    case String.toList chrs of
         [] ->
             ""
 
@@ -203,7 +203,7 @@ escape chrs =
                         _ ->
                             String.fromChar c
             in
-            escapedChar ++ escape cs
+            escapedChar ++ escape (String.fromList cs)
 
 
 

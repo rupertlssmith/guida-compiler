@@ -28,6 +28,7 @@ import Data.Set as EverySet
 import Elm.ModuleName as ModuleName
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Prelude
 import Reporting.Annotation as A
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils
@@ -180,7 +181,7 @@ toDecisionTree rawBranches =
 
 isComplete : List Test -> Bool
 isComplete tests =
-    case Utils.head tests of
+    case Prelude.head tests of
         IsCtor _ _ _ numAlts _ ->
             numAlts == List.length tests
 
@@ -669,7 +670,7 @@ pickPath branches =
             path
 
         tiedPaths ->
-            Utils.head (bests (addWeights (smallBranchingFactor branches) tiedPaths))
+            Prelude.head (bests (addWeights (smallBranchingFactor branches) tiedPaths))
 
 
 isChoicePath : ( Path, Can.Pattern ) -> Maybe Path

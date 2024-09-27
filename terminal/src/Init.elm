@@ -8,6 +8,7 @@ import Elm.Constraint as Con
 import Elm.Outline as Outline
 import Elm.Package as Pkg
 import Elm.Version as V
+import Prelude
 import Reporting
 import Reporting.Doc as D
 import Reporting.Exit as Exit
@@ -35,7 +36,7 @@ run =
                                         init
 
                                     else
-                                        Utils.putStrLn "Okay, I did not make any changes!"
+                                        Prelude.putStrLn "Okay, I did not make any changes!"
                                             |> IO.fmap (\_ -> Ok ())
                                 )
                 )
@@ -119,7 +120,7 @@ init =
                                                             Outline.App <|
                                                                 Outline.AppOutline V.compiler (NE.Nonempty (Outline.RelativeSrcDir "src") []) directs indirects Dict.empty Dict.empty
                                                     )
-                                                |> IO.bind (\_ -> Utils.putStrLn "Okay, I created it. Now read that link!")
+                                                |> IO.bind (\_ -> Prelude.putStrLn "Okay, I created it. Now read that link!")
                                                 |> IO.fmap (\_ -> Ok ())
                                 )
             )

@@ -13,6 +13,7 @@ import Elm.Details as Details
 import Elm.Outline as Outline
 import Elm.Package as Pkg
 import Elm.Version as V
+import Prelude
 import Reporting
 import Reporting.Doc as D
 import Reporting.Exit as Exit
@@ -88,7 +89,7 @@ attemptChanges : String -> Solver.Env -> Outline.Outline -> (a -> String) -> Cha
 attemptChanges root env oldOutline toChars changes =
     case changes of
         AlreadyInstalled ->
-            Task.io (Utils.putStrLn "It is already installed!")
+            Task.io (Prelude.putStrLn "It is already installed!")
 
         PromoteIndirect newOutline ->
             attemptChangesHelp root env oldOutline newOutline <|
@@ -191,12 +192,12 @@ attemptChangesHelp root env oldOutline newOutline question =
                                                         |> IO.fmap (\_ -> Err exit)
 
                                                 Ok () ->
-                                                    Utils.putStrLn "Success!"
+                                                    Prelude.putStrLn "Success!"
                                                         |> IO.fmap (\_ -> Ok ())
                                         )
 
                             else
-                                Utils.putStrLn "Okay, I did not change anything!"
+                                Prelude.putStrLn "Okay, I did not change anything!"
                                     |> IO.fmap (\_ -> Ok ())
                         )
             )

@@ -14,6 +14,7 @@ import AST.Optimized as Opt
 import BackgroundWriter as BW
 import Build
 import Data.IO as IO exposing (IO)
+import Data.Maybe as Maybe
 import Data.NonEmptyList as NE
 import Elm.Details as Details
 import Elm.ModuleName as ModuleName
@@ -202,7 +203,7 @@ buildExposed : Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath 
 buildExposed style root details maybeDocs exposed =
     let
         docsGoal =
-            Utils.maybe Build.IgnoreDocs Build.WriteDocs maybeDocs
+            Maybe.maybe Build.IgnoreDocs Build.WriteDocs maybeDocs
     in
     Task.eio Exit.MakeCannotBuild <|
         Build.fromExposed (Decode.succeed ()) (\_ -> Encode.object []) style root details docsGoal exposed

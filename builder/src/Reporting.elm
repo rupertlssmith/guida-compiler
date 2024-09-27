@@ -27,6 +27,7 @@ import Json.Decode as Decode
 import Json.DecodeX as DecodeX
 import Json.Encode as CoreEncode
 import Json.EncodeX as Encode
+import Prelude
 import Reporting.Doc as D
 import Reporting.Exit as Exit
 import Reporting.Exit.Help as Help
@@ -242,7 +243,7 @@ detailsLoop chan ((DState total _ _ _ _ built _) as state) =
                         IO.bind (detailsLoop chan) (detailsStep dmsg state)
 
                     Nothing ->
-                        Utils.putStrLn
+                        Prelude.putStrLn
                             (clear (toBuildProgress total total)
                                 (if built == total then
                                     "Dependencies ready!"
@@ -279,7 +280,7 @@ detailsStep msg (DState total cached rqst rcvd failed built broken) =
 
         DRequested ->
             (if rqst == 0 then
-                Utils.putStrLn "Starting downloads...\n"
+                Prelude.putStrLn "Starting downloads...\n"
 
              else
                 IO.pure ()
@@ -425,7 +426,7 @@ buildLoop decoder chan done =
                             width =
                                 12 + String.length (String.fromInt done)
                         in
-                        Utils.putStrLn
+                        Prelude.putStrLn
                             (if String.length message < width then
                                 String.cons '\u{000D}' (String.repeat width " ")
                                     ++ String.cons '\u{000D}' message
@@ -483,7 +484,7 @@ reportGenerate style names output =
                             cnames =
                                 NE.map (ModuleName.toChars >> String.fromList) names
                         in
-                        Utils.putStrLn (String.cons '\n' (toGenDiagram cnames output))
+                        Prelude.putStrLn (String.cons '\n' (toGenDiagram cnames output))
                     )
 
 

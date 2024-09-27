@@ -85,8 +85,8 @@ oneOrMore decoder =
     Decode.oneOf
         [ Decode.map OneOrMore.one (Decode.field "one" decoder)
         , Decode.map2 OneOrMore.more
-            (Decode.field "left" (oneOrMore decoder))
-            (Decode.field "right" (oneOrMore decoder))
+            (Decode.field "left" (Decode.lazy (\_ -> oneOrMore decoder)))
+            (Decode.field "right" (Decode.lazy (\_ -> oneOrMore decoder)))
         ]
 
 

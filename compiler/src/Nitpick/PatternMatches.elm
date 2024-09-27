@@ -25,6 +25,7 @@ import Html.Attributes exposing (pattern)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra as List
+import Prelude
 import Reporting.Annotation as A
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils
@@ -414,7 +415,7 @@ checkPatterns region context patterns errors =
                     errors
 
                 badPatterns ->
-                    Incomplete region context (List.map Utils.head badPatterns) :: errors
+                    Incomplete region context (List.map Prelude.head badPatterns) :: errors
 
 
 

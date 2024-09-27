@@ -26,6 +26,7 @@ import Generate.JavaScript.Name as JsName
 import Generate.Mode as Mode
 import Json.EncodeX as Encode
 import Optimize.DecisionTree as DT
+import Prelude
 import Reporting.Annotation as A
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils
@@ -979,7 +980,7 @@ generateDecider mode label root decisionTree =
 
         Opt.FanOut path edges fallback ->
             [ JS.Switch
-                (generateCaseTest mode root path (Tuple.first (Utils.head edges)))
+                (generateCaseTest mode root path (Tuple.first (Prelude.head edges)))
                 (List.foldr
                     (\edge cases -> generateCaseBranch mode label root edge :: cases)
                     [ JS.Default (generateDecider mode label root fallback) ]
