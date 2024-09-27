@@ -30,7 +30,6 @@ module Text.PrettyPrint.ANSI.Leijen exposing
     , red
     , renderPretty
     , sep
-    , styleToSgrs
     , text
     , underline
     , updateColor
@@ -94,61 +93,52 @@ renderPretty _ w doc =
 
 styleToSgrs : Style -> List Ansi.SGR
 styleToSgrs style =
-    let
-        result =
-            [ if style.bold then
-                Just (Ansi.SetConsoleIntensity Ansi.BoldIntensity)
+    [ if style.bold then
+        Just (Ansi.SetConsoleIntensity Ansi.BoldIntensity)
 
-              else
-                Nothing
-            , if style.underline then
-                Just (Ansi.SetUnderlining Ansi.SingleUnderline)
+      else
+        Nothing
+    , if style.underline then
+        Just (Ansi.SetUnderlining Ansi.SingleUnderline)
 
-              else
-                Nothing
-            , style.color
-                |> Maybe.map
-                    (\color ->
-                        case color of
-                            Red ->
-                                Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Red
+      else
+        Nothing
+    , style.color
+        |> Maybe.map
+            (\color ->
+                case color of
+                    Red ->
+                        Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Red
 
-                            Green ->
-                                Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Green
+                    Green ->
+                        Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Green
 
-                            Cyan ->
-                                Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Cyan
+                    Cyan ->
+                        Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Cyan
 
-                            Magenta ->
-                                Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Magenta
+                    Magenta ->
+                        Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Magenta
 
-                            Blue ->
-                                Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Blue
+                    Blue ->
+                        Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Blue
 
-                            Black ->
-                                Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Black
+                    Black ->
+                        Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Black
 
-                            Yellow ->
-                                Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Yellow
+                    Yellow ->
+                        Ansi.SetColor Ansi.Foreground Ansi.Vivid Ansi.Yellow
 
-                            DullCyan ->
-                                Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Cyan
+                    DullCyan ->
+                        Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Cyan
 
-                            DullRed ->
-                                Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Red
+                    DullRed ->
+                        Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Red
 
-                            DullYellow ->
-                                Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Yellow
-                    )
-            ]
-                |> List.filterMap identity
-    in
-    case result of
-        [] ->
-            [ Ansi.Reset ]
-
-        _ ->
-            result
+                    DullYellow ->
+                        Ansi.SetColor Ansi.Foreground Ansi.Dull Ansi.Yellow
+            )
+    ]
+        |> List.filterMap identity
 
 
 displayS : SimpleDoc -> String -> String
