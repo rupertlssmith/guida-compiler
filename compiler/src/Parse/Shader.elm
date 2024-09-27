@@ -117,7 +117,7 @@ eatShader src pos end row col =
 parseGlsl : Row -> Col -> String -> Parser E.Expr Shader.Types
 parseGlsl startRow startCol src =
     case GLP.parse src of
-        Ok ( _, _, GLS.TranslationUnit decls ) ->
+        Ok (GLS.TranslationUnit decls) ->
             P.pure (List.foldr addInput emptyTypes (List.concatMap extractInputs decls))
 
         Err err ->
