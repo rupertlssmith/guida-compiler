@@ -6,6 +6,8 @@ const os = require("os");
 const https = require("https");
 const resolve = require("path").resolve;
 const AdmZip = require("adm-zip");
+const which = require("which");
+const tmp = require("tmp");
 
 const { Command } = require("commander");
 const program = new Command();
@@ -280,6 +282,22 @@ function createIo(rl) {
       } else {
         mVars[id].subscribers.push({ index, action: "put", value });
       }
+    },
+    dirFindExecutable: function (index, name) {
+      this.send({ index, value: which.sync(name, { nothrow: true }) });
+    },
+    replGetInputLine: function (index, prompt) {
+      rl.question(prompt, (answer) => {
+        this.send({ index, value: answer });
+      });
+    },
+    procWithCreateProcess: function (index) {
+      const file = tmp.fileSync();
+      this.send({ index, value: file.fd });
+    },
+    hClose: function (index, fd) {
+      fs.close(fd);
+      this.send({ index, value: null });
     },
   };
 }

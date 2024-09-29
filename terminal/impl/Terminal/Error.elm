@@ -6,8 +6,8 @@ module Terminal.Error exposing
     )
 
 import Data.IO as IO exposing (IO)
+import List.Extra as List
 import Prelude
-import Reporting.Doc as D
 import Reporting.Suggest as Suggest
 import Terminal.Internal
     exposing
@@ -28,6 +28,7 @@ import Terminal.Internal
         , Summary(..)
         , toName
         )
+import Text.PrettyPrint.ANSI.Leijen as P
 import Utils.Main as Utils
 
 
@@ -35,39 +36,38 @@ import Utils.Main as Utils
 -- EXIT
 
 
-exitSuccess : List D.Doc -> IO a
+exitSuccess : List P.Doc -> IO a
 exitSuccess =
     exitWith IO.ExitSuccess
 
 
-exitFailure : List D.Doc -> IO a
+exitFailure : List P.Doc -> IO a
 exitFailure =
     exitWith (IO.ExitFailure 1)
 
 
-exitWith : IO.ExitCode -> List D.Doc -> IO a
+exitWith : IO.ExitCode -> List P.Doc -> IO a
 exitWith code docs =
-    -- IO.hIsTerminalDevice IO.stderr
-    --     |> IO.bind
-    --         (\isTerminal ->
-    --             let
-    --                 adjust : D.Doc -> D.Doc
-    --                 adjust =
-    --                     if isTerminal then
-    --                         identity
-    --                     else
-    --                         -- D.plain
-    --                         Debug.todo "exitWith"
-    --             in
-    --             D.displayIO IO.stderr
-    --                 (D.renderPretty 1
-    --                     80
-    --                     (adjust (D.vcat (List.concatMap (\d -> [ d, "" ]) docs)))
-    --                     |> IO.bind (\_ -> IO.hPutStrLn IO.stderr "")
-    --                     |> IO.bind (\_ -> IO.exitWith code)
-    --                 )
-    --         )
-    Debug.todo "exitWith"
+    IO.hIsTerminalDevice IO.stderr
+        |> IO.bind
+            (\isTerminal ->
+                let
+                    adjust : P.Doc -> P.Doc
+                    adjust =
+                        if isTerminal then
+                            identity
+
+                        else
+                            P.plain
+                in
+                P.displayIO IO.stderr
+                    (P.renderPretty 1
+                        80
+                        (adjust (P.vcat (List.concatMap (\d -> [ d, P.text "" ]) docs)))
+                    )
+                    |> IO.bind (\_ -> IO.hPutStrLn IO.stderr "")
+                    |> IO.bind (\_ -> IO.exitWith code)
+            )
 
 
 getExeName : IO String
@@ -75,28 +75,28 @@ getExeName =
     IO.fmap Utils.fpTakeFileName Utils.envGetProgName
 
 
-stack : List D.Doc -> D.Doc
+stack : List P.Doc -> P.Doc
 stack docs =
-    D.vcat <| List.intersperse (D.fromChars "") docs
+    P.vcat <| List.intersperse (P.text "") docs
 
 
-reflow : String -> D.Doc
+reflow : String -> P.Doc
 reflow string =
-    D.fillSep <| List.map D.fromChars <| String.words string
+    P.fillSep <| List.map P.text <| String.words string
 
 
 
 -- HELP
 
 
-exitWithHelp : Maybe String -> String -> D.Doc -> ArgDocs -> FlagDocs -> IO a
+exitWithHelp : Maybe String -> String -> P.Doc -> ArgDocs -> FlagDocs -> IO a
 exitWithHelp maybeCommand details example (ArgDocs argDocs) (FlagDocs flagDocs) =
     toCommand maybeCommand
         |> IO.bind
             (\command ->
                 exitSuccess <|
                     [ reflow details
-                    , D.indent 4 <| D.cyan <| D.vcat <| argDocs command
+                    , P.indent 4 <| P.cyan <| P.vcat <| argDocs command
                     , example
                     ]
                         ++ (case flagDocs of
@@ -104,8 +104,8 @@ exitWithHelp maybeCommand details example (ArgDocs argDocs) (FlagDocs flagDocs) 
                                     []
 
                                 (_ :: _) as docs ->
-                                    [ D.fromChars "You can customize this command with the following flags:"
-                                    , D.indent 4 <| stack docs
+                                    [ P.text "You can customize this command with the following flags:"
+                                    , P.indent 4 <| stack docs
                                     ]
                            )
             )
@@ -125,7 +125,7 @@ toCommand maybeCommand =
             )
 
 
-argsToDoc : String -> CompleteArgs a -> D.Doc
+argsToDoc : String -> CompleteArgs a -> P.Doc
 argsToDoc command args =
     case args of
         Exactly required ->
@@ -138,13 +138,13 @@ argsToDoc command args =
             argsToDocHelp command required [ "optional " ++ singular ]
 
 
-argsToDocHelp : String -> RequiredArgs a -> List String -> D.Doc
+argsToDocHelp : String -> RequiredArgs a -> List String -> P.Doc
 argsToDocHelp command args names =
     -- case args of
     --     Done _ ->
-    --         D.hang 4 <|
-    --             D.hsep <|
-    --                 List.map D.fromChars <|
+    --         P.hang 4 <|
+    --             P.hsep <|
+    --                 List.map P.text <|
     --                     (command :: List.map toToken names)
     --     Required others (Parser singular _ _ _ _) ->
     --         argsToDocHelp command others (singular :: names)
@@ -166,7 +166,7 @@ toToken string =
         ++ ">"
 
 
-flagsToDocs : Flags flags -> List D.Doc -> List D.Doc
+flagsToDocs : Flags flags -> List P.Doc -> List P.Doc
 flagsToDocs flags docs =
     -- case flags of
     --     FDone _ ->
@@ -174,15 +174,15 @@ flagsToDocs flags docs =
     --     FMore more flag ->
     --         let
     --             flagDoc =
-    --                 D.vcat <|
+    --                 P.vcat <|
     --                     case flag of
     --                         Flag name (Parser singular _ _ _ _) description ->
-    --                             [ D.dullcyan <| D.fromChars <| "--" ++ name ++ "=" ++ toToken singular
-    --                             , D.indent 4 <| reflow description
+    --                             [ P.dullcyan <| P.text <| "--" ++ name ++ "=" ++ toToken singular
+    --                             , P.indent 4 <| reflow description
     --                             ]
     --                         OnOff name description ->
-    --                             [ D.dullcyan <| D.fromChars <| "--" ++ name
-    --                             , D.indent 4 <| reflow description
+    --                             [ P.dullcyan <| P.text <| "--" ++ name
+    --                             , P.indent 4 <| reflow description
     --                             ]
     --         in
     --         flagsToDocs more (flagDoc :: docs)
@@ -193,24 +193,24 @@ flagsToDocs flags docs =
 -- OVERVIEW
 
 
-exitWithOverview : D.Doc -> D.Doc -> List Command -> IO a
+exitWithOverview : P.Doc -> P.Doc -> List Command -> IO a
 exitWithOverview intro outro commands =
     getExeName
         |> IO.bind
             (\exeName ->
                 exitSuccess
                     [ intro
-                    , D.fromChars "The most common commands are:"
-                    , D.indent 4 <| stack <| List.filterMap (toSummary exeName) commands
-                    , D.fromChars "There are a bunch of other commands as well though. Here is a full list:"
-                    , D.indent 4 <| D.dullcyan <| toCommandList exeName commands
-                    , D.fromChars "Adding the --help flag gives a bunch of additional details about each one."
+                    , P.text "The most common commands are:"
+                    , P.indent 4 <| stack <| List.filterMap (toSummary exeName) commands
+                    , P.text "There are a bunch of other commands as well though. Here is a full list:"
+                    , P.indent 4 <| P.dullcyan <| toCommandList exeName commands
+                    , P.text "Adding the --help flag gives a bunch of additional details about each one."
                     , outro
                     ]
             )
 
 
-toSummary : String -> Command -> Maybe D.Doc
+toSummary : String -> Command -> Maybe P.Doc
 toSummary exeName (Command name summary _ _ (ArgDocs argDocs) _ _) =
     case summary of
         Uncommon ->
@@ -218,13 +218,13 @@ toSummary exeName (Command name summary _ _ (ArgDocs argDocs) _ _) =
 
         Common summaryString ->
             Just <|
-                D.vcat
-                    [ D.cyan <| Prelude.head (argDocs (exeName ++ " " ++ name))
-                    , D.indent 4 <| reflow summaryString
+                P.vcat
+                    [ P.cyan <| Prelude.head (argDocs (exeName ++ " " ++ name))
+                    , P.indent 4 <| reflow summaryString
                     ]
 
 
-toCommandList : String -> List Command -> D.Doc
+toCommandList : String -> List Command -> P.Doc
 toCommandList exeName commands =
     let
         names =
@@ -234,7 +234,7 @@ toCommandList exeName commands =
             Utils.listMaximum (List.map String.length names)
 
         toExample name =
-            D.fromChars
+            P.text
                 (exeName
                     ++ " "
                     ++ name
@@ -242,7 +242,7 @@ toCommandList exeName commands =
                     ++ " --help"
                 )
     in
-    D.vcat (List.map toExample names)
+    P.vcat (List.map toExample names)
 
 
 
@@ -253,7 +253,7 @@ exitWithUnknown : String -> List String -> IO a
 exitWithUnknown unknown knowns =
     let
         nearbyKnowns =
-            Utils.takeWhile (\( r, _ ) -> r <= 3) (Suggest.rank unknown identity knowns)
+            List.takeWhile (\( r, _ ) -> r <= 3) (Suggest.rank unknown identity knowns)
 
         suggestions =
             case List.map toGreen (List.map Tuple.second nearbyKnowns) of
@@ -261,26 +261,26 @@ exitWithUnknown unknown knowns =
                     []
 
                 [ nearby ] ->
-                    [ D.fromChars "Try", nearby, D.fromChars "instead?" ]
+                    [ P.text "Try", nearby, P.text "instead?" ]
 
                 [ a, b ] ->
-                    [ D.fromChars "Try", a, D.fromChars "or", b, D.fromChars "instead?" ]
+                    [ P.text "Try", a, P.text "or", b, P.text "instead?" ]
 
                 (_ :: _ :: _ :: _) as abcs ->
-                    D.fromChars "Try"
-                        :: List.map (D.a (D.fromChars ",")) (Prelude.init abcs)
-                        ++ [ D.fromChars "or", Prelude.last abcs, D.fromChars "instead?" ]
+                    P.text "Try"
+                        :: List.map (P.a (P.text ",")) (Prelude.init abcs)
+                        ++ [ P.text "or", Prelude.last abcs, P.text "instead?" ]
     in
     getExeName
         |> IO.bind
             (\exeName ->
                 exitFailure
-                    [ D.fillSep <|
-                        [ D.fromChars "There"
-                        , D.fromChars "is"
-                        , D.fromChars "no"
+                    [ P.fillSep <|
+                        [ P.text "There"
+                        , P.text "is"
+                        , P.text "no"
                         , toRed unknown
-                        , D.fromChars "command."
+                        , P.text "command."
                         ]
                             ++ suggestions
                     , reflow <| "Run `" ++ exeName ++ "` with no arguments to get more hints."
@@ -330,52 +330,52 @@ toArgErrorRank err =
             2
 
 
-toGreen : String -> D.Doc
+toGreen : String -> P.Doc
 toGreen str =
-    D.green (D.fromChars str)
+    P.green (P.text str)
 
 
-toYellow : String -> D.Doc
+toYellow : String -> P.Doc
 toYellow str =
-    D.yellow (D.fromChars str)
+    P.yellow (P.text str)
 
 
-toRed : String -> D.Doc
+toRed : String -> P.Doc
 toRed str =
-    D.red (D.fromChars str)
+    P.red (P.text str)
 
 
 
 -- ARG ERROR TO DOC
 
 
-argErrorToDocs : ArgError -> IO (List D.Doc)
+argErrorToDocs : ArgError -> IO (List P.Doc)
 argErrorToDocs argError =
     case argError of
         ArgMissing (Expectation tipe makeExamples) ->
             makeExamples
                 |> IO.fmap
                     (\examples ->
-                        [ D.fillSep
-                            [ D.fromChars "The"
-                            , D.fromChars "arguments"
-                            , D.fromChars "you"
-                            , D.fromChars "have"
-                            , D.fromChars "are"
-                            , D.fromChars "fine,"
-                            , D.fromChars "but"
-                            , D.fromChars "in"
-                            , D.fromChars "addition,"
-                            , D.fromChars "I"
-                            , D.fromChars "was"
-                            , D.fromChars "expecting"
-                            , D.fromChars "a"
+                        [ P.fillSep
+                            [ P.text "The"
+                            , P.text "arguments"
+                            , P.text "you"
+                            , P.text "have"
+                            , P.text "are"
+                            , P.text "fine,"
+                            , P.text "but"
+                            , P.text "in"
+                            , P.text "addition,"
+                            , P.text "I"
+                            , P.text "was"
+                            , P.text "expecting"
+                            , P.text "a"
                             , toYellow (toToken tipe)
-                            , D.fromChars "value."
-                            , D.fromChars "For"
-                            , D.fromChars "example:"
+                            , P.text "value."
+                            , P.text "For"
+                            , P.text "example:"
                             ]
-                        , D.indent 4 <| D.green <| D.vcat <| List.map D.fromChars examples
+                        , P.indent 4 <| P.green <| P.vcat <| List.map P.text examples
                         ]
                     )
 
@@ -383,29 +383,29 @@ argErrorToDocs argError =
             makeExamples
                 |> IO.fmap
                     (\examples ->
-                        [ D.fromChars "I am having trouble with this argument:"
-                        , D.indent 4 <| toRed string
-                        , D.fillSep <|
-                            [ D.fromChars "It"
-                            , D.fromChars "is"
-                            , D.fromChars "supposed"
-                            , D.fromChars "to"
-                            , D.fromChars "be"
-                            , D.fromChars "a"
+                        [ P.text "I am having trouble with this argument:"
+                        , P.indent 4 <| toRed string
+                        , P.fillSep <|
+                            [ P.text "It"
+                            , P.text "is"
+                            , P.text "supposed"
+                            , P.text "to"
+                            , P.text "be"
+                            , P.text "a"
                             , toYellow (toToken tipe)
-                            , D.fromChars "value,"
-                            , D.fromChars "like"
+                            , P.text "value,"
+                            , P.text "like"
                             ]
                                 ++ (if List.length examples == 1 then
-                                        [ D.fromChars "this:" ]
+                                        [ P.text "this:" ]
 
                                     else
-                                        [ D.fromChars "one"
-                                        , D.fromChars "of"
-                                        , D.fromChars "these:"
+                                        [ P.text "one"
+                                        , P.text "of"
+                                        , P.text "these:"
                                         ]
                                    )
-                        , D.indent 4 <| D.green <| D.vcat <| List.map D.fromChars examples
+                        , P.indent 4 <| P.green <| P.vcat <| List.map P.text examples
                         ]
                     )
 
@@ -421,7 +421,7 @@ argErrorToDocs argError =
             in
             IO.pure
                 [ reflow <| "I was not expecting " ++ these ++ ":"
-                , D.indent 4 <| D.red <| D.vcat <| List.map D.fromChars extras
+                , P.indent 4 <| P.red <| P.vcat <| List.map P.text extras
                 , reflow <| "Try removing " ++ them ++ "?"
                 ]
 
@@ -430,24 +430,24 @@ argErrorToDocs argError =
 -- FLAG ERROR TO DOC
 
 
-flagErrorHelp : String -> String -> List D.Doc -> IO (List D.Doc)
+flagErrorHelp : String -> String -> List P.Doc -> IO (List P.Doc)
 flagErrorHelp summary original explanation =
     IO.pure <|
         [ reflow summary
-        , D.indent 4 (toRed original)
+        , P.indent 4 (toRed original)
         ]
             ++ explanation
 
 
-flagErrorToDocs : FlagError -> IO (List D.Doc)
+flagErrorToDocs : FlagError -> IO (List P.Doc)
 flagErrorToDocs flagError =
     case flagError of
         FlagWithValue flagName value ->
             flagErrorHelp
                 "This on/off flag was given a value:"
                 ("--" ++ flagName ++ "=" ++ value)
-                [ D.fromChars "An on/off flag either exists or not. It cannot have an equals sign and value.\nMaybe you want this instead?"
-                , D.indent 4 <| toGreen <| "--" ++ flagName
+                [ P.text "An on/off flag either exists or not. It cannot have an equals sign and value.\nMaybe you want this instead?"
+                , P.indent 4 <| toGreen <| "--" ++ flagName
                 ]
 
         FlagWithNoValue flagName (Expectation tipe makeExamples) ->
@@ -457,16 +457,16 @@ flagErrorToDocs flagError =
                         flagErrorHelp
                             "This flag needs more information:"
                             ("--" ++ flagName)
-                            [ D.fillSep
-                                [ D.fromChars "It"
-                                , D.fromChars "needs"
-                                , D.fromChars "a"
+                            [ P.fillSep
+                                [ P.text "It"
+                                , P.text "needs"
+                                , P.text "a"
                                 , toYellow (toToken tipe)
-                                , D.fromChars "like"
-                                , D.fromChars "this:"
+                                , P.text "like"
+                                , P.text "this:"
                                 ]
-                            , D.indent 4 <|
-                                D.vcat <|
+                            , P.indent 4 <|
+                                P.vcat <|
                                     List.map toGreen <|
                                         case List.take 4 examples of
                                             [] ->
@@ -484,18 +484,18 @@ flagErrorToDocs flagError =
                         flagErrorHelp
                             "This flag was given a bad value:"
                             ("--" ++ flagName ++ "=" ++ badValue)
-                            [ D.fillSep <|
-                                [ D.fromChars "I"
-                                , D.fromChars "need"
-                                , D.fromChars "a"
-                                , D.fromChars "valid"
+                            [ P.fillSep <|
+                                [ P.text "I"
+                                , P.text "need"
+                                , P.text "a"
+                                , P.text "valid"
                                 , toYellow (toToken tipe)
-                                , D.fromChars "value."
-                                , D.fromChars "For"
-                                , D.fromChars "example:"
+                                , P.text "value."
+                                , P.text "For"
+                                , P.text "example:"
                                 ]
-                            , D.indent 4 <|
-                                D.vcat <|
+                            , P.indent 4 <|
+                                P.vcat <|
                                     List.map toGreen <|
                                         case List.take 4 examples of
                                             [] ->
@@ -507,48 +507,47 @@ flagErrorToDocs flagError =
                     )
 
         FlagUnknown unknown flags ->
-            flagErrorHelp
-                "I do not recognize this flag:"
+            flagErrorHelp "I do not recognize this flag:"
                 unknown
                 (let
                     unknownName =
-                        -- List.takeWhile ((/=) '=') (List.dropWhile ((==) '-') unknown)
-                        Debug.todo "unknownName"
+                        List.takeWhile ((/=) '=') (List.dropWhile ((==) '-') (String.toList unknown))
+                            |> String.fromList
                  in
                  case getNearbyFlags unknownName flags [] of
                     [] ->
                         []
 
                     [ thisOne ] ->
-                        [ D.fillSep
-                            [ D.fromChars "Maybe"
-                            , D.fromChars "you"
-                            , D.fromChars "want"
-                            , D.green thisOne
-                            , D.fromChars "instead?"
+                        [ P.fillSep
+                            [ P.text "Maybe"
+                            , P.text "you"
+                            , P.text "want"
+                            , P.green thisOne
+                            , P.text "instead?"
                             ]
                         ]
 
                     suggestions ->
-                        [ D.fillSep
-                            [ D.fromChars "Maybe"
-                            , D.fromChars "you"
-                            , D.fromChars "want"
-                            , D.fromChars "one"
-                            , D.fromChars "of"
-                            , D.fromChars "these"
-                            , D.fromChars "instead?"
+                        [ P.fillSep
+                            [ P.text "Maybe"
+                            , P.text "you"
+                            , P.text "want"
+                            , P.text "one"
+                            , P.text "of"
+                            , P.text "these"
+                            , P.text "instead?"
                             ]
-                        , D.indent 4 <| D.green <| D.vcat suggestions
+                        , P.indent 4 <| P.green <| P.vcat suggestions
                         ]
                 )
 
 
-getNearbyFlags : String -> Flags a -> List ( Int, String ) -> List D.Doc
+getNearbyFlags : String -> Flags a -> List ( Int, String ) -> List P.Doc
 getNearbyFlags unknown flags unsortedFlags =
     -- case flags of
     --     FDone _ ->
-    --         List.map D.fromChars <|
+    --         List.map P.text <|
     --             List.map Tuple.second <|
     --                 List.sortBy Tuple.first <|
     --                     case List.filter (\( d, _ ) -> d < 3) unsortedFlags of

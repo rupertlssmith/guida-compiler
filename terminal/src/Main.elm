@@ -4,7 +4,6 @@ port module Main exposing (main)
 -- import Develop
 -- import Diff
 -- import Publish
--- import Repl
 
 import Array exposing (Array)
 import Array.Extra as Array
@@ -17,6 +16,7 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 import Make
 import Parse.Primitives as P
+import Repl
 import Reporting.Doc as D
 import Task
 import Terminal
@@ -30,7 +30,7 @@ type alias Flags =
 
 type Command
     = Init
-      -- | Repl Repl.Flags
+    | Repl Repl.Flags
     | Make (List String) Make.Flags
     | Install Install.Args
 
@@ -44,12 +44,13 @@ commandDecoder =
                     "init" ->
                         Decode.succeed Init
 
-                    -- "repl" ->
-                    --     Decode.map Repl
-                    --         (Decode.map2 Repl.Flags
-                    --             (Decode.maybe (Decode.field "maybeAlternateInterpreter" Decode.string))
-                    --             (Decode.map (Maybe.withDefault False) (Decode.maybe (Decode.field "noColors" Decode.bool)))
-                    --         )
+                    "repl" ->
+                        Decode.map Repl
+                            (Decode.map2 Repl.Flags
+                                (Decode.maybe (Decode.field "maybeAlternateInterpreter" Decode.string))
+                                (Decode.map (Maybe.withDefault False) (Decode.maybe (Decode.field "noColors" Decode.bool)))
+                            )
+
                     "make" ->
                         Decode.map2 Make
                             (Decode.field "paths" (Decode.list Decode.string))
@@ -117,14 +118,15 @@ program portIn portOut =
                 case Decode.decodeValue commandDecoder flags of
                     Ok command ->
                         let
-                            ( process, effect, _ ) =
+                            decoder =
                                 start
                                     (case command of
                                         Init ->
                                             Init.run
 
-                                        -- Repl replFlags ->
-                                        --     Repl.run replFlags
+                                        Repl replFlags ->
+                                            Repl.run replFlags
+
                                         Make paths makeFlags ->
                                             Make.run paths makeFlags
 
@@ -132,9 +134,14 @@ program portIn portOut =
                                             Install.run args
                                     )
                         in
-                        ( Array.fromList [ Running process ]
-                        , effectToCmd 0 portOut effect
-                        )
+                        case Decode.decodeValue decoder Encode.null of
+                            Ok ( process, effect, _ ) ->
+                                ( Array.fromList [ Running process ]
+                                , effectToCmd 0 portOut effect
+                                )
+
+                            Err err ->
+                                ( Array.empty, effectToCmd 0 portOut (IO.Exit (Decode.errorToString err) 1) )
 
                     Err err ->
                         ( Array.empty, effectToCmd 0 portOut (IO.Exit (Decode.errorToString err) 1) )
@@ -146,10 +153,15 @@ program portIn portOut =
                             Just (Running process) ->
                                 case step value process of
                                     Ok ( nextProcess, effect, maybeFork ) ->
-                                        ( Array.set index (Running nextProcess) model
-                                        , effectToCmd index portOut effect
-                                        )
-                                            |> addFork portOut maybeFork
+                                        Decode.decodeValue
+                                            (addFork portOut
+                                                maybeFork
+                                                ( Array.set index (Running nextProcess) model
+                                                , effectToCmd index portOut effect
+                                                )
+                                            )
+                                            Encode.null
+                                            |> Result.withDefault ( model, Cmd.none )
 
                                     Err (Decode.Failure "exitFork" _) ->
                                         ( Array.set index Finished model, Cmd.none )
@@ -172,20 +184,24 @@ program portIn portOut =
         }
 
 
-addFork : PortOut -> Maybe (IO ()) -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+addFork : PortOut -> Maybe (IO ()) -> ( Model, Cmd Msg ) -> Decode.Decoder ( Model, Cmd Msg )
 addFork portOut maybeFork ( model, cmd ) =
     case Maybe.map startFork maybeFork of
-        Just ( process, effect, _ ) ->
-            let
-                nextIndex =
-                    Array.length model
-            in
-            ( Array.insertAt nextIndex (Running process) model
-            , Cmd.batch [ effectToCmd nextIndex portOut effect, cmd ]
-            )
+        Just decoder ->
+            Decode.map
+                (\( process, effect, _ ) ->
+                    let
+                        nextIndex =
+                            Array.length model
+                    in
+                    ( Array.insertAt nextIndex (Running process) model
+                    , Cmd.batch [ effectToCmd nextIndex portOut effect, cmd ]
+                    )
+                )
+                decoder
 
         Nothing ->
-            ( model, cmd )
+            Decode.succeed ( model, cmd )
 
 
 port send : { index : Int, value : Encode.Value } -> Cmd msg
@@ -199,14 +215,28 @@ main =
     program recv send
 
 
-start : IO () -> ( IO.Process, IO.Effect, Maybe (IO ()) )
+start : IO () -> Decode.Decoder ( IO.Process, IO.Effect, Maybe (IO ()) )
 start (IO io) =
-    io (\_ -> ( IO.Process (Decode.fail "Exit"), IO.Exit "finished successfully..." 0, Nothing ))
+    io
+        (\_ ->
+            Decode.succeed
+                ( IO.Process (Decode.fail "Exit")
+                , IO.Exit "finished successfully..." 0
+                , Nothing
+                )
+        )
 
 
-startFork : IO () -> ( IO.Process, IO.Effect, Maybe (IO ()) )
+startFork : IO () -> Decode.Decoder ( IO.Process, IO.Effect, Maybe (IO ()) )
 startFork (IO io) =
-    io (\_ -> ( IO.Process (Decode.fail "exitFork"), IO.NoOp, Nothing ))
+    io
+        (\_ ->
+            Decode.succeed
+                ( IO.Process (Decode.fail "exitFork")
+                , IO.NoOp
+                , Nothing
+                )
+        )
 
 
 effectToCmd : Int -> PortOut -> IO.Effect -> Cmd Msg
@@ -267,7 +297,7 @@ effectToCmd index portOut effect =
                         ]
                 }
 
-        IO.HPutStr handle content ->
+        IO.HPutStr (IO.Handle fd) content ->
             portOut
                 { index = index
                 , value =
@@ -275,14 +305,7 @@ effectToCmd index portOut effect =
                         [ ( "fn", Encode.string "fwrite" )
                         , ( "args"
                           , Encode.list identity
-                                [ Encode.int
-                                    (case handle of
-                                        IO.Stdout ->
-                                            1
-
-                                        IO.Stderr ->
-                                            2
-                                    )
+                                [ Encode.int fd
                                 , Encode.string content
                                 ]
                           )
@@ -310,7 +333,7 @@ effectToCmd index portOut effect =
                 }
 
         IO.PutStrLn str ->
-            effectToCmd index portOut (IO.HPutStr IO.Stdout (str ++ "\n"))
+            effectToCmd index portOut (IO.HPutStr IO.stdout (str ++ "\n"))
 
         IO.DirDoesFileExist filename ->
             portOut
@@ -499,6 +522,46 @@ effectToCmd index portOut effect =
                                 , value
                                 ]
                           )
+                        ]
+                }
+
+        IO.ReplGetInputLine prompt ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "replGetInputLine" )
+                        , ( "args", Encode.list Encode.string [ prompt ] )
+                        ]
+                }
+
+        IO.HClose (IO.Handle fd) ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "hClose" )
+                        , ( "args", Encode.list Encode.int [ fd ] )
+                        ]
+                }
+
+        IO.DirFindExecutable name ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "dirFindExecutable" )
+                        , ( "args", Encode.list Encode.string [ name ] )
+                        ]
+                }
+
+        IO.ProcWithCreateProcess ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "procWithCreateProcess" )
+                        , ( "args", Encode.list identity [] )
                         ]
                 }
 

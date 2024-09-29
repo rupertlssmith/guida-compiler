@@ -1303,20 +1303,26 @@ finalizeReplArtifacts ((Env _ root projectType _ _ _ _) as env) source ((Src.Mod
             projectTypeToPkg projectType
 
         compileInput ifaces =
-            -- case Compile.compile pkg ifaces modul of
-            --     Ok (Compile.Artifacts ((Can.Module name _ _ _ _ _ _ _) as canonical) annotations objects) ->
-            --         let
-            --             h =
-            --                 name
-            --             m =
-            --                 Fresh (Src.getName modul) (I.fromModule pkg canonical annotations) objects
-            --             ms =
-            --                 Dict.foldr addInside [] results
-            --         in
-            --         IO.pure <| Ok <| ReplArtifacts h (m :: ms) (L.fromModule modul) annotations
-            --     Err errors ->
-            --         IO.pure <| Err <| Exit.ReplBadInput source errors
-            Debug.todo "finalizeReplArtifacts"
+            Compile.compile pkg ifaces modul
+                |> IO.fmap
+                    (\result ->
+                        case result of
+                            Ok (Compile.Artifacts ((Can.Module name _ _ _ _ _ _ _) as canonical) annotations objects) ->
+                                let
+                                    h =
+                                        name
+
+                                    m =
+                                        Fresh (Src.getName modul) (I.fromModule pkg canonical annotations) objects
+
+                                    ms =
+                                        Dict.foldr addInside [] results
+                                in
+                                Ok <| ReplArtifacts h (m :: ms) (L.fromModule modul) annotations
+
+                            Err errors ->
+                                Err <| Exit.ReplBadInput source errors
+                    )
     in
     case depsStatus of
         DepsChange ifaces ->

@@ -32,7 +32,6 @@ module Utils.Main exposing
     , dirRemoveDirectoryRecursive
     , dirRemoveFile
     , dirWithCurrentDirectory
-    , dropWhile
     , eitherLefts
     , envGetArgs
     , envGetProgName
@@ -73,7 +72,8 @@ module Utils.Main exposing
     , ioFoldM
     , ioFoldrM
     , keysSet
-    , lift
+    , liftIOInputT
+    , liftInputT
     , lines
     , listGroupBy
     , listLookup
@@ -137,7 +137,6 @@ module Utils.Main exposing
     , stateGet
     , statePut
     , takeMVar
-    , takeWhile
     , throw
     , tupleTraverse
     , tupleTraverseStateT
@@ -158,7 +157,6 @@ import Data.NonEmptyList as NE
 import Data.Set as EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.Encode as Encode
-import List.Extra as List
 import Prelude
 import Reporting.Result as R
 import Reporting.Task as Task exposing (Task)
@@ -166,9 +164,14 @@ import Time
 import Utils.Crash exposing (crash)
 
 
-lift : ()
-lift =
-    Debug.todo "lift"
+liftInputT : IO () -> ReplInputT ()
+liftInputT =
+    identity
+
+
+liftIOInputT : IO a -> ReplInputT a
+liftIOInputT =
+    identity
 
 
 bsHPut : IO.Handle -> String -> IO ()
@@ -203,16 +206,6 @@ fpAddExtension path extension =
 
     else
         path ++ "." ++ extension
-
-
-dropWhile : (a -> Bool) -> List a -> List a
-dropWhile p xs =
-    Debug.todo "dropWhile"
-
-
-takeWhile : (a -> Bool) -> List a -> List a
-takeWhile p xs =
-    Debug.todo "takeWhile"
 
 
 mapFromKeysA : (k -> IO v) -> List k -> IO (Dict k v)
@@ -1002,10 +995,11 @@ forkIO : IO () -> IO ThreadId
 forkIO ioArg =
     IO
         (\next ->
-            ( IO.Process (Decode.succeed (next ThreadId))
-            , IO.NoOp
-            , Just ioArg
-            )
+            Decode.succeed
+                ( IO.Process (next ThreadId)
+                , IO.NoOp
+                , Just ioArg
+                )
         )
 
 
@@ -1182,8 +1176,8 @@ type ReplSettings
         }
 
 
-type ReplInputT a
-    = ReplInputT
+type alias ReplInputT a =
+    IO a
 
 
 type ReplCompletion
@@ -1194,29 +1188,30 @@ type ReplCompletionFunc
     = ReplCompletionFunc
 
 
-replRunInputT : ReplSettings -> ReplInputT a -> IO a
-replRunInputT =
-    Debug.todo "replRunInputT"
+replRunInputT : ReplSettings -> ReplInputT IO.ExitCode -> IO.StateT s IO.ExitCode
+replRunInputT _ io =
+    IO.liftIO io
 
 
 replWithInterrupt : ReplInputT a -> ReplInputT a
 replWithInterrupt =
-    Debug.todo "replWithInterrupt"
+    identity
 
 
 replHandleInterrupt : IO a -> IO a -> IO a
-replHandleInterrupt =
-    Debug.todo "replHandleInterrupt"
+replHandleInterrupt f =
+    identity
 
 
 replCompleteWord : Maybe Char -> String -> (String -> IO.StateT a (List ReplCompletion)) -> ReplCompletionFunc
-replCompleteWord =
-    Debug.todo "replCompleteWord"
+replCompleteWord _ _ _ =
+    -- FIXME
+    ReplCompletionFunc
 
 
 replGetInputLine : String -> ReplInputT (Maybe String)
-replGetInputLine =
-    Debug.todo "replGetInputLine"
+replGetInputLine prompt =
+    IO.make (Decode.maybe Decode.string) (IO.ReplGetInputLine prompt)
 
 
 replGetInputLineWithInitial : String -> ( String, String ) -> ReplInputT (Maybe String)
@@ -1241,32 +1236,37 @@ type ProcessHandle
 
 
 procProc : FilePath -> List String -> { std_in : StdStream } -> CreateProcess
-procProc =
-    Debug.todo "procProc"
+procProc _ _ _ =
+    CreateProcess
 
 
 procWithCreateProcess : CreateProcess -> (Maybe IO.Handle -> Maybe IO.Handle -> Maybe IO.Handle -> ProcessHandle -> IO IO.ExitCode) -> IO IO.ExitCode
-procWithCreateProcess =
-    Debug.todo "procWithCreateProcess"
+procWithCreateProcess _ f =
+    IO.make Decode.int IO.ProcWithCreateProcess
+        |> IO.bind (\fd -> f (Just (IO.Handle fd)) Nothing Nothing ProcessHandle)
 
 
 procWaitForProcess : ProcessHandle -> IO IO.ExitCode
-procWaitForProcess =
-    Debug.todo "procWaitForProcess"
+procWaitForProcess _ =
+    IO.pure IO.ExitSuccess
 
 
 
 -- Control.Monad.State.Class
 
 
-stateGet : IO.StateT s a
-stateGet =
-    Debug.todo "stateGet"
+stateGet : Decode.Decoder s -> IO.StateT s s
+stateGet decoder =
+    let
+        io =
+            IO.make decoder IO.StateGet
+    in
+    IO.StateT (\_ -> IO.fmap (\s -> ( s, s )) io)
 
 
-statePut : s -> IO.StateT s ()
-statePut =
-    Debug.todo "statePut"
+statePut : (s -> Encode.Value) -> s -> IO ()
+statePut encoder s =
+    IO.pure ()
 
 
 

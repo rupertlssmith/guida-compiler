@@ -25,6 +25,11 @@ import Elm.Outline as Outline
 import Elm.Package as Pkg
 import Elm.Version as V
 import Generate
+import Json.Decode as Decode
+import Json.DecodeX as D
+import Json.Encode as Encode
+import Json.EncodeX as E
+import List.Extra as List
 import Maybe.Extra as Maybe
 import Parse.Declaration as PD
 import Parse.Expression as PE
@@ -33,6 +38,7 @@ import Parse.Primitives as P exposing (Col, Row)
 import Parse.Space as PS
 import Parse.Type as PT
 import Parse.Variable as PV
+import Prelude
 import Reporting
 import Reporting.Annotation as A
 import Reporting.Doc as D
@@ -64,9 +70,9 @@ run flags =
                     |> IO.bind
                         (\env ->
                             let
+                                looper : M IO.ExitCode
                                 looper =
-                                    -- Utils.replRunInputT settings (Utils.replWithInterrupt (loop env initialState))
-                                    Debug.todo "looper"
+                                    Utils.replRunInputT settings (Utils.replWithInterrupt (loop env initialState))
                             in
                             IO.evalStateT looper initialState
                                 |> IO.bind (\exitCode -> IO.exitWith exitCode)
@@ -139,21 +145,21 @@ type alias M a =
 
 loop : Env -> State -> Utils.ReplInputT IO.ExitCode
 loop env state =
-    -- Utils.replHandleInterrupt (IO.pure Skip) read
-    --     |> IO.bind
-    --         (\input ->
-    --             IO.liftIO (eval env state input)
-    --                 |> IO.bind
-    --                     (\outcome ->
-    --                         case outcome of
-    --                             Loop loopState ->
-    --                                 Utils.lift (IO.statePut loopState)
-    --                                     |> IO.bind (\_ -> loop env loopState)
-    --                             End exitCode ->
-    --                                 IO.pure exitCode
-    --                     )
-    --         )
-    Debug.todo "loop"
+    Utils.replHandleInterrupt (IO.pure Skip) read
+        |> IO.bind
+            (\input ->
+                Utils.liftIOInputT (eval env state input)
+                    |> IO.bind
+                        (\outcome ->
+                            case outcome of
+                                Loop loopState ->
+                                    Utils.liftInputT (Utils.statePut stateEncoder loopState)
+                                        |> IO.bind (\_ -> loop env loopState)
+
+                                End exitCode ->
+                                    IO.pure exitCode
+                        )
+            )
 
 
 
@@ -175,24 +181,25 @@ type Input
 
 read : Utils.ReplInputT Input
 read =
-    -- Utils.replGetInputLine "> "
-    --     |> IO.bind
-    --         (\maybeLine ->
-    --             case maybeLine of
-    --                 Nothing ->
-    --                     IO.pure Exit
-    --                 Just chars ->
-    --                     let
-    --                         lines =
-    --                             Lines (stripLegacyBackslash chars) []
-    --                     in
-    --                     case categorize lines of
-    --                         Done input ->
-    --                             IO.pure input
-    --                         Continue p ->
-    --                             readMore lines p
-    --         )
-    Debug.todo "read"
+    Utils.replGetInputLine "> "
+        |> IO.bind
+            (\maybeLine ->
+                case maybeLine of
+                    Nothing ->
+                        IO.pure Exit
+
+                    Just chars ->
+                        let
+                            lines =
+                                Lines (stripLegacyBackslash chars) []
+                        in
+                        case categorize lines of
+                            Done input ->
+                                IO.pure input
+
+                            Continue p ->
+                                readMore lines p
+            )
 
 
 readMore : Lines -> Prefill -> Utils.ReplInputT Input
@@ -225,15 +232,15 @@ readMore previousLines prefill =
 --
 
 
-stripLegacyBackslash : List Char -> List Char
+stripLegacyBackslash : String -> String
 stripLegacyBackslash chars =
-    case chars of
+    case String.toList chars of
         [] ->
-            []
+            ""
 
-        _ :: _ ->
-            if Utils.last chars == '\\' then
-                Utils.init chars
+        (_ :: _) as charsList ->
+            if Prelude.last charsList == '\\' then
+                String.fromList (Prelude.init charsList)
 
             else
                 chars
@@ -410,7 +417,7 @@ attemptDeclOrExpr lines =
 
 startsWithColon : Lines -> Bool
 startsWithColon lines =
-    case Utils.dropWhile ((==) ' ') (String.toList (getFirstLine lines)) of
+    case List.dropWhile ((==) ' ') (String.toList (getFirstLine lines)) of
         [] ->
             False
 
@@ -420,7 +427,7 @@ startsWithColon lines =
 
 toCommand : Lines -> Input
 toCommand lines =
-    case String.fromList <| List.drop 1 <| Utils.dropWhile ((==) ' ') (String.toList (getFirstLine lines)) of
+    case String.fromList <| List.drop 1 <| List.dropWhile ((==) ' ') (String.toList (getFirstLine lines)) of
         "reset" ->
             Reset
 
@@ -434,7 +441,7 @@ toCommand lines =
             Help Nothing
 
         rest ->
-            Help (Just (String.fromList (Utils.takeWhile ((/=) ' ') (String.toList rest))))
+            Help (Just (String.fromList (List.takeWhile ((/=) ' ') (String.toList rest))))
 
 
 startsWithKeyword : String -> Lines -> Bool
@@ -517,7 +524,7 @@ initialState =
 
 eval : Env -> State -> Input -> IO Outcome
 eval env ((State imports types decls) as state) input =
-    Utils.replHandleInterrupt (Utils.putStrLn "<cancelled>" |> IO.fmap (\_ -> Loop state)) <|
+    Utils.replHandleInterrupt (Prelude.putStrLn "<cancelled>" |> IO.fmap (\_ -> Loop state)) <|
         case input of
             Skip ->
                 IO.pure (Loop state)
@@ -526,35 +533,35 @@ eval env ((State imports types decls) as state) input =
                 IO.pure (End IO.ExitSuccess)
 
             Reset ->
-                Utils.putStrLn "<reset>"
+                Prelude.putStrLn "<reset>"
                     |> IO.fmap (\_ -> Loop initialState)
 
             Help maybeUnknownCommand ->
-                Utils.putStrLn (toHelpMessage maybeUnknownCommand)
+                Prelude.putStrLn (toHelpMessage maybeUnknownCommand)
                     |> IO.fmap (\_ -> Loop state)
 
             Import name src ->
                 let
                     newState =
-                        State (Dict.insert name src imports) types decls
+                        State (Dict.insert compare name src imports) types decls
                 in
                 IO.fmap Loop (attemptEval env state newState OutputNothing)
 
             Type name src ->
                 let
                     newState =
-                        State imports (Dict.insert name src types) decls
+                        State imports (Dict.insert compare name src types) decls
                 in
                 IO.fmap Loop (attemptEval env state newState OutputNothing)
 
             Port ->
-                Utils.putStrLn "I cannot handle port declarations."
+                Prelude.putStrLn "I cannot handle port declarations."
                     |> IO.fmap (\_ -> Loop state)
 
             Decl name src ->
                 let
                     newState =
-                        State imports types (Dict.insert name src decls)
+                        State imports types (Dict.insert compare name src decls)
                 in
                 IO.fmap Loop (attemptEval env state newState (OutputDecl name))
 
@@ -746,7 +753,7 @@ getRoot =
 
 defaultDeps : Dict Pkg.Name C.Constraint
 defaultDeps =
-    Dict.fromList
+    Dict.fromList Pkg.compareName
         [ ( Pkg.core, C.anything )
         , ( Pkg.json, C.anything )
         , ( Pkg.html, C.anything )
@@ -769,10 +776,7 @@ getInterpreter maybeName =
                     |> IO.bind
                         (\exe1 ->
                             Utils.dirFindExecutable "nodejs"
-                                |> IO.fmap
-                                    (\exe2 ->
-                                        Maybe.or exe1 exe2
-                                    )
+                                |> IO.fmap (\exe2 -> Maybe.or exe1 exe2)
                         )
                 )
 
@@ -821,7 +825,7 @@ initSettings =
 
 lookupCompletions : String -> M (List Utils.ReplCompletion)
 lookupCompletions string =
-    Utils.stateGet
+    Utils.stateGet stateDecoder
         |> IO.fmapStateT
             (\(State imports types decls) ->
                 addMatches string False decls <|
@@ -833,7 +837,7 @@ lookupCompletions string =
 
 commands : Dict N.Name ()
 commands =
-    Dict.fromList
+    Dict.fromList compare
         [ ( ":exit", () )
         , ( ":quit", () )
         , ( ":reset", () )
@@ -857,3 +861,25 @@ addMatch string isFinished name _ completions =
 
     else
         completions
+
+
+
+-- ENCODERS and DECODERS
+
+
+stateDecoder : Decode.Decoder State
+stateDecoder =
+    Decode.map3 State
+        (Decode.field "imports" (D.assocListDict compare Decode.string Decode.string))
+        (Decode.field "types" (D.assocListDict compare Decode.string Decode.string))
+        (Decode.field "decls" (D.assocListDict compare Decode.string Decode.string))
+
+
+stateEncoder : State -> Encode.Value
+stateEncoder (State imports types decls) =
+    Encode.object
+        [ ( "type", Encode.string "State" )
+        , ( "imports", E.assocListDict Encode.string Encode.string imports )
+        , ( "types", E.assocListDict Encode.string Encode.string types )
+        , ( "decls", E.assocListDict Encode.string Encode.string decls )
+        ]

@@ -8,7 +8,7 @@ module Data.IO exposing
     , IOMode(..)
     , IORef(..)
     , Process(..)
-    , StateT
+    , StateT(..)
     , apply
     , applyStateT
     , bind
@@ -47,6 +47,7 @@ module Data.IO exposing
     , readIORef
     , runStateT
     , stderr
+    , stdin
     , stdout
     , utf8
     , vectorForM_
@@ -69,10 +70,11 @@ make : Decode.Decoder a -> Effect -> IO a
 make resultDecoder effect =
     IO
         (\next ->
-            ( Process (Decode.map next resultDecoder)
-            , effect
-            , Nothing
-            )
+            Decode.succeed
+                ( Process (Decode.lazy (\_ -> Decode.andThen next resultDecoder))
+                , effect
+                , Nothing
+                )
         )
 
 
@@ -112,6 +114,10 @@ type Effect
     | ReadMVar Int
     | TakeMVar Int
     | PutMVar Int Encode.Value
+    | ReplGetInputLine String
+    | HClose Handle
+    | StateGet
+    | ProcWithCreateProcess
     | NoOp
 
 
@@ -120,7 +126,7 @@ type Effect
 
 
 type IO a
-    = IO ((a -> ( Process, Effect, Maybe (IO ()) )) -> ( Process, Effect, Maybe (IO ()) ))
+    = IO ((a -> Decode.Decoder ( Process, Effect, Maybe (IO ()) )) -> Decode.Decoder ( Process, Effect, Maybe (IO ()) ))
 
 
 type Process
@@ -369,6 +375,18 @@ vectorUnsafeFreeze =
 -- StateT
 
 
+{-| newtype StateT s m a
+
+A state transformer monad parameterized by:
+
+s - The state.
+m - The inner monad. (== IO)
+
+The return function leaves the state unchanged, while >>= uses the final state of the first computation as the initial state of the second.
+
+Ref: <https://hackage.haskell.org/package/transformers-0.6.1.2/docs/Control-Monad-Trans-State-Lazy.html#t:StateT>
+
+-}
 type StateT s a
     = StateT (s -> IO ( a, s ))
 
@@ -440,18 +458,22 @@ modify f =
 
 
 type Handle
-    = Stdout
-    | Stderr
+    = Handle Int
+
+
+stdin : Handle
+stdin =
+    Handle 0
 
 
 stdout : Handle
 stdout =
-    Stdout
+    Handle 1
 
 
 stderr : Handle
 stderr =
-    Stderr
+    Handle 2
 
 
 hFlush : Handle -> IO ()
@@ -461,7 +483,7 @@ hFlush handle =
 
 hClose : Handle -> IO ()
 hClose handle =
-    Debug.todo "hClose"
+    make (Decode.succeed ()) (HClose handle)
 
 
 getLine : IO String
@@ -526,8 +548,20 @@ type ExitCode
 
 
 exitWith : ExitCode -> IO a
-exitWith _ =
-    IO (\_ -> Debug.todo "exitWith")
+exitWith exitCode =
+    IO
+        (\_ ->
+            let
+                code =
+                    case exitCode of
+                        ExitSuccess ->
+                            0
+
+                        ExitFailure int ->
+                            int
+            in
+            Decode.fail (Encode.encode 0 (Encode.int code))
+        )
 
 
 exitFailure : IO a
@@ -544,4 +578,4 @@ hSetEncoding _ _ =
 withFile : String -> IOMode -> (Handle -> IO a) -> IO a
 withFile _ _ callback =
     -- TODO review this
-    callback Stdout
+    callback stdout
