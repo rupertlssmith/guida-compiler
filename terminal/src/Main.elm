@@ -555,13 +555,50 @@ effectToCmd index portOut effect =
                         ]
                 }
 
-        IO.ProcWithCreateProcess ->
+        IO.ProcWithCreateProcess createProcess ->
             portOut
                 { index = index
                 , value =
                     Encode.object
                         [ ( "fn", Encode.string "procWithCreateProcess" )
-                        , ( "args", Encode.list identity [] )
+                        , ( "args"
+                          , Encode.list identity
+                                [ Encode.object
+                                    [ ( "cmdspec"
+                                      , case createProcess.cmdspec of
+                                            IO.RawCommand cmd args ->
+                                                Encode.object
+                                                    [ ( "type", Encode.string "RawCommand" )
+                                                    , ( "cmd", Encode.string cmd )
+                                                    , ( "args", Encode.list Encode.string args )
+                                                    ]
+                                      )
+                                    , ( "std_in"
+                                      , case createProcess.std_in of
+                                            IO.Inherit ->
+                                                Encode.object
+                                                    [ ( "type", Encode.string "Inherit" )
+                                                    ]
+
+                                            IO.UseHandle (IO.Handle handle) ->
+                                                Encode.object
+                                                    [ ( "type", Encode.string "UseHandle" )
+                                                    , ( "handle", Encode.int handle )
+                                                    ]
+
+                                            IO.CreatePipe ->
+                                                Encode.object
+                                                    [ ( "type", Encode.string "CreatePipe" )
+                                                    ]
+
+                                            IO.NoStream ->
+                                                Encode.object
+                                                    [ ( "type", Encode.string "NoStream" )
+                                                    ]
+                                      )
+                                    ]
+                                ]
+                          )
                         ]
                 }
 

@@ -18,6 +18,7 @@ import Generate.JavaScript.Expression as Expr
 import Generate.JavaScript.Functions as Functions
 import Generate.JavaScript.Name as JsName
 import Generate.Mode as Mode
+import Json.Encode as Encode
 import Reporting.Doc as D
 import Reporting.Render.Type as RT
 import Reporting.Render.Type.Localizer as L
@@ -117,7 +118,7 @@ print ansi localizer home name tipe =
         ++ ", "
         ++ value
         ++ ");\nvar _type = "
-        ++ D.toString tipeDoc
+        ++ Encode.encode 0 (Encode.string (D.toString tipeDoc))
         ++ ";\nfunction _print(t) { console.log(_value + ("
         ++ bool
         ++ " ? '\\x1b[90m' + t + '\\x1b[0m' : t)); }\nif (_value.length + 3 + _type.length >= 80 || _type.indexOf('\\n') >= 0) {\n    _print('\\n    : ' + _type.split('\\n').join('\\n      '));\n} else {\n    _print(' : ' + _type);\n}\n"

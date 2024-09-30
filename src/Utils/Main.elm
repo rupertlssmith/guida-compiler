@@ -9,7 +9,6 @@ module Utils.Main exposing
     , ReplInputT
     , ReplSettings(..)
     , SomeException(..)
-    , StdStream(..)
     , ThreadId
     , ZipArchive(..)
     , ZipEntry(..)
@@ -112,9 +111,6 @@ module Utils.Main exposing
     , newEmptyMVar
     , newMVar
     , nonEmptyListTraverse
-    , procProc
-    , procWaitForProcess
-    , procWithCreateProcess
     , putMVar
     , readChan
     , readMVar
@@ -1217,38 +1213,6 @@ replGetInputLine prompt =
 replGetInputLineWithInitial : String -> ( String, String ) -> ReplInputT (Maybe String)
 replGetInputLineWithInitial =
     Debug.todo "replGetInputLineWithInitial"
-
-
-
--- System.Process
-
-
-type CreateProcess
-    = CreateProcess
-
-
-type StdStream
-    = CreatePipe
-
-
-type ProcessHandle
-    = ProcessHandle
-
-
-procProc : FilePath -> List String -> { std_in : StdStream } -> CreateProcess
-procProc _ _ _ =
-    CreateProcess
-
-
-procWithCreateProcess : CreateProcess -> (Maybe IO.Handle -> Maybe IO.Handle -> Maybe IO.Handle -> ProcessHandle -> IO IO.ExitCode) -> IO IO.ExitCode
-procWithCreateProcess _ f =
-    IO.make Decode.int IO.ProcWithCreateProcess
-        |> IO.bind (\fd -> f (Just (IO.Handle fd)) Nothing Nothing ProcessHandle)
-
-
-procWaitForProcess : ProcessHandle -> IO IO.ExitCode
-procWaitForProcess _ =
-    IO.pure IO.ExitSuccess
 
 
 

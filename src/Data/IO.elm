@@ -1,5 +1,7 @@
 module Data.IO exposing
-    ( Effect(..)
+    ( CmdSpec(..)
+    , CreateProcess
+    , Effect(..)
     , ExitCode(..)
     , Handle(..)
     , IO(..)
@@ -9,6 +11,7 @@ module Data.IO exposing
     , IORef(..)
     , Process(..)
     , StateT(..)
+    , StdStream(..)
     , apply
     , applyStateT
     , bind
@@ -41,6 +44,9 @@ module Data.IO exposing
     , modify
     , modifyIORef
     , newIORef
+    , procProc
+    , procWaitForProcess
+    , procWithCreateProcess
     , pure
     , pureStateT
     , putStr
@@ -117,8 +123,51 @@ type Effect
     | ReplGetInputLine String
     | HClose Handle
     | StateGet
-    | ProcWithCreateProcess
+    | ProcWithCreateProcess CreateProcess
     | NoOp
+
+
+
+-- System.Process
+
+
+type CmdSpec
+    = RawCommand String (List String)
+
+
+type alias CreateProcess =
+    { cmdspec : CmdSpec
+    , std_in : StdStream
+    }
+
+
+type StdStream
+    = Inherit
+    | UseHandle Handle
+    | CreatePipe
+    | NoStream
+
+
+type ProcessHandle
+    = ProcessHandle
+
+
+procProc : String -> List String -> CreateProcess
+procProc cmd args =
+    { cmdspec = RawCommand cmd args
+    , std_in = Inherit
+    }
+
+
+procWithCreateProcess : CreateProcess -> (Maybe Handle -> Maybe Handle -> Maybe Handle -> ProcessHandle -> IO ExitCode) -> IO ExitCode
+procWithCreateProcess createProcess f =
+    make Decode.int (ProcWithCreateProcess createProcess)
+        |> bind (\fd -> f (Just (Handle fd)) Nothing Nothing ProcessHandle)
+
+
+procWaitForProcess : ProcessHandle -> IO ExitCode
+procWaitForProcess _ =
+    pure ExitSuccess
 
 
 

@@ -105,7 +105,7 @@ printWelcomeMessage =
             , D.black (D.fromChars "Say :help for help and :exit to exit! More at ")
                 |> D.a (D.fromChars (D.makeLink "repl"))
             , D.black (D.fromChars "--------------------------------------------------------------------------------")
-            , D.empty
+            , D.fromChars ""
             ]
 
 
@@ -627,15 +627,16 @@ interpret : FilePath -> String -> IO IO.ExitCode
 interpret interpreter javascript =
     let
         createProcess =
-            Utils.procProc interpreter [] { std_in = Utils.CreatePipe }
+            IO.procProc interpreter []
+                |> (\cp -> { cp | std_in = IO.CreatePipe })
     in
-    Utils.procWithCreateProcess createProcess <|
+    IO.procWithCreateProcess createProcess <|
         \stdinHandle _ _ handle ->
             case stdinHandle of
                 Just stdin ->
                     Utils.builderHPutBuilder stdin javascript
                         |> IO.bind (\_ -> IO.hClose stdin)
-                        |> IO.bind (\_ -> Utils.procWaitForProcess handle)
+                        |> IO.bind (\_ -> IO.procWaitForProcess handle)
 
                 Nothing ->
                     crash "not implemented"

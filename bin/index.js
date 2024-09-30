@@ -1,6 +1,7 @@
 #!/usr/bin/env -S node --stack-size=8192
 
 const fs = require("fs");
+const child_process = require("child_process");
 const readline = require("readline");
 const os = require("os");
 const https = require("https");
@@ -291,8 +292,17 @@ function createIo(rl) {
         this.send({ index, value: answer });
       });
     },
-    procWithCreateProcess: function (index) {
+    procWithCreateProcess: function (index, createProcess) {
+      // FIXME needs review, only trying to implement the minimum for repl functionality
       const file = tmp.fileSync();
+      const reader = fs.createReadStream(file.name);
+
+      reader.on("data", function (_chunk) {
+        child_process.spawn(createProcess.cmdspec.cmd, [file.name], {
+          stdio: "inherit",
+        });
+      });
+
       this.send({ index, value: file.fd });
     },
     hClose: function (index, fd) {
