@@ -231,7 +231,7 @@ toCommandList exeName commands =
             List.map toName commands
 
         width =
-            Utils.listMaximum (List.map String.length names)
+            Utils.listMaximum compare (List.map String.length names)
 
         toExample name =
             P.text

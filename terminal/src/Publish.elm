@@ -16,8 +16,10 @@ import Elm.Package as Pkg
 import Elm.Version as V
 import File
 import Http
-import Json.Decode as D
+import Json.DecodeX as D
 import Json.StringX as Json
+import List.Extra as List
+import Prelude
 import Reporting
 import Reporting.Doc as D
 import Reporting.Exit as Exit
@@ -29,12 +31,13 @@ import Utils.Main as Utils exposing (FilePath)
 
 
 -- RUN
--- TODO mandate no "exposing (..)" in packages to make
--- optimization to skip builds in Elm.Details always valid
 
 
-run : () -> () -> IO ()
-run () () =
+{-| TODO mandate no "exposing (..)" in packages to make
+optimization to skip builds in Elm.Details always valid
+-}
+run : IO ()
+run =
     Reporting.attempt Exit.publishToReport <|
         Task.run (Task.bind publish getEnv)
 
@@ -88,43 +91,43 @@ publish ((Env root _ manager registry outline) as env) =
                     Registry.getVersions pkg registry
             in
             reportPublishStart pkg vsn maybeKnownVersions
-                |> IO.bind
+                |> Task.bind
                     (\_ ->
                         if noExposed exposed then
                             Task.throw Exit.PublishNoExposed
 
                         else
-                            IO.pure ()
+                            Task.pure ()
                     )
-                |> IO.bind
+                |> Task.bind
                     (\_ ->
                         if badSummary summary then
                             Task.throw Exit.PublishNoSummary
 
                         else
-                            IO.pure ()
+                            Task.pure ()
                     )
-                |> IO.bind (\_ -> verifyReadme root)
-                |> IO.bind (\_ -> verifyLicense root)
-                |> IO.bind (\_ -> verifyBuild root)
-                |> IO.bind
+                |> Task.bind (\_ -> verifyReadme root)
+                |> Task.bind (\_ -> verifyLicense root)
+                |> Task.bind (\_ -> verifyBuild root)
+                |> Task.bind
                     (\docs ->
                         verifyVersion env pkg vsn docs maybeKnownVersions
-                            |> IO.bind (\_ -> getGit)
-                            |> IO.bind
+                            |> Task.bind (\_ -> getGit)
+                            |> Task.bind
                                 (\git ->
                                     verifyTag git manager pkg vsn
-                                        |> IO.bind
+                                        |> Task.bind
                                             (\commitHash ->
                                                 verifyNoChanges git commitHash vsn
-                                                    |> IO.bind
+                                                    |> Task.bind
                                                         (\_ ->
                                                             verifyZip env pkg vsn
-                                                                |> IO.bind
+                                                                |> Task.bind
                                                                     (\zipHash ->
-                                                                        Task.io (putStrLn "")
-                                                                            |> IO.bind (\_ -> register manager pkg vsn docs commitHash zipHash)
-                                                                            |> IO.bind (\_ -> Task.io (putStrLn "Success!"))
+                                                                        Task.io (Prelude.putStrLn "")
+                                                                            |> Task.bind (\_ -> register manager pkg vsn docs commitHash zipHash)
+                                                                            |> Task.bind (\_ -> Task.io (Prelude.putStrLn "Success!"))
                                                                     )
                                                         )
                                             )
@@ -214,10 +217,10 @@ verifyBuild root =
     reportBuildCheck <|
         BW.withScope <|
             \scope ->
-                Task.run <|
-                    Task.eio Exit.PublishBadDetails
+                Task.run
+                    (Task.eio Exit.PublishBadDetails
                         (Details.load Reporting.silent scope root)
-                        |> IO.bind
+                        |> Task.bind
                             (\((Details.Details _ outline _ _ _ _) as details) ->
                                 (case outline of
                                     Details.ValidApp _ ->
@@ -227,14 +230,15 @@ verifyBuild root =
                                         Task.throw Exit.PublishNoExposed
 
                                     Details.ValidPkg _ (e :: es) _ ->
-                                        return (NE.Nonempty e es)
+                                        Task.pure (NE.Nonempty e es)
                                 )
-                                    |> IO.bind
+                                    |> Task.bind
                                         (\exposed ->
                                             Task.eio Exit.PublishBuildProblem <|
-                                                Build.fromExposed Reporting.silent root details Build.KeepDocs exposed
+                                                Build.fromExposed Docs.jsonDecoder Docs.jsonEncoder Reporting.silent root details Build.KeepDocs exposed
                                         )
                             )
+                    )
 
 
 
@@ -242,34 +246,36 @@ verifyBuild root =
 
 
 type Git
-    = Git (List String -> IO Exit.ExitCode)
+    = Git (List String -> IO IO.ExitCode)
 
 
 getGit : Task.Task Exit.Publish Git
 getGit =
-    Task.io (Dir.findExecutable "git")
-        |> IO.bind
+    Task.io (Utils.dirFindExecutable "git")
+        |> Task.bind
             (\maybeGit ->
                 case maybeGit of
                     Nothing ->
                         Task.throw Exit.PublishNoGit
 
                     Just git ->
-                        IO.pure <|
+                        Task.pure <|
                             Git
                                 (\args ->
                                     let
                                         process =
-                                            Process.proc git
-                                                args
-                                                { std_in = Process.CreatePipe
-                                                , std_out = Process.CreatePipe
-                                                , std_err = Process.CreatePipe
-                                                }
+                                            IO.procProc git args
+                                                |> (\cp ->
+                                                        { cp
+                                                            | std_in = IO.CreatePipe
+                                                            , std_out = IO.CreatePipe
+                                                            , std_err = IO.CreatePipe
+                                                        }
+                                                   )
                                     in
-                                    Process.withCreateProcess process
+                                    IO.procWithCreateProcess process
                                         (\_ _ _ handle ->
-                                            Process.waitForProcess handle
+                                            IO.procWaitForProcess handle
                                         )
                                 )
             )
@@ -280,17 +286,17 @@ getGit =
 
 
 verifyTag : Git -> Http.Manager -> Pkg.Name -> V.Version -> Task.Task Exit.Publish String
-verifyTag git manager pkg vsn =
-    reportTagCheck vsn <|
-        (-- https://stackoverflow.com/questions/1064499/how-to-list-all-git-tags
-         run_ git [ "show", "--name-only", V.toChars vsn, "--" ]
+verifyTag (Git run_) manager pkg vsn =
+    reportTagCheck vsn
+        -- https://stackoverflow.com/questions/1064499/how-to-list-all-git-tags
+        (run_ [ "show", "--name-only", V.toChars vsn, "--" ]
             |> IO.bind
                 (\exitCode ->
                     case exitCode of
-                        Exit.ExitFailure _ ->
+                        IO.ExitFailure _ ->
                             IO.pure (Err (Exit.PublishMissingTag vsn))
 
-                        Exit.ExitSuccess ->
+                        IO.ExitSuccess ->
                             let
                                 url =
                                     toTagUrl pkg vsn
@@ -314,7 +320,7 @@ toTagUrl pkg vsn =
 
 commitHashDecoder : D.Decoder e String
 commitHashDecoder =
-    D.map Utf8.toChars (D.field "object" (D.field "sha" D.string))
+    D.field "object" (D.field "sha" D.string)
 
 
 
@@ -322,17 +328,17 @@ commitHashDecoder =
 
 
 verifyNoChanges : Git -> String -> V.Version -> Task.Task Exit.Publish ()
-verifyNoChanges git commitHash vsn =
+verifyNoChanges (Git run_) commitHash vsn =
     reportLocalChangesCheck <|
-        (-- https://stackoverflow.com/questions/3878624/how-do-i-programmatically-determine-if-there-are-uncommited-changes
-         run_ git [ "diff-index", "--quiet", commitHash, "--" ]
+        -- https://stackoverflow.com/questions/3878624/how-do-i-programmatically-determine-if-there-are-uncommited-changes
+        (run_ [ "diff-index", "--quiet", commitHash, "--" ]
             |> IO.fmap
                 (\exitCode ->
                     case exitCode of
-                        Exit.ExitSuccess ->
+                        IO.ExitSuccess ->
                             Ok ()
 
-                        Exit.ExitFailure _ ->
+                        IO.ExitFailure _ ->
                             Err (Exit.PublishLocalChanges vsn)
                 )
         )
@@ -357,16 +363,16 @@ verifyZip (Env root _ manager _ _) pkg vsn =
                     (Exit.PublishCannotDecodeZip url)
                     (IO.pure << Ok)
                 )
-                |> IO.bind
+                |> Task.bind
                     (\( sha, archive ) ->
                         Task.io (File.writePackage prepublishDir archive)
-                            |> IO.bind
+                            |> Task.bind
                                 (\_ ->
                                     reportZipBuildCheck <|
-                                        Dir.withCurrentDirectory prepublishDir <|
+                                        Utils.dirWithCurrentDirectory prepublishDir <|
                                             verifyZipBuild prepublishDir
                                 )
-                            |> IO.fmap (\_ -> sha)
+                            |> Task.fmap (\_ -> sha)
                     )
 
 
@@ -381,10 +387,10 @@ withPrepublishDir root callback =
         dir =
             Stuff.prepublishDir root
     in
-    Task.eio id <|
-        bracket_
-            (Dir.createDirectoryIfMissing True dir)
-            (Dir.removeDirectoryRecursive dir)
+    Task.eio identity <|
+        Utils.bracket_
+            (Utils.dirCreateDirectoryIfMissing True dir)
+            (Utils.dirRemoveDirectoryRecursive dir)
             (Task.run (callback dir))
 
 
@@ -395,7 +401,7 @@ verifyZipBuild root =
             Task.run
                 (Task.eio Exit.PublishZipBadDetails
                     (Details.load Reporting.silent scope root)
-                    |> IO.bind
+                    |> Task.bind
                         (\((Details.Details _ outline _ _ _ _) as details) ->
                             (case outline of
                                 Details.ValidApp _ ->
@@ -405,13 +411,13 @@ verifyZipBuild root =
                                     Task.throw Exit.PublishZipNoExposed
 
                                 Details.ValidPkg _ (e :: es) _ ->
-                                    return (NE.Nonempty e es)
+                                    Task.pure (NE.Nonempty e es)
                             )
-                                |> IO.bind
+                                |> Task.bind
                                     (\exposed ->
                                         Task.eio Exit.PublishZipBuildProblem
-                                            (Build.fromExposed Reporting.silent root details Build.KeepDocs exposed)
-                                            |> IO.fmap (\_ -> ())
+                                            (Build.fromExposed Docs.jsonDecoder Docs.jsonEncoder Reporting.silent root details Build.KeepDocs exposed)
+                                            |> Task.fmap (\_ -> ())
                                     )
                         )
                 )
@@ -433,14 +439,14 @@ verifyVersion env pkg vsn newDocs publishedVersions =
         case publishedVersions of
             Nothing ->
                 if vsn == V.one then
-                    return <| Right GoodStart
+                    IO.pure <| Ok GoodStart
 
                 else
-                    return <| Left <| Exit.PublishNotInitialVersion vsn
+                    IO.pure <| Err <| Exit.PublishNotInitialVersion vsn
 
             Just ((Registry.KnownVersions latest previous) as knownVersions) ->
-                if vsn == latest || elem vsn previous then
-                    return <| Left <| Exit.PublishAlreadyPublished vsn
+                if vsn == latest || List.member vsn previous then
+                    IO.pure <| Err <| Exit.PublishAlreadyPublished vsn
 
                 else
                     verifyBump env pkg vsn newDocs knownVersions
@@ -497,7 +503,7 @@ register manager pkg vsn docs commitHash sha =
         Http.upload manager
             url
             [ Http.filePart "elm.json" "elm.json"
-            , Http.jsonPart "docs.json" "docs.json" (Docs.jsonEncode docs)
+            , Http.jsonPart "docs.json" "docs.json" (Docs.jsonEncoder docs)
             , Http.filePart "README.md" "README.md"
             , Http.stringPart "github-hash" (Http.shaToChars sha)
             ]
@@ -512,10 +518,10 @@ reportPublishStart pkg vsn maybeKnownVersions =
     Task.io <|
         case maybeKnownVersions of
             Nothing ->
-                putStrLn <| Exit.newPackageOverview ++ "\nI will now verify that everything is in order...\n"
+                Prelude.putStrLn <| Exit.newPackageOverview ++ "\nI will now verify that everything is in order...\n"
 
             Just _ ->
-                putStrLn <| "Verifying " ++ Pkg.toChars pkg ++ " " ++ V.toChars vsn ++ " ...\n"
+                Prelude.putStrLn <| "Verifying " ++ Pkg.toChars pkg ++ " " ++ V.toChars vsn ++ " ...\n"
 
 
 
@@ -574,7 +580,7 @@ reportSemverCheck version work =
                         ++ vsn
                         ++ ")"
     in
-    void <| reportCustomCheck waiting success failure work
+    Task.void <| reportCustomCheck waiting success failure work
 
 
 reportTagCheck : V.Version -> IO (Result x a) -> Task.Task x a
@@ -618,13 +624,13 @@ reportCustomCheck : String -> (a -> String) -> String -> IO (Result x a) -> Task
 reportCustomCheck waiting success failure work =
     let
         putFlush doc =
-            Help.toStdout doc >> IO.hFlush IO.stdout
+            Help.toStdout doc |> IO.fmap (\_ -> IO.hFlush IO.stdout)
 
         padded message =
-            message ++ replicate (length waiting - length message) ' '
+            message ++ String.repeat (String.length waiting - String.length message) " "
     in
-    Task.eio id
-        (putFlush ("  " ++ waitingMark |> D.plus (D.fromChars waiting))
+    Task.eio identity
+        (putFlush (D.plus (D.fromChars "  ") (D.plus waitingMark (D.fromChars waiting)))
             |> IO.bind
                 (\_ ->
                     work
@@ -633,13 +639,12 @@ reportCustomCheck waiting success failure work =
                                 putFlush
                                     (case result of
                                         Ok a ->
-                                            "\u{000D}  " ++ goodMark |> D.plus (D.fromChars (padded (success a) ++ "\n"))
+                                            D.append (D.fromChars "\u{000D}  ") (D.plus goodMark (D.fromChars (padded (success a) ++ "\n")))
 
                                         Err _ ->
-                                            "\u{000D}  " ++ badMark |> D.plus (D.fromChars (padded failure ++ "\n\n"))
+                                            D.append (D.fromChars "\u{000D}  ") (D.plus badMark (D.fromChars (padded failure ++ "\n\n")))
                                     )
-                                    return
-                                    result
+                                    |> IO.fmap (\_ -> result)
                             )
                 )
         )
@@ -653,32 +658,33 @@ goodMark : D.Doc
 goodMark =
     D.green <|
         if isWindows then
-            "+"
+            D.fromChars "+"
 
         else
-            "●"
+            D.fromChars "●"
 
 
 badMark : D.Doc
 badMark =
     D.red <|
         if isWindows then
-            "X"
+            D.fromChars "X"
 
         else
-            "✗"
+            D.fromChars "✗"
 
 
 waitingMark : D.Doc
 waitingMark =
     D.dullyellow <|
         if isWindows then
-            "-"
+            D.fromChars "-"
 
         else
-            "→"
+            D.fromChars "→"
 
 
 isWindows : Bool
 isWindows =
-    Info.os == "mingw32"
+    -- Info.os == "mingw32"
+    False

@@ -3,6 +3,7 @@ module Diff exposing
     , run
     )
 
+import AST.Utils.Binop as Binop
 import BackgroundWriter as BW
 import Build
 import Data.IO exposing (IO)
@@ -12,7 +13,7 @@ import Data.NonEmptyList as NE
 import Deps.Diff as DD exposing (Changes(..), ModuleChanges(..), PackageChanges(..))
 import Deps.Registry as Registry
 import Elm.Compiler.Type as Type
-import Elm.Details as Details
+import Elm.Details as Details exposing (Details(..))
 import Elm.Docs as Docs
 import Elm.Magnitude as M
 import Elm.Outline as Outline
@@ -23,6 +24,7 @@ import Reporting
 import Reporting.Doc as D
 import Reporting.Exit as Exit
 import Reporting.Exit.Help as Help
+import Reporting.Render.Type as Type
 import Reporting.Render.Type.Localizer as L
 import Reporting.Task as Task
 import Stuff
@@ -39,8 +41,8 @@ type Args
     | GlobalInquiry Pkg.Name V.Version V.Version
 
 
-run : Args -> () -> IO ()
-run args () =
+run : Args -> IO ()
+run args =
     Reporting.attempt Exit.diffToReport
         (Task.run
             (getEnv
@@ -201,8 +203,8 @@ generateDocs (Env maybeRoot _ _ _) =
             Task.eio Exit.DiffBadDetails
                 (BW.withScope (\scope -> Details.load Reporting.silent scope root))
                 |> Task.bind
-                    (\details ->
-                        case Details.outline_ details of
+                    (\((Details _ outline _ _ _ _) as details) ->
+                        case outline of
                             Details.ValidApp _ ->
                                 Task.throw Exit.DiffApplication
 
@@ -213,7 +215,7 @@ generateDocs (Env maybeRoot _ _ _) =
 
                                     e :: es ->
                                         Task.eio Exit.DiffBadBuild <|
-                                            Build.fromExposed Reporting.silent root details Build.KeepDocs (NE.Nonempty e es)
+                                            Build.fromExposed Docs.jsonDecoder Docs.jsonEncoder Reporting.silent root details Build.KeepDocs (NE.Nonempty e es)
                     )
 
 
@@ -228,9 +230,9 @@ writeDiff oldDocs newDocs =
             DD.diff oldDocs newDocs
 
         localizer =
-            L.fromNames (Dict.union oldDocs newDocs)
+            L.fromNames (Dict.union compare oldDocs newDocs)
     in
-    Task.io (Help.toStdout (toDoc localizer changes ++ "\n"))
+    Task.io (Help.toStdout (toDoc localizer changes |> D.a (D.fromChars "\n")))
 
 
 
@@ -239,7 +241,7 @@ writeDiff oldDocs newDocs =
 
 toDoc : L.Localizer -> PackageChanges -> D.Doc
 toDoc localizer ((PackageChanges added changed removed) as changes) =
-    if null added && Map.null changed && null removed then
+    if List.isEmpty added && Dict.isEmpty changed && List.isEmpty removed then
         D.fromChars "No API changes detected, so this is a"
             |> D.plus (D.green (D.fromChars "PATCH"))
             |> D.plus (D.fromChars "change.")
@@ -255,29 +257,29 @@ toDoc localizer ((PackageChanges added changed removed) as changes) =
                     |> D.plus (D.fromChars "change.")
 
             addedChunk =
-                if null added then
+                if List.isEmpty added then
                     []
 
                 else
                     [ Chunk "ADDED MODULES" M.MINOR <|
                         D.vcat <|
-                            map D.fromName added
+                            List.map D.fromName added
                     ]
 
             removedChunk =
-                if null removed then
+                if List.isEmpty removed then
                     []
 
                 else
                     [ Chunk "REMOVED MODULES" M.MAJOR <|
                         D.vcat <|
-                            map D.fromName removed
+                            List.map D.fromName removed
                     ]
 
             chunks =
-                addedChunk ++ removedChunk ++ map (changesToChunk localizer) (Map.toList changed)
+                addedChunk ++ removedChunk ++ List.map (changesToChunk localizer) (Dict.toList changed)
         in
-        D.vcat (header :: "" :: map chunkToDoc chunks)
+        D.vcat (header :: D.fromChars "" :: List.map chunkToDoc chunks)
 
 
 type Chunk
@@ -321,10 +323,10 @@ changesToChunk localizer ( name, (ModuleChanges unions aliases values binops) as
         ( binopAdd, binopChange, binopRemove ) =
             changesToDocTriple (binopToDoc localizer) binops
     in
-    Chunk (Name.toChars name) magnitude <|
+    Chunk name magnitude <|
         D.vcat <|
-            List.intersperse "" <|
-                Maybe.catMaybes <|
+            List.intersperse (D.fromChars "") <|
+                List.filterMap identity <|
                     [ changesToDoc "Added" unionAdd aliasAdd valueAdd binopAdd
                     , changesToDoc "Removed" unionRemove aliasRemove valueRemove binopRemove
                     , changesToDoc "Changed" unionChange aliasChange valueChange binopChange
@@ -339,27 +341,26 @@ changesToDocTriple entryToDoc (Changes added changed removed) =
 
         diffed ( name, ( oldValue, newValue ) ) =
             D.vcat
-                [ "  - " ++ entryToDoc name oldValue
-                , "  + " ++ entryToDoc name newValue
-                , ""
+                [ D.fromChars "  - " |> D.a (entryToDoc name oldValue)
+                , D.fromChars "  + " |> D.a (entryToDoc name newValue)
+                , D.fromChars ""
                 ]
     in
-    ( map indented (Map.toList added)
-    , map diffed (Map.toList changed)
-    , map indented (Map.toList removed)
+    ( List.map indented (Dict.toList added)
+    , List.map diffed (Dict.toList changed)
+    , List.map indented (Dict.toList removed)
     )
 
 
 changesToDoc : String -> List D.Doc -> List D.Doc -> List D.Doc -> List D.Doc -> Maybe D.Doc
 changesToDoc categoryName unions aliases values binops =
-    if null unions && null aliases && null values && null binops then
+    if List.isEmpty unions && List.isEmpty aliases && List.isEmpty values && List.isEmpty binops then
         Nothing
 
     else
         Just <|
             D.vcat <|
-                D.fromChars categoryName
-                    ++ ":"
+                D.plus (D.fromChars categoryName) (D.fromChars ":")
                     :: unions
                     ++ aliases
                     ++ binops
@@ -377,41 +378,69 @@ unionToDoc localizer name (Docs.Union _ tvars ctors) =
         ctorDoc ( ctor, tipes ) =
             typeDoc localizer (Type.Type ctor tipes)
     in
-    D.hang 4 (D.sep (setup :: zipWith (++) ("=" :: repeat "|") (map ctorDoc ctors)))
+    D.hang 4
+        (D.sep
+            (setup
+                :: List.map2 D.plus
+                    (D.fromChars "=" :: List.repeat (List.length ctors - 1) (D.fromChars "|"))
+                    (List.map ctorDoc ctors)
+            )
+        )
 
 
 aliasToDoc : L.Localizer -> Name.Name -> Docs.Alias -> D.Doc
 aliasToDoc localizer name (Docs.Alias _ tvars tipe) =
     let
         declaration =
-            "type" ++ "alias" ++ D.hsep (map D.fromName (name :: tvars)) ++ "="
+            D.plus (D.fromChars "type")
+                (D.plus (D.fromChars "alias")
+                    (D.plus (D.hsep (List.map D.fromName (name :: tvars)))
+                        (D.fromChars "=")
+                    )
+                )
     in
     D.hang 4 (D.sep [ declaration, typeDoc localizer tipe ])
 
 
 valueToDoc : L.Localizer -> Name.Name -> Docs.Value -> D.Doc
 valueToDoc localizer name (Docs.Value _ tipe) =
-    D.hang 4 <| D.sep [ D.fromName name ++ ":", typeDoc localizer tipe ]
+    D.hang 4 <| D.sep [ D.plus (D.fromName name) (D.fromChars ":"), typeDoc localizer tipe ]
 
 
 binopToDoc : L.Localizer -> Name.Name -> Docs.Binop -> D.Doc
-binopToDoc localizer name (Docs.Binop _ tipe associativity (Docs.Precedence n)) =
+binopToDoc localizer name (Docs.Binop _ tipe associativity n) =
     let
         details =
-            "    (" ++ D.fromName assoc ++ "/" ++ D.fromInt n ++ ")"
+            D.plus (D.fromChars "    (")
+                (D.plus (D.fromName assoc)
+                    (D.plus (D.fromChars "/")
+                        (D.plus (D.fromInt n)
+                            (D.fromChars ")")
+                        )
+                    )
+                )
 
         assoc =
             case associativity of
-                Docs.Left ->
+                Binop.Left ->
                     "left"
 
-                Docs.Non ->
+                Binop.Non ->
                     "non"
 
-                Docs.Right ->
+                Binop.Right ->
                     "right"
     in
-    "(" ++ D.fromName name ++ ")" ++ ":" ++ typeDoc localizer tipe ++ D.black details
+    D.plus (D.fromChars "(")
+        (D.plus (D.fromName name)
+            (D.plus (D.fromChars ")")
+                (D.plus (D.fromChars ":")
+                    (D.plus (typeDoc localizer tipe)
+                        (D.black details)
+                    )
+                )
+            )
+        )
 
 
 typeDoc : L.Localizer -> Type.Type -> D.Doc

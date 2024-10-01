@@ -1,5 +1,5 @@
 module Deps.Diff exposing
-    ( Changes
+    ( Changes(..)
     , ModuleChanges(..)
     , PackageChanges(..)
     , bump
@@ -9,7 +9,6 @@ module Deps.Diff exposing
     , toMagnitude
     )
 
-import Basics.Extra exposing (uncurry)
 import Data.IO as IO exposing (IO)
 import Data.Map as Dict exposing (Dict)
 import Data.Name as Name
@@ -25,10 +24,8 @@ import File
 import Http
 import Json.DecodeX as D
 import List
-import Maybe.Extra
 import Reporting.Exit as Exit exposing (DocsProblem(..))
 import Stuff
-import Task
 import Utils.Main as Utils
 
 
@@ -93,17 +90,22 @@ diffModule ( Docs.Module _ _ u1 a1 v1 b1, Docs.Module _ _ u2 a2 v2 b2 ) =
 
 isEquivalentUnion : Docs.Union -> Docs.Union -> Bool
 isEquivalentUnion (Docs.Union oldComment oldVars oldCtors) (Docs.Union newComment newVars newCtors) =
+    let
+        equiv : List Type.Type -> List Type.Type -> Bool
+        equiv oldTypes newTypes =
+            let
+                allEquivalent =
+                    List.map2
+                        isEquivalentAlias
+                        (List.map (Docs.Alias oldComment oldVars) oldTypes)
+                        (List.map (Docs.Alias newComment newVars) newTypes)
+            in
+            (List.length oldTypes == List.length newTypes)
+                && List.all identity allEquivalent
+    in
     (List.length oldCtors == List.length newCtors)
-        && (List.map Tuple.first oldCtors == List.map Tuple.first newCtors)
-        && List.all
-            (\( oldCtors_, newCtors_ ) ->
-                List.map2
-                    isEquivalentAlias
-                    (List.map (\oldTypes -> Docs.Alias oldComment oldVars oldTypes) oldCtors_)
-                    (List.map (\newTypes -> Docs.Alias newComment newVars newTypes) newCtors_)
-                    |> List.all identity
-            )
-            (List.map2 Tuple.pair oldCtors newCtors)
+        && List.all identity (List.map2 (==) (List.map Tuple.first oldCtors) (List.map Tuple.first newCtors))
+        && List.all identity (Dict.values (Utils.mapIntersectionWith compare equiv (Dict.fromList compare oldCtors) (Dict.fromList compare newCtors)))
 
 
 isEquivalentAlias : Docs.Alias -> Docs.Alias -> Bool
@@ -125,10 +127,8 @@ isEquivalentValue (Docs.Value c1 t1) (Docs.Value c2 t2) =
 isEquivalentBinop : Docs.Binop -> Docs.Binop -> Bool
 isEquivalentBinop (Docs.Binop c1 t1 a1 p1) (Docs.Binop c2 t2 a2 p2) =
     isEquivalentAlias (Docs.Alias c1 [] t1) (Docs.Alias c2 [] t2)
-        && a1
-        == a2
-        && p1
-        == p2
+        && (a1 == a2)
+        && (p1 == p2)
 
 
 
@@ -149,8 +149,7 @@ diffType oldType newType =
                 Nothing
 
             else
-                List.concatMap (uncurry diffType) (List.map2 Tuple.pair oldArgs newArgs)
-                    |> Maybe.Extra.join
+                Maybe.map List.concat (Utils.zipWithM diffType oldArgs newArgs)
 
         ( Type.Record fields maybeExt, Type.Record fields_ maybeExt_ ) ->
             case ( maybeExt, maybeExt_ ) of
@@ -174,12 +173,10 @@ diffType oldType newType =
                 Nothing
 
             else
-                Maybe.map3 (++)
+                Maybe.map3 (\aVars bVars cVars -> aVars ++ bVars ++ cVars)
                     (diffType a x)
                     (diffType b y)
-                    (List.concatMap (uncurry diffType) (List.map2 Tuple.pair cs zs)
-                        |> Maybe.Extra.join
-                    )
+                    (Maybe.map List.concat (Utils.zipWithM diffType cs zs))
 
         ( _, _ ) ->
             Nothing
@@ -218,14 +215,14 @@ diffFields oldRawFields newRawFields =
         newFields =
             sort newRawFields
     in
-    -- if List.length oldRawFields /= List.length newRawFields then
-    --     Nothing
-    -- else if List.any2 (/=) (List.map Tuple.first oldFields) (List.map Tuple.first newFields) then
-    --     Nothing
-    -- else
-    --     List.concatMap (uncurry diffType) (List.map2 Tuple.pair (List.map Tuple.second oldFields) (List.map Tuple.second newFields))
-    --         |> Maybe.Extra.join
-    Debug.todo "diffFields"
+    if List.length oldRawFields /= List.length newRawFields then
+        Nothing
+
+    else if List.any identity (List.map2 (/=) (List.map Tuple.first oldFields) (List.map Tuple.first newFields)) then
+        Nothing
+
+    else
+        Maybe.map List.concat (Utils.zipWithM diffType (List.map Tuple.second oldFields) (List.map Tuple.second newFields))
 
 
 
@@ -236,15 +233,19 @@ isEquivalentRenaming : List ( Name.Name, Name.Name ) -> Bool
 isEquivalentRenaming varPairs =
     let
         renamings =
-            List.foldr
-                (\( old, new ) dict ->
-                    Dict.update
-                        old
-                        (Maybe.map ((::) new) >> Maybe.withDefault [ new ] >> Just)
-                        dict
-                )
-                Dict.empty
-                varPairs
+            -- List.foldr
+            --     (\( old, new ) dict ->
+            --         Dict.update
+            --             old
+            --             (Maybe.map ((::) new) >> Maybe.withDefault [ new ] >> Just)
+            --             dict
+            --     )
+            --     Dict.empty
+            --     varPairs
+            Dict.toList (List.foldr insert Dict.empty varPairs)
+
+        insert ( old, new ) dict =
+            Utils.mapInsertWith compare (++) old [ new ] dict
 
         verify ( old, news ) =
             case news of
@@ -259,9 +260,9 @@ isEquivalentRenaming varPairs =
                         Nothing
 
         allUnique list =
-            List.length list == EverySet.size (EverySet.fromList list)
+            List.length list == EverySet.size (EverySet.fromList compare list)
     in
-    case List.filterMap verify (Dict.toList renamings) of
+    case List.filterMap verify renamings of
         [] ->
             False
 
@@ -358,12 +359,12 @@ toMagnitude (PackageChanges added changed removed) =
         changeMags =
             List.map moduleChangeMagnitude (Dict.values changed)
     in
-    Utils.listMaximum (addMag :: removeMag :: changeMags)
+    Utils.listMaximum M.compare (addMag :: removeMag :: changeMags)
 
 
 moduleChangeMagnitude : ModuleChanges -> M.Magnitude
 moduleChangeMagnitude (ModuleChanges unions aliases values binops) =
-    Utils.listMaximum
+    Utils.listMaximum M.compare
         [ changeMagnitude unions
         , changeMagnitude aliases
         , changeMagnitude values

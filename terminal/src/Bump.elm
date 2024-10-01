@@ -13,6 +13,7 @@ import Elm.Magnitude as M
 import Elm.Outline as Outline
 import Elm.Version as V
 import Http
+import Prelude
 import Reporting
 import Reporting.Doc as D
 import Reporting.Exit as Exit
@@ -26,8 +27,8 @@ import Utils.Main as Utils exposing (FilePath)
 -- RUN
 
 
-run : () -> () -> IO ()
-run () () =
+run : IO ()
+run =
     Reporting.attempt Exit.bumpToReport <|
         Task.run (Task.bind bump getEnv)
 
@@ -93,7 +94,7 @@ bump ((Env root _ _ registry ((Outline.PkgOutline pkg _ _ vsn _ _ _ _) as outlin
             else
                 Task.throw <|
                     Exit.BumpUnexpectedVersion vsn <|
-                        List.map Utils.head (Utils.listGroupBy (==) (List.sortWith V.compare bumpableVersions))
+                        List.map Prelude.head (Utils.listGroupBy (==) (List.sortWith V.compare bumpableVersions))
 
         Nothing ->
             Task.io <| checkNewPackage root outline
@@ -105,11 +106,11 @@ bump ((Env root _ _ registry ((Outline.PkgOutline pkg _ _ vsn _ _ _ _) as outlin
 
 checkNewPackage : FilePath -> Outline.PkgOutline -> IO ()
 checkNewPackage root ((Outline.PkgOutline _ _ _ version _ _ _ _) as outline) =
-    Utils.putStrLn Exit.newPackageOverview
+    Prelude.putStrLn Exit.newPackageOverview
         |> IO.bind
             (\_ ->
                 if version == V.one then
-                    Utils.putStrLn "The version number in elm.json is correct so you are all set!"
+                    Prelude.putStrLn "The version number in elm.json is correct so you are all set!"
 
                 else
                     changeVersion root outline V.one <|
@@ -172,11 +173,7 @@ suggestVersion (Env root cache manager _ ((Outline.PkgOutline pkg _ _ vsn _ _ _ 
 generateDocs : FilePath -> Outline.PkgOutline -> Task.Task Exit.Bump Docs.Documentation
 generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
     Task.eio Exit.BumpBadDetails
-        (BW.withScope
-            (\scope ->
-                Details.load Reporting.silent scope root
-            )
-        )
+        (BW.withScope (\scope -> Details.load Reporting.silent scope root))
         |> Task.bind
             (\details ->
                 case Outline.flattenExposed exposed of
@@ -185,7 +182,7 @@ generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
 
                     e :: es ->
                         Task.eio Exit.BumpBadBuild <|
-                            Build.fromExposed Reporting.silent root details Build.KeepDocs (NE.Nonempty e es)
+                            Build.fromExposed Docs.jsonDecoder Docs.jsonEncoder Reporting.silent root details Build.KeepDocs (NE.Nonempty e es)
             )
 
 
@@ -199,7 +196,7 @@ changeVersion root (Outline.PkgOutline name summary license _ exposed deps testD
         |> IO.bind
             (\approved ->
                 if not approved then
-                    Utils.putStrLn "Okay, I did not change anything!"
+                    Prelude.putStrLn "Okay, I did not change anything!"
 
                 else
                     Outline.write root

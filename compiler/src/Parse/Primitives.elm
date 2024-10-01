@@ -34,7 +34,6 @@ module Parse.Primitives exposing
     , word2
     )
 
-import Bytes.Encode
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Reporting.Annotation as A

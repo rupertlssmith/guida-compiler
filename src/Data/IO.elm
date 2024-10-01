@@ -26,6 +26,7 @@ module Data.IO exposing
     , getLine
     , gets
     , hClose
+    , hFileSize
     , hFlush
     , hIsTerminalDevice
     , hPutStr
@@ -50,6 +51,7 @@ module Data.IO exposing
     , pure
     , pureStateT
     , putStr
+    , readFile
     , readIORef
     , runStateT
     , stderr
@@ -138,6 +140,8 @@ type CmdSpec
 type alias CreateProcess =
     { cmdspec : CmdSpec
     , std_in : StdStream
+    , std_out : StdStream
+    , std_err : StdStream
     }
 
 
@@ -156,6 +160,8 @@ procProc : String -> List String -> CreateProcess
 procProc cmd args =
     { cmdspec = RawCommand cmd args
     , std_in = Inherit
+    , std_out = Inherit
+    , std_err = Inherit
     }
 
 
@@ -223,6 +229,11 @@ ioRefDecoder =
 newIORef : (a -> Encode.Value) -> a -> IO (IORef a)
 newIORef encoder value =
     make (Decode.map IORef Decode.int) (NewIORef (encoder value))
+
+
+readFile : String -> IO String
+readFile _ =
+    Debug.todo "readFile"
 
 
 readIORef : Decode.Decoder a -> IORef a -> IO a
@@ -528,6 +539,11 @@ stderr =
 hFlush : Handle -> IO ()
 hFlush handle =
     make (Decode.succeed ()) NoOp
+
+
+hFileSize : Handle -> IO Int
+hFileSize handle =
+    Debug.todo "hFileSize"
 
 
 hClose : Handle -> IO ()

@@ -1,13 +1,12 @@
 port module Main exposing (main)
 
--- import Bump
 -- import Develop
--- import Diff
--- import Publish
 
 import Array exposing (Array)
 import Array.Extra as Array
+import Bump
 import Data.IO as IO exposing (IO(..))
+import Diff
 import Elm.Package as Pkg
 import Elm.Version as V
 import Init
@@ -16,6 +15,7 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 import Make
 import Parse.Primitives as P
+import Publish
 import Repl
 import Reporting.Doc as D
 import Task
@@ -29,10 +29,14 @@ type alias Flags =
 
 
 type Command
-    = Init
-    | Repl Repl.Flags
+    = Repl Repl.Flags
+    | Init
+    | Reactor
     | Make (List String) Make.Flags
     | Install Install.Args
+    | Bump
+    | Diff Diff.Args
+    | Publish
 
 
 commandDecoder : Decode.Decoder Command
@@ -41,15 +45,15 @@ commandDecoder =
         |> Decode.andThen
             (\command ->
                 case command of
-                    "init" ->
-                        Decode.succeed Init
-
                     "repl" ->
                         Decode.map Repl
                             (Decode.map2 Repl.Flags
                                 (Decode.maybe (Decode.field "maybeAlternateInterpreter" Decode.string))
                                 (Decode.map (Maybe.withDefault False) (Decode.maybe (Decode.field "noColors" Decode.bool)))
                             )
+
+                    "init" ->
+                        Decode.succeed Init
 
                     "make" ->
                         Decode.map2 Make
@@ -79,9 +83,51 @@ commandDecoder =
                             )
                             (Decode.maybe (Decode.field "package" Decode.string))
 
+                    "bump" ->
+                        Decode.succeed Bump
+
+                    "diff" ->
+                        [ Decode.map3 Diff.GlobalInquiry
+                            (Decode.andThen
+                                (\package ->
+                                    case P.fromByteString Pkg.parser Tuple.pair package of
+                                        Ok packageName ->
+                                            Decode.succeed packageName
+
+                                        Err _ ->
+                                            Decode.fail ("Invalid package name: " ++ package)
+                                )
+                                (Decode.field "arg1" Decode.string)
+                            )
+                            (versionDecoder "arg2")
+                            (versionDecoder "arg3")
+                        , Decode.map2 Diff.LocalInquiry (versionDecoder "arg1") (versionDecoder "arg2")
+                        , Decode.map Diff.CodeVsExactly (versionDecoder "arg1")
+                        , Decode.succeed Diff.CodeVsLatest
+                        ]
+                            |> Decode.oneOf
+                            |> Decode.map Diff
+
+                    "publish" ->
+                        Decode.succeed Publish
+
                     _ ->
                         Decode.fail ("Unknown command: " ++ command)
             )
+
+
+versionDecoder : String -> Decode.Decoder V.Version
+versionDecoder name =
+    Decode.andThen
+        (\version ->
+            case P.fromByteString V.parser Tuple.pair version of
+                Ok v ->
+                    Decode.succeed v
+
+                Err _ ->
+                    Decode.fail ("Invalid version: " ++ version)
+        )
+        (Decode.field name Decode.string)
 
 
 
@@ -121,17 +167,29 @@ program portIn portOut =
                             decoder =
                                 start
                                     (case command of
+                                        Repl replFlags ->
+                                            Repl.run replFlags
+
                                         Init ->
                                             Init.run
 
-                                        Repl replFlags ->
-                                            Repl.run replFlags
+                                        Reactor ->
+                                            Debug.todo "Reactor"
 
                                         Make paths makeFlags ->
                                             Make.run paths makeFlags
 
                                         Install args ->
                                             Install.run args
+
+                                        Bump ->
+                                            Bump.run
+
+                                        Diff args ->
+                                            Diff.run args
+
+                                        Publish ->
+                                            Publish.run
                                     )
                         in
                         case Decode.decodeValue decoder Encode.null of

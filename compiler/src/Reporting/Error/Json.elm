@@ -347,7 +347,7 @@ getMaxDepth problem =
         OneOf p ps ->
             -- NOTE: only displays the deepest problem. This works well for the kind
             -- of JSON used by Elm, but probably would not work well in general.
-            Utils.listMaximum (getMaxDepth p :: List.map getMaxDepth ps)
+            Utils.listMaximum compare (getMaxDepth p :: List.map getMaxDepth ps)
 
         Failure _ _ ->
             0

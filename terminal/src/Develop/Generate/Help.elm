@@ -3,9 +3,9 @@ module Develop.Generate.Help exposing
     , makePageHtml
     )
 
+import Data.Maybe as Maybe
 import Data.Name as Name
 import Json.EncodeX as Encode
-import Utils.Main as Utils
 
 
 
@@ -23,7 +23,7 @@ makePageHtml moduleName maybeFlags =
 </head>
 <body>
 <script>
-Elm.""" ++ moduleName ++ """.init({ flags: """ ++ Utils.maybe "undefined" Encode.encode maybeFlags ++ """ });
+Elm.""" ++ moduleName ++ """.init({ flags: """ ++ Maybe.maybe "undefined" Encode.encode maybeFlags ++ """ });
 </script>
 </body>
 </html>

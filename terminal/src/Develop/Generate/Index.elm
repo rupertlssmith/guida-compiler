@@ -3,12 +3,14 @@ module Develop.Generate.Index exposing (generate)
 import BackgroundWriter as BW
 import Data.IO as IO exposing (IO)
 import Data.Map as Dict exposing (Dict)
+import Data.Maybe as Maybe
 import Develop.Generate.Help as Help
 import Elm.Details as Details
 import Elm.Outline as Outline
 import Elm.Package as Pkg
 import Elm.Version as V
 import Json.EncodeX as E
+import List.Extra as List
 import Reporting
 import Stuff
 import Utils.Main as Utils exposing (FilePath)
@@ -96,7 +98,7 @@ getReadme dir =
         |> IO.bind
             (\exists ->
                 if exists then
-                    IO.fmap Just (Utils.readFile readmePath)
+                    IO.fmap Just (IO.readFile readmePath)
 
                 else
                     IO.pure Nothing
@@ -128,7 +130,7 @@ getFiles pwd contents =
 toFile : FilePath -> FilePath -> IO File
 toFile pwd path =
     if Utils.fpTakeExtension path == ".elm" then
-        Utils.readFile (Utils.fpForwardSlash pwd path)
+        IO.readFile (Utils.fpForwardSlash pwd path)
             |> IO.fmap
                 (\source ->
                     let
@@ -228,8 +230,8 @@ encode (Flags root pwd dirs files readme outline exactDeps) =
         , ( "pwd", E.list encodeFilePath pwd )
         , ( "dirs", E.list encodeFilePath dirs )
         , ( "files", E.list encodeFile files )
-        , ( "readme", Utils.maybe E.null E.string readme )
-        , ( "outline", Utils.maybe E.null Outline.encode outline )
+        , ( "readme", Maybe.maybe E.null E.string readme )
+        , ( "outline", Maybe.maybe E.null Outline.encode outline )
         , ( "exactDeps", E.dict Pkg.compareName Pkg.toJsonString V.encode exactDeps )
         ]
 

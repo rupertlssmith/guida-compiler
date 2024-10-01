@@ -9,6 +9,7 @@ module Elm.Docs exposing
     , decoder
     , encode
     , fromModule
+    , jsonDecoder
     , jsonEncoder
     , jsonModuleDecoder
     , jsonModuleEncoder
@@ -763,6 +764,11 @@ addDef types def =
 jsonEncoder : Documentation -> Encode.Value
 jsonEncoder =
     E.toJsonValue << encode
+
+
+jsonDecoder : Decode.Decoder Documentation
+jsonDecoder =
+    Decode.map toDict (Decode.list jsonModuleDecoder)
 
 
 jsonModuleEncoder : Module -> Encode.Value

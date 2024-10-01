@@ -10,6 +10,7 @@ module Reporting.Task exposing
     , pure
     , run
     , throw
+    , void
     )
 
 import Data.IO as IO exposing (IO)
@@ -75,6 +76,11 @@ eio func work =
 fmap : (a -> b) -> Task x a -> Task x b
 fmap func (Task taskA) =
     Task (IO.fmap (Result.map func) taskA)
+
+
+void : Task x a -> Task x ()
+void =
+    fmap (\_ -> ())
 
 
 pure : a -> Task x a

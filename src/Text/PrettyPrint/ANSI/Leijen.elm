@@ -39,7 +39,6 @@ module Text.PrettyPrint.ANSI.Leijen exposing
     )
 
 import Data.IO as IO exposing (IO)
-import Data.Name exposing (result)
 import Pretty as P
 import Pretty.Renderer as PR
 import System.Console.Ansi as Ansi

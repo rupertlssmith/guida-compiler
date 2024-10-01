@@ -2215,14 +2215,13 @@ toHttpErrorReport title err context =
                         ]
 
         Http.BadMystery url someException ->
-            -- toHttpReport (context ++ ", so I tried to fetch:")
-            --     url
-            --     [ D.reflow <| "But I ran into something weird! I was able to extract this error message:"
-            --     , D.indent 4 <| D.fromChars (show someException)
-            --     , D.reflow <|
-            --         "Is it possible that your internet connection intercepts certain requests? That sometimes causes problems for folks in schools, businesses, airports, hotels, and certain countries. Try asking for help locally or in a community forum!"
-            --     ]
-            Debug.todo "Http.BadMystery"
+            toHttpReport (context ++ ", so I tried to fetch:")
+                url
+                [ D.reflow <| "But I ran into something weird! I was able to extract this error message:"
+                , D.indent 4 <| D.fromChars (Debug.toString someException)
+                , D.reflow <|
+                    "Is it possible that your internet connection intercepts certain requests? That sometimes causes problems for folks in schools, businesses, airports, hotels, and certain countries. Try asking for help locally or in a community forum!"
+                ]
 
 
 toRedirectDoc : HTTPResponse body -> D.Doc
@@ -2697,10 +2696,10 @@ toModuleNameConventionTable srcDir names =
             List.map toPair names
 
         nameWidth =
-            Utils.listMaximum (11 :: List.map (String.length << Tuple.first) namePairs)
+            Utils.listMaximum compare (11 :: List.map (String.length << Tuple.first) namePairs)
 
         pathWidth =
-            Utils.listMaximum (9 :: List.map (String.length << Tuple.second) namePairs)
+            Utils.listMaximum compare (9 :: List.map (String.length << Tuple.second) namePairs)
 
         padded width str =
             str ++ String.repeat (width - String.length str) " "

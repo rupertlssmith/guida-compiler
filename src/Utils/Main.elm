@@ -14,6 +14,7 @@ module Utils.Main exposing
     , ZipEntry(..)
     , binaryDecodeFileOrFail
     , binaryEncodeFile
+    , bracket_
     , bsHPut
     , bsReadFile
     , builderHPutBuilder
@@ -142,6 +143,7 @@ module Utils.Main exposing
     , zipArchiveDecoder
     , zipERelativePath
     , zipFromEntry
+    , zipWithM
     , zipZEntries
     )
 
@@ -153,6 +155,7 @@ import Data.NonEmptyList as NE
 import Data.Set as EverySet exposing (EverySet)
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Maybe.Extra as Maybe
 import Prelude
 import Reporting.Result as R
 import Reporting.Task as Task exposing (Task)
@@ -585,18 +588,24 @@ maybeTraverseTask f a =
             Task.pure Nothing
 
 
+zipWithM : (a -> b -> Maybe c) -> List a -> List b -> Maybe (List c)
+zipWithM f xs ys =
+    List.map2 f xs ys
+        |> Maybe.combine
+
+
 listGroupBy : (a -> a -> Bool) -> List a -> List (List a)
 listGroupBy _ _ =
     Debug.todo "listGroupBy"
 
 
-listMaximum : List comparable -> comparable
-listMaximum xs =
-    case List.maximum xs of
-        Just x ->
+listMaximum : (a -> a -> Order) -> List a -> a
+listMaximum compare xs =
+    case List.sortWith compare xs of
+        x :: _ ->
             x
 
-        Nothing ->
+        [] ->
             crash "maximum: empty structure"
 
 
@@ -977,6 +986,11 @@ fromException _ =
 throw : e -> a
 throw _ =
     Debug.todo "throw"
+
+
+bracket_ : IO a -> IO b -> IO c -> IO c
+bracket_ before after thing =
+    Debug.todo "bracket_"
 
 
 

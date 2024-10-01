@@ -335,6 +335,15 @@ const guida = {
   repl: (options = {}) => {
     main({ command: "repl", ...options });
   },
+  bump: () => {
+    main({ command: "bump" });
+  },
+  diff: (arg1, arg2, arg3) => {
+    main({ command: "diff", arg1, arg2, arg3 });
+  },
+  publish: () => {
+    main({ command: "publish" });
+  },
 };
 
 const description = `Guida is a functional programming language that builds upon the solid foundation of Elm,
@@ -396,6 +405,42 @@ program
   .option("--no-colors")
   .action((options) => {
     guida.repl(options);
+  });
+
+// bump command
+
+const bumpDescription = `The \`bump\` command figures out the next version number based on API changes.`;
+
+program
+  .command("bump")
+  .description(bumpDescription)
+  .action(() => {
+    guida.bump();
+  });
+
+// diff command
+
+const diffDescription = `The \`diff\` command detects API changes.`;
+
+program
+  .command("diff")
+  .description(diffDescription)
+  .arguments("[package] [version] [version]")
+  .usage("[package] [version] [version]")
+  .action((arg1, arg2, arg3) => {
+    guida.diff(arg1, arg2, arg3);
+  });
+
+// publish command
+
+const publishDescription = `The \`publish\` command publishes your package on <https://package.elm-lang.org>
+so that anyone in the Elm community can use it.`;
+
+program
+  .command("publish")
+  .description(publishDescription)
+  .action(() => {
+    guida.publish();
   });
 
 program.parse();
