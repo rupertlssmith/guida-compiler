@@ -11,16 +11,13 @@ import Prelude
 import Reporting.Suggest as Suggest
 import Terminal.Internal
     exposing
-        ( ArgDocs(..)
-        , ArgError(..)
+        ( ArgError(..)
         , Args(..)
         , Command(..)
         , CompleteArgs(..)
-        , CompleteArgsValue(..)
         , Error(..)
         , Expectation(..)
         , Flag(..)
-        , FlagDocs(..)
         , FlagError(..)
         , Flags(..)
         , Parser(..)
@@ -89,17 +86,17 @@ reflow string =
 -- HELP
 
 
-exitWithHelp : Maybe String -> String -> P.Doc -> ArgDocs -> FlagDocs -> IO a
-exitWithHelp maybeCommand details example (ArgDocs argDocs) (FlagDocs flagDocs) =
+exitWithHelp : Maybe String -> String -> P.Doc -> Args -> Flags -> IO a
+exitWithHelp maybeCommand details example (Args args) flags =
     toCommand maybeCommand
         |> IO.bind
             (\command ->
                 exitSuccess <|
                     [ reflow details
-                    , P.indent 4 <| P.cyan <| P.vcat <| argDocs command
+                    , P.indent 4 <| P.cyan <| P.vcat <| List.map (argsToDoc command) args
                     , example
                     ]
-                        ++ (case flagDocs of
+                        ++ (case flagsToDocs flags [] of
                                 [] ->
                                     []
 
@@ -125,30 +122,30 @@ toCommand maybeCommand =
             )
 
 
-argsToDoc : String -> CompleteArgs a -> P.Doc
+argsToDoc : String -> CompleteArgs -> P.Doc
 argsToDoc command args =
     case args of
         Exactly required ->
             argsToDocHelp command required []
 
-        Multiple required (Parser _ plural _ _ _) ->
+        Multiple required (Parser { plural }) ->
             argsToDocHelp command required [ "zero or more " ++ plural ]
 
-        Optional required (Parser singular _ _ _ _) ->
+        Optional required (Parser { singular }) ->
             argsToDocHelp command required [ "optional " ++ singular ]
 
 
-argsToDocHelp : String -> RequiredArgs a -> List String -> P.Doc
+argsToDocHelp : String -> RequiredArgs -> List String -> P.Doc
 argsToDocHelp command args names =
-    -- case args of
-    --     Done _ ->
-    --         P.hang 4 <|
-    --             P.hsep <|
-    --                 List.map P.text <|
-    --                     (command :: List.map toToken names)
-    --     Required others (Parser singular _ _ _ _) ->
-    --         argsToDocHelp command others (singular :: names)
-    Debug.todo "argsToDocHelp"
+    case args of
+        Done ->
+            P.hang 4 <|
+                P.hsep <|
+                    List.map P.text <|
+                        (command :: List.map toToken names)
+
+        Required others (Parser { singular }) ->
+            argsToDocHelp command others (singular :: names)
 
 
 toToken : String -> String
@@ -166,27 +163,28 @@ toToken string =
         ++ ">"
 
 
-flagsToDocs : Flags flags -> List P.Doc -> List P.Doc
+flagsToDocs : Flags -> List P.Doc -> List P.Doc
 flagsToDocs flags docs =
-    -- case flags of
-    --     FDone _ ->
-    --         docs
-    --     FMore more flag ->
-    --         let
-    --             flagDoc =
-    --                 P.vcat <|
-    --                     case flag of
-    --                         Flag name (Parser singular _ _ _ _) description ->
-    --                             [ P.dullcyan <| P.text <| "--" ++ name ++ "=" ++ toToken singular
-    --                             , P.indent 4 <| reflow description
-    --                             ]
-    --                         OnOff name description ->
-    --                             [ P.dullcyan <| P.text <| "--" ++ name
-    --                             , P.indent 4 <| reflow description
-    --                             ]
-    --         in
-    --         flagsToDocs more (flagDoc :: docs)
-    Debug.todo "flagsToDocs"
+    case flags of
+        FDone ->
+            docs
+
+        FMore more flag ->
+            let
+                flagDoc =
+                    P.vcat <|
+                        case flag of
+                            Flag name (Parser { singular }) description ->
+                                [ P.dullcyan <| P.text <| "--" ++ name ++ "=" ++ toToken singular
+                                , P.indent 4 <| reflow description
+                                ]
+
+                            OnOff name description ->
+                                [ P.dullcyan <| P.text <| "--" ++ name
+                                , P.indent 4 <| reflow description
+                                ]
+            in
+            flagsToDocs more (flagDoc :: docs)
 
 
 
@@ -211,7 +209,7 @@ exitWithOverview intro outro commands =
 
 
 toSummary : String -> Command -> Maybe P.Doc
-toSummary exeName (Command name summary _ _ (ArgDocs argDocs) _ _) =
+toSummary exeName (Command name summary _ _ (Args args) _ _) =
     case summary of
         Uncommon ->
             Nothing
@@ -219,7 +217,7 @@ toSummary exeName (Command name summary _ _ (ArgDocs argDocs) _ _) =
         Common summaryString ->
             Just <|
                 P.vcat
-                    [ P.cyan <| Prelude.head (argDocs (exeName ++ " " ++ name))
+                    [ P.cyan <| argsToDoc (exeName ++ " " ++ name) (Prelude.head args)
                     , P.indent 4 <| reflow summaryString
                     ]
 
@@ -543,24 +541,25 @@ flagErrorToDocs flagError =
                 )
 
 
-getNearbyFlags : String -> Flags a -> List ( Int, String ) -> List P.Doc
+getNearbyFlags : String -> Flags -> List ( Int, String ) -> List P.Doc
 getNearbyFlags unknown flags unsortedFlags =
-    -- case flags of
-    --     FDone _ ->
-    --         List.map P.text <|
-    --             List.map Tuple.second <|
-    --                 List.sortBy Tuple.first <|
-    --                     case List.filter (\( d, _ ) -> d < 3) unsortedFlags of
-    --                         [] ->
-    --                             unsortedFlags
-    --                         nearbyUnsortedFlags ->
-    --                             nearbyUnsortedFlags
-    --     FMore more flag ->
-    --         getNearbyFlags unknown more (getNearbyFlagsHelp unknown flag :: unsortedFlags)
-    Debug.todo "getNearbyFlags"
+    case flags of
+        FDone ->
+            List.map P.text <|
+                List.map Tuple.second <|
+                    List.sortBy Tuple.first <|
+                        case List.filter (\( d, _ ) -> d < 3) unsortedFlags of
+                            [] ->
+                                unsortedFlags
+
+                            nearbyUnsortedFlags ->
+                                nearbyUnsortedFlags
+
+        FMore more flag ->
+            getNearbyFlags unknown more (getNearbyFlagsHelp unknown flag :: unsortedFlags)
 
 
-getNearbyFlagsHelp : String -> Flag a -> ( Int, String )
+getNearbyFlagsHelp : String -> Flag -> ( Int, String )
 getNearbyFlagsHelp unknown flag =
     case flag of
         OnOff flagName _ ->
@@ -568,7 +567,7 @@ getNearbyFlagsHelp unknown flag =
             , "--" ++ flagName
             )
 
-        Flag flagName (Parser singular _ _ _ _) _ ->
+        Flag flagName (Parser { singular }) _ ->
             ( Suggest.distance unknown flagName
             , "--" ++ flagName ++ "=" ++ toToken singular
             )

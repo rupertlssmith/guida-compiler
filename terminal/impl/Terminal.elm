@@ -9,15 +9,10 @@ module Terminal exposing
     , noFlags
     , onOff
     , oneOf
-    , oneOrMore
-    , optional
     , require0
     , require1
     , require2
     , require3
-    , require4
-    , require5
-    , required
     , zeroOrMore
     )
 
@@ -26,10 +21,9 @@ import Elm.Version as V
 import List.Extra as List
 import Prelude
 import Reporting.Doc as D
-import Terminal.Chomp as Chomp
 import Terminal.Error as Error
 import Terminal.Internal exposing (Args(..), Command(..), CompleteArgs(..), Flag(..), Flags(..), Parser(..), RequiredArgs(..), Summary(..), toName)
-import Utils.Main as Utils exposing (FilePath)
+import Utils.Main as Utils
 
 
 
@@ -57,9 +51,9 @@ app intro outro commands =
                             Nothing ->
                                 Error.exitWithUnknown command (List.map toName commands)
 
-                            Just (Command _ _ details example argDocs flagDocs callback) ->
+                            Just (Command _ _ details example args_ flags_ callback) ->
                                 if List.member "--help" chunks then
-                                    Error.exitWithHelp (Just command) details example argDocs flagDocs
+                                    Error.exitWithHelp (Just command) details example args_ flags_
 
                                 else
                                     case callback chunks of
@@ -150,22 +144,21 @@ findIndex index point chunks =
 
 
 {-| -}
-noFlags : Flags ()
+noFlags : Flags
 noFlags =
-    FDone ()
+    FDone
 
 
 {-| -}
-flags : a -> Flags a
+flags : Flags
 flags =
     FDone
 
 
 {-| -}
-more : Flag a -> Flags (a -> b) -> Flags b
-more =
-    -- FMore
-    Debug.todo "more"
+more : Flag -> Flags -> Flags
+more f fs =
+    FMore fs f
 
 
 
@@ -173,14 +166,13 @@ more =
 
 
 {-| -}
-flag : String -> Parser a -> String -> Flag (Maybe a)
+flag : String -> Parser -> String -> Flag
 flag =
-    -- Flag
-    Debug.todo "flag"
+    Flag
 
 
 {-| -}
-onOff : String -> String -> Flag Bool
+onOff : String -> String -> Flag
 onOff =
     OnOff
 
@@ -190,152 +182,90 @@ onOff =
 
 
 {-| -}
-args : a -> RequiredArgs a
+args : RequiredArgs
 args =
     Done
 
 
-exactly : RequiredArgs a -> Args a
+exactly : RequiredArgs -> Args
 exactly requiredArgs =
     Args [ Exactly requiredArgs ]
 
 
-exclamantionMark : RequiredArgs (a -> b) -> Parser a -> RequiredArgs b
+exclamantionMark : RequiredArgs -> Parser -> RequiredArgs
 exclamantionMark =
-    -- Required
-    Debug.todo "exclamantionMark"
+    Required
 
 
-questionMark : RequiredArgs (Maybe a -> b) -> Parser a -> Args b
-questionMark requiredArgs optionalArg =
-    -- Args [ Optional requiredArgs optionalArg ]
-    Debug.todo "questionMark"
+
+-- questionMark : RequiredArgs -> Parser -> Args
+-- questionMark requiredArgs optionalArg =
+--     Args [ Optional requiredArgs optionalArg ]
 
 
-dotdotdot : RequiredArgs (List a -> b) -> Parser a -> Args b
+dotdotdot : RequiredArgs -> Parser -> Args
 dotdotdot requiredArgs repeatedArg =
-    -- Args [ Multiple requiredArgs repeatedArg ]
-    Debug.todo "dotdotdot"
+    Args [ Multiple requiredArgs repeatedArg ]
 
 
-oneOf : List (Args a) -> Args a
+oneOf : List Args -> Args
 oneOf listOfArgs =
     Args (List.concatMap (\(Args a) -> a) listOfArgs)
 
 
 
--- SIMPLE ARGS
+-- -- SIMPLE ARGS
 
 
-noArgs : Args ()
+noArgs : Args
 noArgs =
-    exactly (args ())
+    exactly args
 
 
-required : Parser a -> Args a
-required parser =
-    require1 identity parser
+
+-- required : Parser -> Args
+-- required parser =
+--     require1 identity parser
+-- optional : Parser -> Args
+-- optional parser =
+--     questionMark args parser
 
 
-optional : Parser a -> Args (Maybe a)
-optional parser =
-    questionMark (args identity) parser
-
-
-zeroOrMore : Parser a -> Args (List a)
+zeroOrMore : Parser -> Args
 zeroOrMore parser =
-    dotdotdot (args identity) parser
-
-
-oneOrMore : Parser a -> Args ( a, List a )
-oneOrMore parser =
-    -- exclamantionMark (args Tuple.pair) (dotdotdot parser parser)
-    Debug.todo "oneOrMore"
-
-
-require0 : args -> Args args
-require0 value =
-    exactly (args value)
-
-
-require1 : (a -> args) -> Parser a -> Args args
-require1 func a =
-    exactly (exclamantionMark (args func) a)
-
-
-require2 : (a -> b -> args) -> Parser a -> Parser b -> Args args
-require2 func a b =
-    exactly (exclamantionMark (exclamantionMark (args func) a) b)
-
-
-require3 : (a -> b -> c -> args) -> Parser a -> Parser b -> Parser c -> Args args
-require3 func a b c =
-    exactly (exclamantionMark (exclamantionMark (exclamantionMark (args func) a) b) c)
-
-
-require4 : (a -> b -> c -> d -> args) -> Parser a -> Parser b -> Parser c -> Parser d -> Args args
-require4 func a b c d =
-    exactly (exclamantionMark (exclamantionMark (exclamantionMark (exclamantionMark (args func) a) b) c) d)
-
-
-require5 : (a -> b -> c -> d -> e -> args) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Args args
-require5 func a b c d e =
-    exactly (exclamantionMark (exclamantionMark (exclamantionMark (exclamantionMark (exclamantionMark (args func) a) b) c) d) e)
+    dotdotdot args parser
 
 
 
--- SUGGEST FILES
+-- oneOrMore : Parser -> Args
+-- oneOrMore parser =
+--     exclamantionMark args (dotdotdot parser parser)
 
 
-{-| Helper for creating custom `Parser` values. It will suggest directories and
-file names:
-
-    suggestFiles [] -- suggests any file
-
-    suggestFiles [ "elm" ] -- suggests only .elm files
-
-    suggestFiles [ "js", "html" ] -- suggests only .js and .html files
-
-Notice that you can limit the suggestion by the file extension! If you need
-something more elaborate, you can implement a function like this yourself that
-does whatever you need!
-
--}
-suggestFiles_ : List String -> String -> IO (List String)
-suggestFiles_ extensions string =
-    let
-        ( dir, start ) =
-            Utils.fpSplitFileName string
-    in
-    Utils.dirGetDirectoryContents dir
-        |> IO.bind
-            (\content ->
-                -- IO.bind Maybe.catMaybes
-                --     (traverse (isPossibleSuggestion extensions start dir) content)
-                Debug.todo "suggestFiles_"
-            )
+require0 : Args
+require0 =
+    exactly args
 
 
-isPossibleSuggestion : List String -> String -> FilePath -> FilePath -> IO (Maybe FilePath)
-isPossibleSuggestion extensions start dir path =
-    if String.startsWith start path then
-        Utils.dirDoesDirectoryExist (Utils.fpForwardSlash dir path)
-            |> IO.fmap
-                (\isDir ->
-                    if isDir then
-                        Just (path ++ "/")
-
-                    else if isOkayExtension path extensions then
-                        Just path
-
-                    else
-                        Nothing
-                )
-
-    else
-        IO.pure Nothing
+require1 : Parser -> Args
+require1 a =
+    exactly (exclamantionMark args a)
 
 
-isOkayExtension : FilePath -> List String -> Bool
-isOkayExtension path extensions =
-    List.isEmpty extensions || List.member (Utils.fpTakeExtension path) extensions
+require2 : Parser -> Parser -> Args
+require2 a b =
+    exactly (exclamantionMark (exclamantionMark args a) b)
+
+
+require3 : Parser -> Parser -> Parser -> Args
+require3 a b c =
+    exactly (exclamantionMark (exclamantionMark (exclamantionMark args a) b) c)
+
+
+
+-- require4 : (a -> b -> c -> d -> args) -> Parser a -> Parser b -> Parser c -> Parser d -> Args args
+-- require4 func a b c d =
+--     exactly (exclamantionMark (exclamantionMark (exclamantionMark (exclamantionMark (args func) a) b) c) d)
+-- require5 : (a -> b -> c -> d -> e -> args) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Args args
+-- require5 func a b c d e =
+--     exactly (exclamantionMark (exclamantionMark (exclamantionMark (exclamantionMark (exclamantionMark (args func) a) b) c) d) e)

@@ -1,14 +1,11 @@
 module Terminal.Internal exposing
-    ( ArgDocs(..)
-    , ArgError(..)
+    ( ArgError(..)
     , Args(..)
     , Command(..)
     , CompleteArgs(..)
-    , CompleteArgsValue(..)
     , Error(..)
     , Expectation(..)
     , Flag(..)
-    , FlagDocs(..)
     , FlagError(..)
     , Flags(..)
     , Parser(..)
@@ -18,37 +15,7 @@ module Terminal.Internal exposing
     )
 
 import Data.IO exposing (IO)
-import Reporting.Doc as D
-
-
-
--- ERROR
-
-
-type Error
-    = BadArgs (List ( CompleteArgs CompleteArgsValue, ArgError ))
-    | BadFlag FlagError
-
-
-type ArgError
-    = ArgMissing Expectation
-    | ArgBad String Expectation
-    | ArgExtras (List String)
-
-
-type FlagError
-    = FlagWithValue String String
-    | FlagWithBadValue String String Expectation
-    | FlagWithNoValue String Expectation
-    | FlagUnknown String (Flags FlagErrorValue)
-
-
-type FlagErrorValue
-    = FlagErrorValueUnit
-
-
-type Expectation
-    = Expectation String (IO (List String))
+import Text.PrettyPrint.ANSI.Leijen exposing (Doc)
 
 
 
@@ -56,7 +23,7 @@ type Expectation
 
 
 type Command
-    = Command String Summary String D.Doc ArgDocs FlagDocs (List String -> Result Error (IO ()))
+    = Command String Summary String Doc Args Flags (List String -> Result Error (IO ()))
 
 
 toName : Command -> String
@@ -78,58 +45,71 @@ type Summary
 -- FLAGS
 
 
-type Flags a
-    = FDone a
-    | FMore (Flags (FlagValue -> a)) (Flag FlagValue)
+type Flags
+    = FDone
+    | FMore Flags Flag
 
 
-type Flag a
-    = Flag String (Parser a) String
+type Flag
+    = Flag String Parser String
     | OnOff String String
-
-
-type FlagValue
-    = FlagValueUnit
-
-
-type FlagDocs
-    = FlagDocs (List D.Doc)
 
 
 
 -- PARSERS
 
 
-type Parser a
-    = Parser String String (String -> Maybe a) (String -> IO (List String)) (String -> IO (List String))
+type Parser
+    = Parser
+        { singular : String
+        , plural : String
+
+        -- ,parser : String -> Maybe a
+        , suggest : String -> IO (List String)
+        , examples : String -> IO (List String)
+        }
 
 
 
 -- ARGS
 
 
-type Args a
-    = Args (List (CompleteArgs a))
+type Args
+    = Args (List CompleteArgs)
 
 
-type CompleteArgs args
-    = Exactly (RequiredArgs args)
-    | Multiple (RequiredArgs (List CompleteArgsValue -> args)) (Parser CompleteArgsValue)
-    | Optional (RequiredArgs (Maybe CompleteArgsValue -> args)) (Parser CompleteArgsValue)
+type CompleteArgs
+    = Exactly RequiredArgs
+    | Multiple RequiredArgs Parser
+    | Optional RequiredArgs Parser
 
 
-type CompleteArgsValue
-    = CompleteArgsValueUnit
+type RequiredArgs
+    = Done
+    | Required RequiredArgs Parser
 
 
-type RequiredArgs a
-    = Done a
-    | Required (RequiredArgs (RequiredArgsValue -> a)) (Parser RequiredArgsValue)
+
+-- ERROR
 
 
-type RequiredArgsValue
-    = RequiredArgsValueUnit
+type Error
+    = BadArgs (List ( CompleteArgs, ArgError ))
+    | BadFlag FlagError
 
 
-type ArgDocs
-    = ArgDocs (String -> List D.Doc)
+type ArgError
+    = ArgMissing Expectation
+    | ArgBad String Expectation
+    | ArgExtras (List String)
+
+
+type FlagError
+    = FlagWithValue String String
+    | FlagWithBadValue String String Expectation
+    | FlagWithNoValue String Expectation
+    | FlagUnknown String Flags
+
+
+type Expectation
+    = Expectation String (IO (List String))

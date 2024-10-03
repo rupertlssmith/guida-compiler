@@ -7,135 +7,24 @@ import Array.Extra as Array
 import Bump
 import Data.IO as IO exposing (IO(..))
 import Diff
-import Elm.Package as Pkg
 import Elm.Version as V
 import Init
 import Install
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Make
-import Parse.Primitives as P
 import Publish
 import Repl
 import Reporting.Doc as D
 import Task
 import Terminal
+import Terminal.Chomp as Chomp
 import Terminal.Helpers as Terminal
 import Terminal.Internal as Terminal
 
 
-type alias Flags =
-    Decode.Value
-
-
-type Command
-    = Repl Repl.Flags
-    | Init
-    | Reactor
-    | Make (List String) Make.Flags
-    | Install Install.Args
-    | Bump
-    | Diff Diff.Args
-    | Publish
-
-
-commandDecoder : Decode.Decoder Command
-commandDecoder =
-    Decode.field "command" Decode.string
-        |> Decode.andThen
-            (\command ->
-                case command of
-                    "repl" ->
-                        Decode.map Repl
-                            (Decode.map2 Repl.Flags
-                                (Decode.maybe (Decode.field "maybeAlternateInterpreter" Decode.string))
-                                (Decode.map (Maybe.withDefault False) (Decode.maybe (Decode.field "noColors" Decode.bool)))
-                            )
-
-                    "init" ->
-                        Decode.succeed Init
-
-                    "make" ->
-                        Decode.map2 Make
-                            (Decode.field "paths" (Decode.list Decode.string))
-                            (Decode.map5 Make.Flags
-                                (Decode.map (Maybe.withDefault False) (Decode.maybe (Decode.field "debug" Decode.bool)))
-                                (Decode.map (Maybe.withDefault False) (Decode.maybe (Decode.field "optimize" Decode.bool)))
-                                (Decode.map (Maybe.andThen Make.parseOutput) (Decode.maybe (Decode.field "output" Decode.string)))
-                                (Decode.map (Maybe.andThen Make.parseReportType) (Decode.maybe (Decode.field "report" Decode.string)))
-                                (Decode.maybe (Decode.field "docs" Decode.string))
-                            )
-
-                    "install" ->
-                        Decode.andThen
-                            (\maybePackage ->
-                                case maybePackage of
-                                    Just package ->
-                                        case P.fromByteString Pkg.parser Tuple.pair package of
-                                            Ok packageName ->
-                                                Decode.succeed (Install (Install.Install packageName))
-
-                                            Err _ ->
-                                                Decode.fail ("Invalid package name: " ++ package)
-
-                                    Nothing ->
-                                        Decode.succeed (Install Install.NoArgs)
-                            )
-                            (Decode.maybe (Decode.field "package" Decode.string))
-
-                    "bump" ->
-                        Decode.succeed Bump
-
-                    "diff" ->
-                        [ Decode.map3 Diff.GlobalInquiry
-                            (Decode.andThen
-                                (\package ->
-                                    case P.fromByteString Pkg.parser Tuple.pair package of
-                                        Ok packageName ->
-                                            Decode.succeed packageName
-
-                                        Err _ ->
-                                            Decode.fail ("Invalid package name: " ++ package)
-                                )
-                                (Decode.field "arg1" Decode.string)
-                            )
-                            (versionDecoder "arg2")
-                            (versionDecoder "arg3")
-                        , Decode.map2 Diff.LocalInquiry (versionDecoder "arg1") (versionDecoder "arg2")
-                        , Decode.map Diff.CodeVsExactly (versionDecoder "arg1")
-                        , Decode.succeed Diff.CodeVsLatest
-                        ]
-                            |> Decode.oneOf
-                            |> Decode.map Diff
-
-                    "publish" ->
-                        Decode.succeed Publish
-
-                    _ ->
-                        Decode.fail ("Unknown command: " ++ command)
-            )
-
-
-versionDecoder : String -> Decode.Decoder V.Version
-versionDecoder name =
-    Decode.andThen
-        (\version ->
-            case P.fromByteString V.parser Tuple.pair version of
-                Ok v ->
-                    Decode.succeed v
-
-                Err _ ->
-                    Decode.fail ("Invalid version: " ++ version)
-        )
-        (Decode.field name Decode.string)
-
-
 
 -- PROGRAM
-
-
-type alias PortIn =
-    ({ index : Int, value : Encode.Value } -> Msg) -> Sub Msg
 
 
 type alias PortOut =
@@ -153,93 +42,6 @@ type ProcessStatus
 
 type Msg
     = Msg Int Encode.Value
-
-
-{-| -}
-program : PortIn -> PortOut -> Program Flags Model Msg
-program portIn portOut =
-    Platform.worker
-        { init =
-            \flags ->
-                case Decode.decodeValue commandDecoder flags of
-                    Ok command ->
-                        let
-                            decoder =
-                                start
-                                    (case command of
-                                        Repl replFlags ->
-                                            Repl.run replFlags
-
-                                        Init ->
-                                            Init.run
-
-                                        Reactor ->
-                                            Debug.todo "Reactor"
-
-                                        Make paths makeFlags ->
-                                            Make.run paths makeFlags
-
-                                        Install args ->
-                                            Install.run args
-
-                                        Bump ->
-                                            Bump.run
-
-                                        Diff args ->
-                                            Diff.run args
-
-                                        Publish ->
-                                            Publish.run
-                                    )
-                        in
-                        case Decode.decodeValue decoder Encode.null of
-                            Ok ( process, effect, _ ) ->
-                                ( Array.fromList [ Running process ]
-                                , effectToCmd 0 portOut effect
-                                )
-
-                            Err err ->
-                                ( Array.empty, effectToCmd 0 portOut (IO.Exit (Decode.errorToString err) 1) )
-
-                    Err err ->
-                        ( Array.empty, effectToCmd 0 portOut (IO.Exit (Decode.errorToString err) 1) )
-        , update =
-            \msg model ->
-                case msg of
-                    Msg index value ->
-                        case Array.get index model of
-                            Just (Running process) ->
-                                case step value process of
-                                    Ok ( nextProcess, effect, maybeFork ) ->
-                                        Decode.decodeValue
-                                            (addFork portOut
-                                                maybeFork
-                                                ( Array.set index (Running nextProcess) model
-                                                , effectToCmd index portOut effect
-                                                )
-                                            )
-                                            Encode.null
-                                            |> Result.withDefault ( model, Cmd.none )
-
-                                    Err (Decode.Failure "exitFork" _) ->
-                                        ( Array.set index Finished model, Cmd.none )
-
-                                    Err err ->
-                                        ( model
-                                        , effectToCmd index portOut (IO.Exit (Decode.errorToString err) 255)
-                                        )
-
-                            Just Finished ->
-                                ( model
-                                , effectToCmd index portOut (IO.Exit ("Process has already finished! Index: " ++ String.fromInt index) 255)
-                                )
-
-                            Nothing ->
-                                ( model
-                                , effectToCmd index portOut (IO.Exit ("Could not find process! Index: " ++ String.fromInt index) 255)
-                                )
-        , subscriptions = \_ -> portIn (\{ index, value } -> Msg index value)
-        }
 
 
 addFork : PortOut -> Maybe (IO ()) -> ( Model, Cmd Msg ) -> Decode.Decoder ( Model, Cmd Msg )
@@ -266,11 +68,6 @@ port send : { index : Int, value : Encode.Value } -> Cmd msg
 
 
 port recv : ({ index : Int, value : Encode.Value } -> msg) -> Sub msg
-
-
-main : Program Flags Model Msg
-main =
-    program recv send
 
 
 start : IO () -> Decode.Decoder ( IO.Process, IO.Effect, Maybe (IO ()) )
@@ -420,6 +217,26 @@ effectToCmd index portOut effect =
                     Encode.object
                         [ ( "fn", Encode.string "envLookupEnv" )
                         , ( "args", Encode.list Encode.string [ varname ] )
+                        ]
+                }
+
+        IO.EnvGetProgName ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "envGetProgName" )
+                        , ( "args", Encode.list identity [] )
+                        ]
+                }
+
+        IO.EnvGetArgs ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "envGetArgs" )
+                        , ( "args", Encode.list identity [] )
                         ]
                 }
 
@@ -677,19 +494,74 @@ step value (IO.Process decoder) =
 -- MAIN
 
 
+main : Program () Model Msg
+main =
+    Platform.worker
+        { init =
+            \() ->
+                let
+                    decoder =
+                        start main_
+                in
+                case Decode.decodeValue decoder Encode.null of
+                    Ok ( process, effect, _ ) ->
+                        ( Array.fromList [ Running process ]
+                        , effectToCmd 0 send effect
+                        )
+
+                    Err err ->
+                        ( Array.empty, effectToCmd 0 send (IO.Exit (Decode.errorToString err) 1) )
+        , update =
+            \msg model ->
+                case msg of
+                    Msg index value ->
+                        case Array.get index model of
+                            Just (Running process) ->
+                                case step value process of
+                                    Ok ( nextProcess, effect, maybeFork ) ->
+                                        Decode.decodeValue
+                                            (addFork send
+                                                maybeFork
+                                                ( Array.set index (Running nextProcess) model
+                                                , effectToCmd index send effect
+                                                )
+                                            )
+                                            Encode.null
+                                            |> Result.withDefault ( model, Cmd.none )
+
+                                    Err (Decode.Failure "exitFork" _) ->
+                                        ( Array.set index Finished model, Cmd.none )
+
+                                    Err err ->
+                                        ( model
+                                        , effectToCmd index send (IO.Exit (Decode.errorToString err) 255)
+                                        )
+
+                            Just Finished ->
+                                ( model
+                                , effectToCmd index send (IO.Exit ("Process has already finished! Index: " ++ String.fromInt index) 255)
+                                )
+
+                            Nothing ->
+                                ( model
+                                , effectToCmd index send (IO.Exit ("Could not find process! Index: " ++ String.fromInt index) 255)
+                                )
+        , subscriptions = \_ -> recv (\{ index, value } -> Msg index value)
+        }
+
+
 main_ : IO ()
 main_ =
     Terminal.app intro
         outro
-        [ -- repl
-          init
-
-        -- , reactor
-        -- , make
-        -- , install
-        -- , bump
-        -- , diff
-        -- , publish
+        [ repl
+        , init
+        , reactor
+        , make
+        , install
+        , bump
+        , diff
+        , publish
         ]
 
 
@@ -742,155 +614,258 @@ init =
             reflow
                 "It will ask permission to create an elm.json file, the one thing common to all Elm projects. It also provides a link explaining what to do from there."
     in
-    Terminal.Command "init" (Terminal.Common summary) details example (Terminal.ArgDocs (\_ -> [])) (Terminal.FlagDocs []) <|
-        \_ ->
-            Ok Init.run
+    Terminal.Command "init" (Terminal.Common summary) details example Terminal.noArgs Terminal.noFlags <|
+        \chunks ->
+            Chomp.chomp Nothing
+                chunks
+                Terminal.noArgs
+                (Chomp.pure ()
+                    |> Chomp.bind
+                        (\value ->
+                            Chomp.checkForUnknownFlags Terminal.noFlags
+                                |> Chomp.fmap (\_ -> value)
+                        )
+                )
+                |> Tuple.second
+                |> Result.map (\( args, flags ) -> Init.run args flags)
 
 
 
 -- REPL
--- repl : Terminal.Command
--- repl =
---     let
---         summary =
---             "Open up an interactive programming session. Type in Elm expressions like (2 + 2) or (String.length \"test\") and see if they equal four!"
---         details =
---             "The `repl` command opens up an interactive programming session:"
---         example =
---             reflow
---                 "Start working through <https://guide.elm-lang.org> to learn how to use this! It has a whole chapter that uses the REPL for everything, so that is probably the quickest way to get started."
---         replFlags =
---             Terminal.flags Repl.Flags
---                 |> Terminal.more (Terminal.flag "interpreter" interpreter "Path to a alternate JS interpreter, like node or nodejs.")
---                 |> Terminal.more (Terminal.onOff "no-colors" "Turn off the colors in the REPL. This can help if you are having trouble reading the values. Some terminals use a custom color scheme that diverges significantly from the standard ANSI colors, so another path may be to pick a more standard color scheme.")
---     in
---     -- TODO
---     Terminal.Command "repl" (Terminal.Common summary) details example (Terminal.ArgDocs (\_ -> [])) (Terminal.FlagDocs []) <|
---         \_ ->
---             Ok (Repl.run () (Repl.Flags Nothing False))
--- interpreter : Terminal.Parser String
--- interpreter =
---     Terminal.Parser
---         "interpreter"
---         "interpreters"
---         Just
---         (\_ -> IO.pure [])
---         (\_ -> IO.pure [ "node", "nodejs" ])
+
+
+repl : Terminal.Command
+repl =
+    let
+        summary =
+            "Open up an interactive programming session. Type in Elm expressions like (2 + 2) or (String.length \"test\") and see if they equal four!"
+
+        details =
+            "The `repl` command opens up an interactive programming session:"
+
+        example =
+            reflow
+                "Start working through <https://guide.elm-lang.org> to learn how to use this! It has a whole chapter that uses the REPL for everything, so that is probably the quickest way to get started."
+
+        replFlags =
+            Terminal.flags
+                |> Terminal.more (Terminal.flag "interpreter" interpreter "Path to a alternate JS interpreter, like node or nodejs.")
+                |> Terminal.more (Terminal.onOff "no-colors" "Turn off the colors in the REPL. This can help if you are having trouble reading the values. Some terminals use a custom color scheme that diverges significantly from the standard ANSI colors, so another path may be to pick a more standard color scheme.")
+    in
+    Terminal.Command "repl" (Terminal.Common summary) details example Terminal.noArgs replFlags <|
+        \chunks ->
+            Chomp.chomp Nothing
+                chunks
+                Terminal.noArgs
+                (Chomp.pure Repl.Flags
+                    |> Chomp.apply (Chomp.chompNormalFlag "interpreter" interpreter Just)
+                    |> Chomp.apply (Chomp.chompOnOffFlag "no-colors")
+                    |> Chomp.bind
+                        (\value ->
+                            Chomp.checkForUnknownFlags replFlags
+                                |> Chomp.fmap (\_ -> value)
+                        )
+                )
+                |> Tuple.second
+                |> Result.map (\( args, flags ) -> Repl.run args flags)
+
+
+interpreter : Terminal.Parser
+interpreter =
+    -- interpreter : Terminal.Parser String
+    Terminal.Parser
+        { singular = "interpreter"
+        , plural = "interpreters"
+
+        -- , parser = Just
+        , suggest = \_ -> IO.pure []
+        , examples = \_ -> IO.pure [ "node", "nodejs" ]
+        }
+
+
+
 -- REACTOR
--- reactor : Terminal.Command
--- reactor =
---     let
---         summary =
---             "Compile code with a click. It opens a file viewer in your browser, and when you click on an Elm file, it compiles and you see the result."
---         details =
---             "The `reactor` command starts a local server on your computer:"
---         example =
---             reflow
---                 "After running that command, you would have a server at <http://localhost:8000> that helps with development. It shows your files like a file viewer. If you click on an Elm file, it will compile it for you! And you can just press the refresh button in the browser to recompile things."
---     in
---     Terminal.Command "reactor" (Terminal.Common summary) details example <|
---         \_ ->
---             -- TODO
---             Develop.run () (Develop.Flags Nothing)
--- port_ : Terminal.Parser Int
--- port_ =
---     Terminal.Parser
---         "port"
---         "ports"
---         String.toInt
---         (\_ -> IO.pure [])
---         (\_ -> IO.pure [ "3000", "8000" ])
+
+
+reactor : Terminal.Command
+reactor =
+    let
+        summary =
+            "Compile code with a click. It opens a file viewer in your browser, and when you click on an Elm file, it compiles and you see the result."
+
+        details =
+            "The `reactor` command starts a local server on your computer:"
+
+        example =
+            reflow
+                "After running that command, you would have a server at <http://localhost:8000> that helps with development. It shows your files like a file viewer. If you click on an Elm file, it will compile it for you! And you can just press the refresh button in the browser to recompile things."
+
+        reactorFlags =
+            Terminal.flags
+                |> Terminal.more (Terminal.flag "port" port_ "The port of the server (default: 8000)")
+    in
+    Terminal.Command "reactor" (Terminal.Common summary) details example Terminal.noArgs reactorFlags <|
+        \_ ->
+            -- Develop.run () (Develop.Flags Nothing)
+            Debug.todo "reactor"
+
+
+port_ : Terminal.Parser
+port_ =
+    Terminal.Parser
+        { singular = "port"
+        , plural = "ports"
+
+        -- , parser = String.toInt
+        , suggest = \_ -> IO.pure []
+        , examples = \_ -> IO.pure [ "3000", "8000" ]
+        }
+
+
+
 -- MAKE
--- make : Terminal.Command
--- make =
---     let
---         details =
---             "The `make` command compiles Elm code into JS or HTML:"
---         example =
---             stack
---                 [ reflow "For example:"
---                 , D.indent 4 <| D.green (D.fromChars "elm make src/Main.elm")
---                 , reflow "This tries to compile an Elm file named src/Main.elm, generating an index.html file if possible."
---                 ]
---     in
---     -- TODO
---     Terminal.Command "make" Terminal.Uncommon details example (Terminal.ArgDocs (\_ -> [])) (Terminal.FlagDocs []) <|
---         \_ ->
---             Ok (Make.run [] (Make.Flags False False Nothing Nothing Nothing))
+
+
+make : Terminal.Command
+make =
+    let
+        details =
+            "The `make` command compiles Elm code into JS or HTML:"
+
+        example =
+            stack
+                [ reflow "For example:"
+                , D.indent 4 <| D.green (D.fromChars "elm make src/Main.elm")
+                , reflow "This tries to compile an Elm file named src/Main.elm, generating an index.html file if possible."
+                ]
+
+        makeFlags =
+            Terminal.flags
+                |> Terminal.more (Terminal.onOff "debug" "Turn on the time-travelling debugger. It allows you to rewind and replay events. The events can be imported/exported into a file, which makes for very precise bug reports!")
+                |> Terminal.more (Terminal.onOff "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation.")
+                |> Terminal.more (Terminal.flag "output" Make.output "Specify the name of the resulting JS file. For example --output=assets/elm.js to generate the JS at assets/elm.js or --output=/dev/null to generate no output at all!")
+                |> Terminal.more (Terminal.flag "report" Make.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!")
+                |> Terminal.more (Terminal.flag "docs" Make.docsFile "Generate a JSON file of documentation for a package. Eventually it will be possible to preview docs with `reactor` because it is quite hard to deal with these JSON files directly.")
+    in
+    Terminal.Command "make" Terminal.Uncommon details example (Terminal.zeroOrMore Terminal.elmFile) makeFlags <|
+        \_ ->
+            Ok (Make.run [] (Make.Flags False False Nothing Nothing Nothing))
+
+
+
 -- INSTALL
--- install : Terminal.Command
--- install =
---     let
---         details =
---             "The `install` command fetches packages from <https://package.elm-lang.org> for use in your project:"
---         example =
---             stack
---                 [ reflow
---                     "For example, if you want to get packages for HTTP and JSON, you would say:"
---                 , D.indent 4 <|
---                     D.green <|
---                         D.vcat <|
---                             [ D.fromChars "elm install elm/http"
---                             , D.fromChars "elm install elm/json"
---                             ]
---                 , reflow
---                     "Notice that you must say the AUTHOR name and PROJECT name! After running those commands, you could say `import Http` or `import Json.Decode` in your code."
---                 , reflow
---                     "What if two projects use different versions of the same package? No problem! Each project is independent, so there cannot be conflicts like that!"
---                 ]
---     in
---     -- TODO
---     Terminal.Command "install" Terminal.Uncommon details example (Terminal.ArgDocs (\_ -> [])) (Terminal.FlagDocs []) <|
---         \_ ->
---             Ok (Install.run Install.NoArgs ())
+
+
+install : Terminal.Command
+install =
+    let
+        details =
+            "The `install` command fetches packages from <https://package.elm-lang.org> for use in your project:"
+
+        example =
+            stack
+                [ reflow
+                    "For example, if you want to get packages for HTTP and JSON, you would say:"
+                , D.indent 4 <|
+                    D.green <|
+                        D.vcat <|
+                            [ D.fromChars "elm install elm/http"
+                            , D.fromChars "elm install elm/json"
+                            ]
+                , reflow
+                    "Notice that you must say the AUTHOR name and PROJECT name! After running those commands, you could say `import Http` or `import Json.Decode` in your code."
+                , reflow
+                    "What if two projects use different versions of the same package? No problem! Each project is independent, so there cannot be conflicts like that!"
+                ]
+
+        installArgs =
+            Terminal.oneOf
+                [ Terminal.require0
+                , Terminal.require1 Terminal.package
+                ]
+    in
+    Terminal.Command "install" Terminal.Uncommon details example installArgs Terminal.noFlags <|
+        \_ ->
+            Ok (Install.run Install.NoArgs)
+
+
+
 -- PUBLISH
--- publish : Terminal.Command
--- publish =
---     let
---         details =
---             "The `publish` command publishes your package on <https://package.elm-lang.org> so that anyone in the Elm community can use it."
---         example =
---             stack
---                 [ reflow
---                     "Think hard if you are ready to publish NEW packages though!"
---                 , reflow
---                     "Part of what makes Elm great is the packages ecosystem. The fact that there is usually one option (usually very well done) makes it way easier to pick packages and become productive. So having a million packages would be a failure in Elm. We do not need twenty of everything, all coded in a single weekend."
---                 , reflow
---                     "So as community members gain wisdom through experience, we want them to share that through thoughtful API design and excellent documentation. It is more about sharing ideas and insights than just sharing code! The first step may be asking for advice from people you respect, or in community forums. The second step may be using it at work to see if it is as nice as you think. Maybe it ends up as an experiment on GitHub only. Point is, try to be respectful of the community and package ecosystem!"
---                 , reflow
---                     "Check out <https://package.elm-lang.org/help/design-guidelines> for guidance on how to create great packages!"
---                 ]
---     in
---     Terminal.Command "publish" Terminal.Uncommon details example (\_ -> Publish.run () ())
+
+
+publish : Terminal.Command
+publish =
+    let
+        details =
+            "The `publish` command publishes your package on <https://package.elm-lang.org> so that anyone in the Elm community can use it."
+
+        example =
+            stack
+                [ reflow
+                    "Think hard if you are ready to publish NEW packages though!"
+                , reflow
+                    "Part of what makes Elm great is the packages ecosystem. The fact that there is usually one option (usually very well done) makes it way easier to pick packages and become productive. So having a million packages would be a failure in Elm. We do not need twenty of everything, all coded in a single weekend."
+                , reflow
+                    "So as community members gain wisdom through experience, we want them to share that through thoughtful API design and excellent documentation. It is more about sharing ideas and insights than just sharing code! The first step may be asking for advice from people you respect, or in community forums. The second step may be using it at work to see if it is as nice as you think. Maybe it ends up as an experiment on GitHub only. Point is, try to be respectful of the community and package ecosystem!"
+                , reflow
+                    "Check out <https://package.elm-lang.org/help/design-guidelines> for guidance on how to create great packages!"
+                ]
+    in
+    Terminal.Command "publish" Terminal.Uncommon details example Terminal.noArgs Terminal.noFlags <|
+        \_ -> Ok Publish.run
+
+
+
 -- BUMP
--- bump : Terminal.Command
--- bump =
---     let
---         details =
---             "The `bump` command figures out the next version number based on API changes:"
---         example =
---             reflow
---                 "Say you just published version 1.0.0, but then decided to remove a function. I will compare the published API to what you have locally, figure out that it is a MAJOR change, and bump your version number to 2.0.0. I do this with all packages, so there cannot be MAJOR changes hiding in PATCH releases in Elm!"
---     in
---     Terminal.Command "bump" Terminal.Uncommon details example (\_ -> Bump.run () ())
+
+
+bump : Terminal.Command
+bump =
+    let
+        details =
+            "The `bump` command figures out the next version number based on API changes:"
+
+        example =
+            reflow
+                "Say you just published version 1.0.0, but then decided to remove a function. I will compare the published API to what you have locally, figure out that it is a MAJOR change, and bump your version number to 2.0.0. I do this with all packages, so there cannot be MAJOR changes hiding in PATCH releases in Elm!"
+    in
+    Terminal.Command "bump" Terminal.Uncommon details example Terminal.noArgs Terminal.noFlags <|
+        \_ -> Ok Bump.run
+
+
+
 -- DIFF
--- diff : Terminal.Command
--- diff =
---     let
---         details =
---             "The `diff` command detects API changes:"
---         example =
---             stack
---                 [ reflow
---                     "For example, to see what changed in the HTML package between versions 1.0.0 and 2.0.0, you can say:"
---                 , D.indent 4 <| D.green <| D.fromChars "elm diff elm/html 1.0.0 2.0.0"
---                 , reflow
---                     "Sometimes a MAJOR change is not actually very big, so this can help you plan your upgrade timelines."
---                 ]
---     in
---     Terminal.Command "diff" Terminal.Uncommon details example <|
---         \_ ->
---             Diff.run Diff.CodeVsLatest ()
+
+
+diff : Terminal.Command
+diff =
+    let
+        details =
+            "The `diff` command detects API changes:"
+
+        example =
+            stack
+                [ reflow
+                    "For example, to see what changed in the HTML package between versions 1.0.0 and 2.0.0, you can say:"
+                , D.indent 4 <| D.green <| D.fromChars "elm diff elm/html 1.0.0 2.0.0"
+                , reflow
+                    "Sometimes a MAJOR change is not actually very big, so this can help you plan your upgrade timelines."
+                ]
+
+        diffArgs =
+            Terminal.oneOf
+                [ Terminal.require0
+                , Terminal.require1 Terminal.version
+                , Terminal.require2 Terminal.version Terminal.version
+                , Terminal.require3 Terminal.package Terminal.version Terminal.version
+                ]
+    in
+    Terminal.Command "diff" Terminal.Uncommon details example diffArgs Terminal.noFlags <|
+        \_ ->
+            Ok (Diff.run Diff.CodeVsLatest)
+
+
+
 -- HELPERS
 
 

@@ -60,8 +60,8 @@ type Flags
     = Flags (Maybe FilePath) Bool
 
 
-run : Flags -> IO ()
-run flags =
+run : () -> Flags -> IO ()
+run () flags =
     printWelcomeMessage
         |> IO.bind (\_ -> initSettings)
         |> IO.bind

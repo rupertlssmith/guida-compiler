@@ -19,8 +19,8 @@ import Utils.Main as Utils
 -- RUN
 
 
-run : IO ()
-run =
+run : () -> () -> IO ()
+run () () =
     Reporting.attempt Exit.initToReport <|
         (Utils.dirDoesFileExist "elm.json"
             |> IO.bind

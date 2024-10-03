@@ -20,14 +20,17 @@ import Utils.Main as Utils exposing (FilePath)
 -- VERSION
 
 
-version : Parser V.Version
+version : Parser
 version =
+    -- version : Parser V.Version
     Parser
-        "version"
-        "versions"
-        parseVersion
-        suggestVersion
-        (IO.pure << exampleVersions)
+        { singular = "version"
+        , plural = "versions"
+
+        -- , parser = parseVersion
+        , suggest = suggestVersion
+        , examples = IO.pure << exampleVersions
+        }
 
 
 parseVersion : String -> Maybe V.Version
@@ -76,14 +79,17 @@ exampleVersions chars =
 -- ELM FILE
 
 
-elmFile : Parser FilePath
+elmFile : Parser
 elmFile =
+    -- elmFile : Parser FilePath
     Parser
-        "elm file"
-        "elm files"
-        parseElmFile
-        (\_ -> IO.pure [])
-        exampleElmFiles
+        { singular = "elm file"
+        , plural = "elm files"
+
+        -- , parser = parseElmFile
+        , suggest = \_ -> IO.pure []
+        , examples = exampleElmFiles
+        }
 
 
 parseElmFile : String -> Maybe FilePath
@@ -104,14 +110,17 @@ exampleElmFiles _ =
 -- PACKAGE
 
 
-package : Parser Pkg.Name
+package : Parser
 package =
+    -- package : Parser Pkg.Name
     Parser
-        "package"
-        "packages"
-        parsePackage
-        suggestPackages
-        examplePackages
+        { singular = "package"
+        , plural = "packages"
+
+        -- , parser = parsePackage
+        , suggest = suggestPackages
+        , examples = examplePackages
+        }
 
 
 parsePackage : String -> Maybe Pkg.Name

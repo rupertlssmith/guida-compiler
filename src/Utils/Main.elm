@@ -601,7 +601,7 @@ listGroupBy _ _ =
 
 listMaximum : (a -> a -> Order) -> List a -> a
 listMaximum compare xs =
-    case List.sortWith compare xs of
+    case List.sortWith (flip compare) xs of
         x :: _ ->
             x
 

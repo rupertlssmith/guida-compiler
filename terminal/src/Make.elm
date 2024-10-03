@@ -332,14 +332,17 @@ toBuilder root details desiredMode artifacts =
 -- PARSERS
 
 
-reportType : Parser ReportType
+reportType : Parser
 reportType =
+    -- reportType : Parser ReportType
     Parser
-        "report type"
-        "report types"
-        parseReportType
-        (\_ -> IO.pure [ "json" ])
-        (\_ -> IO.pure [ "json" ])
+        { singular = "report type"
+        , plural = "report types"
+
+        -- , parser = parseReportType
+        , suggest = \_ -> IO.pure [ "json" ]
+        , examples = \_ -> IO.pure [ "json" ]
+        }
 
 
 parseReportType : String -> Maybe ReportType
@@ -351,14 +354,17 @@ parseReportType string =
         Nothing
 
 
-output : Parser Output
+output : Parser
 output =
+    -- output : Parser Output
     Parser
-        "output file"
-        "output files"
-        parseOutput
-        (\_ -> IO.pure [])
-        (\_ -> IO.pure [ "elm.js", "index.html", "/dev/null" ])
+        { singular = "output file"
+        , plural = "output files"
+
+        -- , parser = parseOutput
+        , suggest = \_ -> IO.pure []
+        , examples = \_ -> IO.pure [ "elm.js", "index.html", "/dev/null" ]
+        }
 
 
 parseOutput : String -> Maybe Output
@@ -376,20 +382,22 @@ parseOutput name =
         Nothing
 
 
-docsFile : Parser FilePath
+docsFile : Parser
 docsFile =
+    -- docsFile : Parser FilePath
     Parser
-        "json file"
-        "json files"
-        (\name ->
-            if hasExt ".json" name then
-                Just name
+        { singular = "json file"
+        , plural = "json files"
 
-            else
-                Nothing
-        )
-        (\_ -> IO.pure [])
-        (\_ -> IO.pure [ "docs.json", "documentation.json" ])
+        -- , parser =
+        --     \name ->
+        --         if hasExt ".json" name then
+        --             Just name
+        --         else
+        --             Nothing
+        , suggest = \_ -> IO.pure []
+        , examples = \_ -> IO.pure [ "docs.json", "documentation.json" ]
+        }
 
 
 hasExt : String -> String -> Bool
