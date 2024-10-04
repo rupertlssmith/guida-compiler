@@ -85,16 +85,34 @@ rm -rf ~/.guida guida-stuff; npm run build
 
 # Run tests
 
-Run `jest` tests:
+Run all tests:
 
 ```
 npm test
 ```
 
+Run `jest` tests:
+
+```
+npm test:jest
+```
+
 Run `elm-test` tests:
 
 ```
-npm run elm-test
+npm run test:elm
+```
+
+Run `elm-review` tests:
+
+```
+npm run test:elm-review
+```
+
+Run `elm-format` validation:
+
+```
+npm run test:elm-format-validate
 ```
 
 # Format elm source code

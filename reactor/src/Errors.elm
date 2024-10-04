@@ -1,7 +1,7 @@
 module Errors exposing (main)
 
 import Browser
-import Elm.Error as Error
+import Compiler.Elm.Error as Error
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Json.Decode as D

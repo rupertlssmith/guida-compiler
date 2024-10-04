@@ -151,18 +151,18 @@ module Utils.Main exposing
     )
 
 import Array exposing (Array)
+import Builder.Reporting.Task as Task exposing (Task)
+import Compiler.Data.Index as Index
+import Compiler.Data.NonEmptyList as NE
+import Compiler.Reporting.Result as R
 import Data.IO as IO exposing (IO(..), IORef(..))
-import Data.Index as Index
 import Data.Map as Dict exposing (Dict)
-import Data.NonEmptyList as NE
 import Data.Set as EverySet exposing (EverySet)
 import Flip exposing (flip)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Maybe.Extra as Maybe
 import Prelude
-import Reporting.Result as R
-import Reporting.Task as Task exposing (Task)
 import Time
 import Utils.Crash exposing (crash)
 

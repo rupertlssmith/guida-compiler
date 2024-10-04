@@ -1,7 +1,7 @@
 module Parse.PrimitivesTests exposing (suite)
 
+import Compiler.Parse.Primitives as P
 import Expect
-import Parse.Primitives as P
 import Test exposing (Test)
 
 

@@ -1,11 +1,11 @@
 module Index exposing (main)
 
 import Browser
+import Compiler.Elm.License as License
+import Compiler.Elm.Package as Package
+import Compiler.Elm.Project as Project
+import Compiler.Elm.Version as Version
 import Dict
-import Elm.License as License
-import Elm.Package as Package
-import Elm.Project as Project
-import Elm.Version as Version
 import Html exposing (..)
 import Html.Attributes exposing (class, href, style)
 import Index.Icon as Icon

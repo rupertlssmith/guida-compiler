@@ -2,8 +2,8 @@ module Deps exposing (main)
 
 import Browser
 import Browser.Dom as Dom
+import Compiler.Elm.Constraint as Constraint exposing (Constraint)
 import Dict exposing (Dict)
-import Elm.Constraint as Constraint exposing (Constraint)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)

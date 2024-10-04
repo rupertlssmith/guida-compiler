@@ -313,7 +313,7 @@ const io = {
   },
 };
 
-const app = Elm.Main.init();
+const app = Elm.Terminal.Main.init();
 
 app.ports.send.subscribe(function ({ index, value }) {
   const fn = io[value.fn];
