@@ -4,6 +4,7 @@ module Make exposing
     , ReportType(..)
     , docsFile
     , output
+    , parseDocsFile
     , parseOutput
     , parseReportType
     , reportType
@@ -334,12 +335,9 @@ toBuilder root details desiredMode artifacts =
 
 reportType : Parser
 reportType =
-    -- reportType : Parser ReportType
     Parser
         { singular = "report type"
         , plural = "report types"
-
-        -- , parser = parseReportType
         , suggest = \_ -> IO.pure [ "json" ]
         , examples = \_ -> IO.pure [ "json" ]
         }
@@ -356,12 +354,9 @@ parseReportType string =
 
 output : Parser
 output =
-    -- output : Parser Output
     Parser
         { singular = "output file"
         , plural = "output files"
-
-        -- , parser = parseOutput
         , suggest = \_ -> IO.pure []
         , examples = \_ -> IO.pure [ "elm.js", "index.html", "/dev/null" ]
         }
@@ -384,20 +379,21 @@ parseOutput name =
 
 docsFile : Parser
 docsFile =
-    -- docsFile : Parser FilePath
     Parser
         { singular = "json file"
         , plural = "json files"
-
-        -- , parser =
-        --     \name ->
-        --         if hasExt ".json" name then
-        --             Just name
-        --         else
-        --             Nothing
         , suggest = \_ -> IO.pure []
         , examples = \_ -> IO.pure [ "docs.json", "documentation.json" ]
         }
+
+
+parseDocsFile : String -> Maybe String
+parseDocsFile name =
+    if hasExt ".json" name then
+        Just name
+
+    else
+        Nothing
 
 
 hasExt : String -> String -> Bool

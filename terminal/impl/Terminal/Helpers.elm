@@ -1,6 +1,9 @@
 module Terminal.Helpers exposing
     ( elmFile
     , package
+    , parseElmFile
+    , parsePackage
+    , parseVersion
     , version
     )
 
@@ -22,12 +25,9 @@ import Utils.Main as Utils exposing (FilePath)
 
 version : Parser
 version =
-    -- version : Parser V.Version
     Parser
         { singular = "version"
         , plural = "versions"
-
-        -- , parser = parseVersion
         , suggest = suggestVersion
         , examples = IO.pure << exampleVersions
         }
@@ -81,12 +81,9 @@ exampleVersions chars =
 
 elmFile : Parser
 elmFile =
-    -- elmFile : Parser FilePath
     Parser
         { singular = "elm file"
         , plural = "elm files"
-
-        -- , parser = parseElmFile
         , suggest = \_ -> IO.pure []
         , examples = exampleElmFiles
         }
@@ -112,12 +109,9 @@ exampleElmFiles _ =
 
 package : Parser
 package =
-    -- package : Parser Pkg.Name
     Parser
         { singular = "package"
         , plural = "packages"
-
-        -- , parser = parsePackage
         , suggest = suggestPackages
         , examples = examplePackages
         }

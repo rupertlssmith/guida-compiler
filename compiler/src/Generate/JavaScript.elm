@@ -13,6 +13,7 @@ import Data.Name as Name
 import Data.Set as EverySet exposing (EverySet)
 import Elm.Kernel as K
 import Elm.ModuleName as ModuleName
+import Flip
 import Generate.JavaScript.Builder as JS
 import Generate.JavaScript.Expression as Expr
 import Generate.JavaScript.Functions as Functions
@@ -215,7 +216,7 @@ addGlobalHelp mode graph global state =
                     -- This is required given that it looks like `Data.Set.union` sorts its elements
                     List.sortWith Opt.compareGlobal (EverySet.toList deps)
             in
-            List.foldl (Utils.flip (addGlobal mode graph)) someState sortedDeps
+            List.foldl (Flip.flip (addGlobal mode graph)) someState sortedDeps
     in
     case Utils.find global graph of
         Opt.Define expr deps ->
@@ -488,7 +489,7 @@ generateManager mode graph (Opt.Global ((ModuleName.Canonical _ moduleName) as h
                 JS.ExprAssign managerLVar <|
                     JS.ExprCall (JS.ExprRef (JsName.fromKernel Name.platform "createManager")) args
     in
-    addStmt (List.foldl (Utils.flip (addGlobal mode graph)) state deps) <|
+    addStmt (List.foldl (Flip.flip (addGlobal mode graph)) state deps) <|
         JS.Block (createManager :: stmts)
 
 
@@ -573,7 +574,7 @@ generateExports mode (Trie maybeMain subs) =
                 ++ name
                 ++ "':"
                 ++ generateExports mode subTrie
-                ++ List.foldl (Utils.flip (addSubTrie mode)) "}" otherSubTries
+                ++ List.foldl (Flip.flip (addSubTrie mode)) "}" otherSubTries
 
 
 addSubTrie : Mode.Mode -> String -> ( Name.Name, Trie ) -> String

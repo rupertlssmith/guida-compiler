@@ -94,7 +94,7 @@ type RequiredArgs
 
 
 type Error
-    = BadArgs (List ( CompleteArgs, ArgError ))
+    = BadArgs (List ArgError)
     | BadFlag FlagError
 
 

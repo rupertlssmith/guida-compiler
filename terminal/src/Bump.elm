@@ -27,8 +27,8 @@ import Utils.Main as Utils exposing (FilePath)
 -- RUN
 
 
-run : IO ()
-run =
+run : () -> () -> IO ()
+run () () =
     Reporting.attempt Exit.bumpToReport <|
         Task.run (Task.bind bump getEnv)
 

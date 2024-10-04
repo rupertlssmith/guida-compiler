@@ -18,6 +18,7 @@ import Deps.Website as Website
 import Elm.Package as Pkg
 import Elm.Version as V
 import File
+import Flip
 import Http
 import Json.Decode as Decode
 import Json.DecodeX as D
@@ -26,7 +27,6 @@ import Json.EncodeX as E
 import Parse.Primitives as P
 import Reporting.Exit as Exit
 import Stuff
-import Utils.Main as Utils
 
 
 
@@ -104,7 +104,7 @@ allPkgsDecoder =
 
         toKnownVersions : List V.Version -> D.Decoder () KnownVersions
         toKnownVersions versions =
-            case List.sortWith (Utils.flip V.compare) versions of
+            case List.sortWith (Flip.flip V.compare) versions of
                 v :: vs ->
                     D.pure (KnownVersions v vs)
 

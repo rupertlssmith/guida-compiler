@@ -25,6 +25,7 @@ import Data.OneOrMore as OneOrMore
 import Elm.Compiler.Type as Type
 import Elm.Compiler.Type.Extract as Extract
 import Elm.ModuleName as ModuleName
+import Flip
 import Json.Decode as Decode
 import Json.DecodeX as D
 import Json.Encode as Encode
@@ -737,7 +738,7 @@ gatherTypes decls types =
             gatherTypes subDecls (addDef types def)
 
         Can.DeclareRec def defs subDecls ->
-            gatherTypes subDecls (List.foldl (Utils.flip addDef) (addDef types def) defs)
+            gatherTypes subDecls (List.foldl (Flip.flip addDef) (addDef types def) defs)
 
         Can.SaveTheEnvironment ->
             types

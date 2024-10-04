@@ -21,6 +21,7 @@ import Data.Name as Name exposing (Name)
 import Elm.Kernel exposing (Chunk(..))
 import Elm.ModuleName as ModuleName
 import Elm.Package as Pkg
+import Flip
 import List.Extra as List
 import Prelude
 import Reporting.Annotation as A
@@ -358,16 +359,16 @@ addBindingsHelp bindings (A.At region pattern) =
             bindings
 
         Src.PTuple a b cs ->
-            List.foldl (Utils.flip addBindingsHelp) bindings (a :: b :: cs)
+            List.foldl (Flip.flip addBindingsHelp) bindings (a :: b :: cs)
 
         Src.PCtor _ _ patterns ->
-            List.foldl (Utils.flip addBindingsHelp) bindings patterns
+            List.foldl (Flip.flip addBindingsHelp) bindings patterns
 
         Src.PCtorQual _ _ _ patterns ->
-            List.foldl (Utils.flip addBindingsHelp) bindings patterns
+            List.foldl (Flip.flip addBindingsHelp) bindings patterns
 
         Src.PList patterns ->
-            List.foldl (Utils.flip addBindingsHelp) bindings patterns
+            List.foldl (Flip.flip addBindingsHelp) bindings patterns
 
         Src.PCons hd tl ->
             addBindingsHelp (addBindingsHelp bindings hd) tl
@@ -532,16 +533,16 @@ getPatternNames names (A.At region pattern) =
             names
 
         Src.PTuple a b cs ->
-            List.foldl (Utils.flip getPatternNames) (getPatternNames (getPatternNames names a) b) cs
+            List.foldl (Flip.flip getPatternNames) (getPatternNames (getPatternNames names a) b) cs
 
         Src.PCtor _ _ args ->
-            List.foldl (Utils.flip getPatternNames) names args
+            List.foldl (Flip.flip getPatternNames) names args
 
         Src.PCtorQual _ _ _ args ->
-            List.foldl (Utils.flip getPatternNames) names args
+            List.foldl (Flip.flip getPatternNames) names args
 
         Src.PList patterns ->
-            List.foldl (Utils.flip getPatternNames) names patterns
+            List.foldl (Flip.flip getPatternNames) names patterns
 
         Src.PCons hd tl ->
             getPatternNames (getPatternNames names hd) tl

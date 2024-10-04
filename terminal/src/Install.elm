@@ -31,8 +31,8 @@ type Args
     | Install Pkg.Name
 
 
-run : Args -> IO ()
-run args =
+run : Args -> () -> IO ()
+run args () =
     Reporting.attempt Exit.installToReport
         (Stuff.findRoot
             |> IO.bind

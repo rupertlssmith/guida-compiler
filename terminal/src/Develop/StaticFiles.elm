@@ -6,7 +6,6 @@ module Develop.StaticFiles exposing
     )
 
 import Data.Map as Dict exposing (Dict)
-import Develop.StaticFiles.Build as Build
 
 
 
@@ -24,13 +23,14 @@ lookup path =
 
 dict : Dict String ( String, MimeType )
 dict =
-    Dict.fromList
-        [ ( faviconPath, ( favicon, "image/x-icon" ) )
-        , ( elmPath, ( elm, "application/javascript" ) )
-        , ( cssPath, ( css, "text/css" ) )
-        , ( codeFontPath, ( codeFont, "font/ttf" ) )
-        , ( sansFontPath, ( sansFont, "font/ttf" ) )
-        ]
+    -- Dict.fromList
+    --     [ ( faviconPath, ( favicon, "image/x-icon" ) )
+    --     , ( elmPath, ( elm, "application/javascript" ) )
+    --     , ( cssPath, ( css, "text/css" ) )
+    --     , ( codeFontPath, ( codeFont, "font/ttf" ) )
+    --     , ( sansFontPath, ( sansFont, "font/ttf" ) )
+    --     ]
+    Debug.todo "dict"
 
 
 

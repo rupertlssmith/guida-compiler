@@ -31,6 +31,7 @@ import Elm.ModuleName as ModuleName
 import Elm.Outline as Outline
 import Elm.Package as Pkg
 import File
+import Flip
 import Json.Decode as Decode
 import Json.DecodeX as D
 import Json.Encode as Encode
@@ -356,7 +357,7 @@ crawlModule ((Env _ root projectType srcDirs buildID locals foreigns) as env) mv
         fileName =
             ModuleName.toFilePath name ++ ".elm"
     in
-    Utils.filterM File.exists (List.map (Utils.flip addRelative fileName) srcDirs)
+    Utils.filterM File.exists (List.map (Flip.flip addRelative fileName) srcDirs)
         |> IO.bind
             (\paths ->
                 case paths of

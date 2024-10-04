@@ -233,15 +233,6 @@ isEquivalentRenaming : List ( Name.Name, Name.Name ) -> Bool
 isEquivalentRenaming varPairs =
     let
         renamings =
-            -- List.foldr
-            --     (\( old, new ) dict ->
-            --         Dict.update
-            --             old
-            --             (Maybe.map ((::) new) >> Maybe.withDefault [ new ] >> Just)
-            --             dict
-            --     )
-            --     Dict.empty
-            --     varPairs
             Dict.toList (List.foldr insert Dict.empty varPairs)
 
         insert ( old, new ) dict =
@@ -374,10 +365,10 @@ moduleChangeMagnitude (ModuleChanges unions aliases values binops) =
 
 changeMagnitude : Changes k v -> M.Magnitude
 changeMagnitude (Changes added changed removed) =
-    if not (Dict.isEmpty removed || Dict.isEmpty changed) then
+    if Dict.size removed > 0 || Dict.size changed > 0 then
         M.MAJOR
 
-    else if not (Dict.isEmpty added) then
+    else if Dict.size added > 0 then
         M.MINOR
 
     else

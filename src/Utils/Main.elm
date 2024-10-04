@@ -3,6 +3,8 @@ module Utils.Main exposing
     , Chan
     , FilePath
     , HTTPResponse(..)
+    , HttpServerConfig
+    , HttpServerSnap
     , LockSharedExclusive(..)
     , MVar(..)
     , ReplCompletion(..)
@@ -19,6 +21,7 @@ module Utils.Main exposing
     , bsReadFile
     , builderHPutBuilder
     , chItemDecoder
+    , defaultHttpServerConfig
     , dictMapM_
     , dirCanonicalizePath
     , dirCreateDirectoryIfMissing
@@ -40,7 +43,6 @@ module Utils.Main exposing
     , exitSuccess
     , filterM
     , find
-    , flip
     , foldM
     , foldl1
     , foldl1_
@@ -65,6 +67,7 @@ module Utils.Main exposing
     , fromException
     , httpResponseDecoder
     , httpResponseEncoder
+    , httpServe
     , indexedForA
     , indexedTraverse
     , indexedZipWithA
@@ -153,6 +156,7 @@ import Data.Index as Index
 import Data.Map as Dict exposing (Dict)
 import Data.NonEmptyList as NE
 import Data.Set as EverySet exposing (EverySet)
+import Flip exposing (flip)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Maybe.Extra as Maybe
@@ -248,11 +252,6 @@ mapFromKeys : (k -> k -> Order) -> (k -> v) -> List k -> Dict k v
 mapFromKeys keyComparison f =
     List.map (\k -> ( k, f k ))
         >> Dict.fromList keyComparison
-
-
-flip : (a -> b -> c) -> b -> a -> c
-flip f b a =
-    f a b
 
 
 filterM : (a -> IO Bool) -> List a -> IO (List a)
@@ -1293,3 +1292,76 @@ httpResponseEncoder _ =
 httpResponseDecoder : Decode.Decoder (HTTPResponse a)
 httpResponseDecoder =
     Decode.succeed HTTPResponse
+
+
+
+-- Snap.Http.Server
+
+
+type HttpServerProxyType
+    = HttpServerNoProxy
+    | HttpServerHaProxy
+    | HttpServerX_Forwarded_For
+
+
+type HttpServerConfigLog
+    = HttpServerConfigNoLog
+    | HttpServerConfigFileLog FilePath
+    | HttpServerConfigIoLog (String -> IO ())
+
+
+type alias HttpServerConfig =
+    { hostname : Maybe String
+    , accessLog : Maybe HttpServerConfigLog
+    , errorLog : Maybe HttpServerConfigLog
+    , locale : Maybe String
+    , port_ : Maybe Int
+    , bind : Maybe String
+
+    -- , sslport : Maybe Int
+    , sslbind : Maybe String
+    , sslcert : Maybe FilePath
+    , sslchaincert : Maybe Bool
+    , sslkey : Maybe FilePath
+
+    -- , unixsocket : Maybe FilePath
+    -- , unixaccessmode : Maybe Int
+    , compression : Maybe Bool
+    , verbose : Maybe Bool
+
+    -- , errorHandler : Maybe (SomeException -> HttpServerSnap ())
+    , defaultTimeout : Maybe Int
+
+    -- , other : Maybe a
+    -- , proxyType : Maybe HttpServerProxyType
+    -- , startupHook : Maybe (StartupInfo a -> IO ())
+    }
+
+
+defaultHttpServerConfig : HttpServerConfig
+defaultHttpServerConfig =
+    { hostname = Just "localhost"
+    , accessLog = Just <| HttpServerConfigFileLog "log/access.log"
+    , errorLog = Just <| HttpServerConfigFileLog "log/error.log"
+    , locale = Just "en_US"
+    , port_ = Nothing
+    , compression = Just True
+    , verbose = Just True
+
+    -- , errorHandler = Just defaultErrorHandler
+    , bind = Just "0.0.0.0"
+    , sslbind = Nothing
+    , sslcert = Nothing
+    , sslkey = Nothing
+    , sslchaincert = Nothing
+    , defaultTimeout = Just 60
+    }
+
+
+type HttpServerSnap a
+    = HttpServerSnap
+
+
+httpServe : HttpServerConfig -> HttpServerSnap () -> IO ()
+httpServe _ _ =
+    IO.pure ()

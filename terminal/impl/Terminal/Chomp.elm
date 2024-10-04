@@ -3,6 +3,9 @@ module Terminal.Chomp exposing
     , bind
     , checkForUnknownFlags
     , chomp
+    , chompArg
+    , chompExactly
+    , chompMultiple
     , chompNormalFlag
     , chompOnOffFlag
     , fmap
@@ -11,15 +14,20 @@ module Terminal.Chomp exposing
 
 import Data.IO as IO exposing (IO)
 import Data.Maybe as Maybe
+import Flip
 import Terminal.Internal exposing (ArgError(..), Args(..), CompleteArgs(..), Error(..), Expectation(..), Flag(..), FlagError(..), Flags(..), Parser(..), RequiredArgs(..))
-import Utils.Main as Utils
 
 
 
 -- CHOMP INTERFACE
 
 
-chomp : Maybe Int -> List String -> Args -> Chomper FlagError flags -> ( IO (List String), Result Error ( args, flags ) )
+chomp :
+    Maybe Int
+    -> List String
+    -> List (Suggest -> List Chunk -> ( Suggest, Result ArgError args ))
+    -> Chomper FlagError flags
+    -> ( IO (List String), Result Error ( args, flags ) )
 chomp maybeIndex strings args (Chomper flagChomper) =
     case flagChomper (toSuggest maybeIndex) (toChunks strings) of
         ChomperOk suggest chunks flagValue ->
@@ -88,23 +96,29 @@ makeSuggestion suggest maybeUpdate =
 -- ARGS
 
 
-chompArgs : Suggest -> List Chunk -> Args -> ( IO (List String), Result Error a )
-chompArgs suggest chunks (Args completeArgsList) =
+chompArgs : Suggest -> List Chunk -> List (Suggest -> List Chunk -> ( Suggest, Result ArgError a )) -> ( IO (List String), Result Error a )
+chompArgs suggest chunks completeArgsList =
     chompArgsHelp suggest chunks completeArgsList [] []
 
 
-chompArgsHelp : Suggest -> List Chunk -> List CompleteArgs -> List Suggest -> List ( CompleteArgs, ArgError ) -> ( IO (List String), Result Error a )
+chompArgsHelp :
+    Suggest
+    -> List Chunk
+    -> List (Suggest -> List Chunk -> ( Suggest, Result ArgError a ))
+    -> List Suggest
+    -> List ArgError
+    -> ( IO (List String), Result Error a )
 chompArgsHelp suggest chunks completeArgsList revSuggest revArgErrors =
     case completeArgsList of
         [] ->
-            ( List.foldl (Utils.flip addSuggest) (IO.pure []) revSuggest
+            ( List.foldl (Flip.flip addSuggest) (IO.pure []) revSuggest
             , Err (BadArgs (List.reverse revArgErrors))
             )
 
         completeArgs :: others ->
-            case chompCompleteArgs suggest chunks completeArgs of
+            case completeArgs suggest chunks of
                 ( s1, Err argError ) ->
-                    chompArgsHelp suggest chunks others (s1 :: revSuggest) (( completeArgs, argError ) :: revArgErrors)
+                    chompArgsHelp suggest chunks others (s1 :: revSuggest) (argError :: revArgErrors)
 
                 ( s1, Ok value ) ->
                     ( addSuggest (IO.pure []) s1
@@ -131,26 +145,25 @@ addSuggest everything suggest =
 -- COMPLETE ARGS
 
 
-chompCompleteArgs : Suggest -> List Chunk -> CompleteArgs -> ( Suggest, Result ArgError a )
-chompCompleteArgs suggest chunks completeArgs =
+chompCompleteArgs : Suggest -> List Chunk -> CompleteArgs -> (String -> Maybe a) -> ( Suggest, Result ArgError a )
+chompCompleteArgs suggest chunks completeArgs parserFn =
     let
         numChunks =
             List.length chunks
-                |> Debug.log "numChunks"
     in
-    case Debug.log "completeArgs" completeArgs of
+    case completeArgs of
         Exactly requiredArgs ->
-            chompExactly suggest chunks (chompRequiredArgs numChunks requiredArgs)
+            chompExactly (chompRequiredArgs numChunks requiredArgs) suggest chunks
 
         Optional requiredArgs parser ->
-            chompOptional suggest chunks (chompRequiredArgs numChunks requiredArgs) parser
+            chompOptional (chompRequiredArgs numChunks requiredArgs) parser parserFn suggest chunks
 
         Multiple requiredArgs parser ->
-            chompMultiple suggest chunks (chompRequiredArgs numChunks requiredArgs) parser
+            chompMultiple (chompRequiredArgs numChunks requiredArgs) parser parserFn suggest chunks
 
 
-chompExactly : Suggest -> List Chunk -> Chomper ArgError a -> ( Suggest, Result ArgError a )
-chompExactly suggest chunks (Chomper chomper) =
+chompExactly : Chomper ArgError a -> Suggest -> List Chunk -> ( Suggest, Result ArgError a )
+chompExactly (Chomper chomper) suggest chunks =
     case chomper suggest chunks of
         ChomperOk s cs value ->
             case List.map (\(Chunk _ chunk) -> chunk) cs of
@@ -164,38 +177,39 @@ chompExactly suggest chunks (Chomper chomper) =
             ( s, Err argError )
 
 
-chompOptional : Suggest -> List Chunk -> Chomper ArgError (Maybe a -> b) -> Parser -> ( Suggest, Result ArgError b )
-chompOptional suggest chunks (Chomper chomper) parser =
-    -- let
-    --     ok s1 cs func =
-    --         case cs of
-    --             [] ->
-    --                 ( s1, Ok (func Nothing) )
-    --             (Chunk index string) :: others ->
-    --                 case tryToParse s1 parser index string of
-    --                     ( s2, Err expectation ) ->
-    --                         ( s2, Err (ArgBad string expectation) )
-    --                     ( s2, Ok value ) ->
-    --                         case List.map (\(Chunk _ chunk) -> chunk) others of
-    --                             [] ->
-    --                                 ( s2, Ok (func (Just value)) )
-    --                             es ->
-    --                                 ( s2, Err (ArgExtras es) )
-    --     err s1 argError =
-    --         ( s1, Err argError )
-    -- in
-    -- chomper suggest chunks ok err
-    Debug.todo "chompOptional"
+chompOptional : Chomper ArgError (Maybe a -> b) -> Parser -> (String -> Maybe a) -> Suggest -> List Chunk -> ( Suggest, Result ArgError b )
+chompOptional (Chomper chomper) parser parserFn suggest chunks =
+    case chomper suggest chunks of
+        ChomperOk s1 cs func ->
+            case cs of
+                [] ->
+                    ( s1, Ok (func Nothing) )
+
+                (Chunk index string) :: others ->
+                    case tryToParse s1 parser parserFn index string of
+                        ( s2, Err expectation ) ->
+                            ( s2, Err (ArgBad string expectation) )
+
+                        ( s2, Ok value ) ->
+                            case List.map (\(Chunk _ chunk) -> chunk) others of
+                                [] ->
+                                    ( s2, Ok (func (Just value)) )
+
+                                es ->
+                                    ( s2, Err (ArgExtras es) )
+
+        ChomperErr s1 argError ->
+            ( s1, Err argError )
 
 
-chompMultiple : Suggest -> List Chunk -> Chomper ArgError (List a -> b) -> Parser -> ( Suggest, Result ArgError b )
-chompMultiple suggest chunks (Chomper chomper) parser =
-    -- let
-    --     err s1 argError =
-    --         ( s1, Err argError )
-    -- in
-    -- chomper suggest chunks (chompMultipleHelp parser []) err
-    Debug.todo "chompMultiple"
+chompMultiple : Chomper ArgError (List a -> b) -> Parser -> (String -> Maybe a) -> Suggest -> List Chunk -> ( Suggest, Result ArgError b )
+chompMultiple (Chomper chomper) parser parserFn suggest chunks =
+    case chomper suggest chunks of
+        ChomperOk s1 cs func ->
+            chompMultipleHelp parser parserFn [] s1 cs func
+
+        ChomperErr s1 argError ->
+            ( s1, Err argError )
 
 
 chompMultipleHelp : Parser -> (String -> Maybe a) -> List a -> Suggest -> List Chunk -> (List a -> b) -> ( Suggest, Result ArgError b )

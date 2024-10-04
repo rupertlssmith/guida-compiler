@@ -36,8 +36,8 @@ import Utils.Main as Utils exposing (FilePath)
 {-| TODO mandate no "exposing (..)" in packages to make
 optimization to skip builds in Elm.Details always valid
 -}
-run : IO ()
-run =
+run : () -> () -> IO ()
+run () () =
     Reporting.attempt Exit.publishToReport <|
         Task.run (Task.bind publish getEnv)
 

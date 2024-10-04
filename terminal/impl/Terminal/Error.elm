@@ -305,11 +305,11 @@ exitWithError err =
                             , reflow <| "Try removing them?"
                             ]
 
-                    [ ( _, argError ) ] ->
+                    [ argError ] ->
                         argErrorToDocs argError
 
                     _ :: _ :: _ ->
-                        argErrorToDocs <| Prelude.head <| List.sortBy toArgErrorRank (List.map Tuple.second argErrors)
+                        argErrorToDocs <| Prelude.head <| List.sortBy toArgErrorRank argErrors
         )
 
 

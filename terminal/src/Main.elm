@@ -1,11 +1,10 @@
 port module Main exposing (main)
 
--- import Develop
-
 import Array exposing (Array)
 import Array.Extra as Array
 import Bump
 import Data.IO as IO exposing (IO(..))
+import Develop
 import Diff
 import Elm.Version as V
 import Init
@@ -618,7 +617,8 @@ init =
         \chunks ->
             Chomp.chomp Nothing
                 chunks
-                Terminal.noArgs
+                [ Chomp.chompExactly (Chomp.pure ())
+                ]
                 (Chomp.pure ()
                     |> Chomp.bind
                         (\value ->
@@ -656,7 +656,8 @@ repl =
         \chunks ->
             Chomp.chomp Nothing
                 chunks
-                Terminal.noArgs
+                [ Chomp.chompExactly (Chomp.pure ())
+                ]
                 (Chomp.pure Repl.Flags
                     |> Chomp.apply (Chomp.chompNormalFlag "interpreter" interpreter Just)
                     |> Chomp.apply (Chomp.chompOnOffFlag "no-colors")
@@ -672,12 +673,9 @@ repl =
 
 interpreter : Terminal.Parser
 interpreter =
-    -- interpreter : Terminal.Parser String
     Terminal.Parser
         { singular = "interpreter"
         , plural = "interpreters"
-
-        -- , parser = Just
         , suggest = \_ -> IO.pure []
         , examples = \_ -> IO.pure [ "node", "nodejs" ]
         }
@@ -705,9 +703,21 @@ reactor =
                 |> Terminal.more (Terminal.flag "port" port_ "The port of the server (default: 8000)")
     in
     Terminal.Command "reactor" (Terminal.Common summary) details example Terminal.noArgs reactorFlags <|
-        \_ ->
-            -- Develop.run () (Develop.Flags Nothing)
-            Debug.todo "reactor"
+        \chunks ->
+            Chomp.chomp Nothing
+                chunks
+                [ Chomp.chompExactly (Chomp.pure ())
+                ]
+                (Chomp.pure Develop.Flags
+                    |> Chomp.apply (Chomp.chompNormalFlag "port" port_ String.toInt)
+                    |> Chomp.bind
+                        (\value ->
+                            Chomp.checkForUnknownFlags reactorFlags
+                                |> Chomp.fmap (\_ -> value)
+                        )
+                )
+                |> Tuple.second
+                |> Result.map (\( args, flags ) -> Develop.run args flags)
 
 
 port_ : Terminal.Parser
@@ -715,8 +725,6 @@ port_ =
     Terminal.Parser
         { singular = "port"
         , plural = "ports"
-
-        -- , parser = String.toInt
         , suggest = \_ -> IO.pure []
         , examples = \_ -> IO.pure [ "3000", "8000" ]
         }
@@ -748,8 +756,25 @@ make =
                 |> Terminal.more (Terminal.flag "docs" Make.docsFile "Generate a JSON file of documentation for a package. Eventually it will be possible to preview docs with `reactor` because it is quite hard to deal with these JSON files directly.")
     in
     Terminal.Command "make" Terminal.Uncommon details example (Terminal.zeroOrMore Terminal.elmFile) makeFlags <|
-        \_ ->
-            Ok (Make.run [] (Make.Flags False False Nothing Nothing Nothing))
+        \chunks ->
+            Chomp.chomp Nothing
+                chunks
+                [ Chomp.chompMultiple (Chomp.pure identity) Terminal.elmFile Terminal.parseElmFile
+                ]
+                (Chomp.pure Make.Flags
+                    |> Chomp.apply (Chomp.chompOnOffFlag "debug")
+                    |> Chomp.apply (Chomp.chompOnOffFlag "optimize")
+                    |> Chomp.apply (Chomp.chompNormalFlag "output" Make.output Make.parseOutput)
+                    |> Chomp.apply (Chomp.chompNormalFlag "report" Make.reportType Make.parseReportType)
+                    |> Chomp.apply (Chomp.chompNormalFlag "docs" Make.docsFile Make.parseDocsFile)
+                    |> Chomp.bind
+                        (\value ->
+                            Chomp.checkForUnknownFlags makeFlags
+                                |> Chomp.fmap (\_ -> value)
+                        )
+                )
+                |> Tuple.second
+                |> Result.map (\( args, flags ) -> Make.run args flags)
 
 
 
@@ -785,8 +810,28 @@ install =
                 ]
     in
     Terminal.Command "install" Terminal.Uncommon details example installArgs Terminal.noFlags <|
-        \_ ->
-            Ok (Install.run Install.NoArgs)
+        \chunks ->
+            Chomp.chomp Nothing
+                chunks
+                [ Chomp.chompExactly (Chomp.pure Install.NoArgs)
+                , Chomp.chompExactly
+                    (Chomp.pure Install.Install
+                        |> Chomp.bind
+                            (\func ->
+                                Chomp.chompArg (List.length chunks) Terminal.package Terminal.parsePackage
+                                    |> Chomp.fmap (\arg -> func arg)
+                            )
+                    )
+                ]
+                (Chomp.pure ()
+                    |> Chomp.bind
+                        (\value ->
+                            Chomp.checkForUnknownFlags Terminal.noFlags
+                                |> Chomp.fmap (\_ -> value)
+                        )
+                )
+                |> Tuple.second
+                |> Result.map (\( args, flags ) -> Install.run args flags)
 
 
 
@@ -812,7 +857,20 @@ publish =
                 ]
     in
     Terminal.Command "publish" Terminal.Uncommon details example Terminal.noArgs Terminal.noFlags <|
-        \_ -> Ok Publish.run
+        \chunks ->
+            Chomp.chomp Nothing
+                chunks
+                [ Chomp.chompExactly (Chomp.pure ())
+                ]
+                (Chomp.pure ()
+                    |> Chomp.bind
+                        (\value ->
+                            Chomp.checkForUnknownFlags Terminal.noFlags
+                                |> Chomp.fmap (\_ -> value)
+                        )
+                )
+                |> Tuple.second
+                |> Result.map (\( args, flags ) -> Publish.run args flags)
 
 
 
@@ -830,7 +888,20 @@ bump =
                 "Say you just published version 1.0.0, but then decided to remove a function. I will compare the published API to what you have locally, figure out that it is a MAJOR change, and bump your version number to 2.0.0. I do this with all packages, so there cannot be MAJOR changes hiding in PATCH releases in Elm!"
     in
     Terminal.Command "bump" Terminal.Uncommon details example Terminal.noArgs Terminal.noFlags <|
-        \_ -> Ok Bump.run
+        \chunks ->
+            Chomp.chomp Nothing
+                chunks
+                [ Chomp.chompExactly (Chomp.pure ())
+                ]
+                (Chomp.pure ()
+                    |> Chomp.bind
+                        (\value ->
+                            Chomp.checkForUnknownFlags Terminal.noFlags
+                                |> Chomp.fmap (\_ -> value)
+                        )
+                )
+                |> Tuple.second
+                |> Result.map (\( args, flags ) -> Bump.run args flags)
 
 
 
@@ -861,8 +932,59 @@ diff =
                 ]
     in
     Terminal.Command "diff" Terminal.Uncommon details example diffArgs Terminal.noFlags <|
-        \_ ->
-            Ok (Diff.run Diff.CodeVsLatest)
+        \chunks ->
+            Chomp.chomp Nothing
+                chunks
+                [ Chomp.chompExactly (Chomp.pure Diff.CodeVsLatest)
+                , Chomp.chompExactly
+                    (Chomp.pure Diff.CodeVsExactly
+                        |> Chomp.bind
+                            (\func ->
+                                Chomp.chompArg (List.length chunks) Terminal.version Terminal.parseVersion
+                                    |> Chomp.fmap (\arg -> func arg)
+                            )
+                    )
+                , Chomp.chompExactly
+                    (Chomp.pure Diff.LocalInquiry
+                        |> Chomp.bind
+                            (\func ->
+                                Chomp.chompArg (List.length chunks) Terminal.version Terminal.parseVersion
+                                    |> Chomp.fmap (\arg -> func arg)
+                            )
+                        |> Chomp.bind
+                            (\func ->
+                                Chomp.chompArg (List.length chunks) Terminal.version Terminal.parseVersion
+                                    |> Chomp.fmap (\arg -> func arg)
+                            )
+                    )
+                , Chomp.chompExactly
+                    (Chomp.pure Diff.GlobalInquiry
+                        |> Chomp.bind
+                            (\func ->
+                                Chomp.chompArg (List.length chunks) Terminal.package Terminal.parsePackage
+                                    |> Chomp.fmap (\arg -> func arg)
+                            )
+                        |> Chomp.bind
+                            (\func ->
+                                Chomp.chompArg (List.length chunks) Terminal.version Terminal.parseVersion
+                                    |> Chomp.fmap (\arg -> func arg)
+                            )
+                        |> Chomp.bind
+                            (\func ->
+                                Chomp.chompArg (List.length chunks) Terminal.version Terminal.parseVersion
+                                    |> Chomp.fmap (\arg -> func arg)
+                            )
+                    )
+                ]
+                (Chomp.pure ()
+                    |> Chomp.bind
+                        (\value ->
+                            Chomp.checkForUnknownFlags Terminal.noFlags
+                                |> Chomp.fmap (\_ -> value)
+                        )
+                )
+                |> Tuple.second
+                |> Result.map (\( args, flags ) -> Diff.run args flags)
 
 
 
