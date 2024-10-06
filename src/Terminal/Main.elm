@@ -409,6 +409,16 @@ effectToCmd index portOut effect =
                         ]
                 }
 
+        IO.ReplGetInputLineWithInitial prompt ( left, right ) ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "replGetInputLineWithInitial" )
+                        , ( "args", Encode.list Encode.string [ prompt, left, right ] )
+                        ]
+                }
+
         IO.HClose (IO.Handle fd) ->
             portOut
                 { index = index

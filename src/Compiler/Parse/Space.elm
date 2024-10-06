@@ -297,7 +297,7 @@ docComment toExpectation toSpaceError =
                     MultiGood ->
                         let
                             off =
-                                pos3 - pos
+                                pos3
 
                             len =
                                 newPos - pos3 - 2

@@ -204,24 +204,25 @@ read =
 
 readMore : Lines -> Prefill -> Utils.ReplInputT Input
 readMore previousLines prefill =
-    -- Utils.replGetInputLineWithInitial "| " ( renderPrefill prefill, "" )
-    --     |> IO.bind
-    --         (\input ->
-    --             case input of
-    --                 Nothing ->
-    --                     IO.pure Skip
-    --                 Just chars ->
-    --                     let
-    --                         lines =
-    --                             addLine (stripLegacyBackslash chars) previousLines
-    --                     in
-    --                     case categorize lines of
-    --                         Done doneInput ->
-    --                             IO.pure doneInput
-    --                         Continue p ->
-    --                             readMore lines p
-    --         )
-    Debug.todo "readMore"
+    Utils.replGetInputLineWithInitial "| " ( renderPrefill prefill, "" )
+        |> IO.bind
+            (\input ->
+                case input of
+                    Nothing ->
+                        IO.pure Skip
+
+                    Just chars ->
+                        let
+                            lines =
+                                addLine (stripLegacyBackslash chars) previousLines
+                        in
+                        case categorize lines of
+                            Done doneInput ->
+                                IO.pure doneInput
+
+                            Continue p ->
+                                readMore lines p
+            )
 
 
 
@@ -269,9 +270,9 @@ type Lines
     = Lines String (List String)
 
 
-addLine : List Char -> Lines -> Lines
+addLine : String -> Lines -> Lines
 addLine line (Lines x xs) =
-    Lines (String.fromList line) (x :: xs)
+    Lines line (x :: xs)
 
 
 isBlank : Lines -> Bool

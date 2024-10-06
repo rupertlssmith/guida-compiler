@@ -89,7 +89,6 @@ module Utils.Main exposing
     , mVarEncoder
     , mapFindMin
     , mapFromKeys
-    , mapFromKeysA
     , mapFromListWith
     , mapInsertWith
     , mapIntersectionWith
@@ -209,11 +208,6 @@ fpAddExtension path extension =
 
     else
         path ++ "." ++ extension
-
-
-mapFromKeysA : (k -> IO v) -> List k -> IO (Dict k v)
-mapFromKeysA _ _ =
-    Debug.todo "mapFromKeysA"
 
 
 mapFromListWith : (k -> k -> Order) -> (a -> a -> a) -> List ( k, a ) -> Dict k a
@@ -1224,8 +1218,8 @@ replGetInputLine prompt =
 
 
 replGetInputLineWithInitial : String -> ( String, String ) -> ReplInputT (Maybe String)
-replGetInputLineWithInitial =
-    Debug.todo "replGetInputLineWithInitial"
+replGetInputLineWithInitial prompt ( left, right ) =
+    IO.make (Decode.maybe Decode.string) (IO.ReplGetInputLineWithInitial prompt ( left, right ))
 
 
 

@@ -356,11 +356,8 @@ chompOverview names =
         |> P.bind
             (\isDocs ->
                 if isDocs then
-                    let
-                        _ =
-                            Space.chomp E.Space
-                    in
-                    P.bind chompOverview (chompDocs names)
+                    Space.chomp E.Space
+                        |> P.bind (\_ -> P.bind chompOverview (chompDocs names))
 
                 else
                     P.pure names

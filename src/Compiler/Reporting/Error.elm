@@ -303,7 +303,7 @@ errorEncoder error =
         BadDocs docsErr ->
             Encode.object
                 [ ( "type", Encode.string "BadDocs" )
-                , ( "errs", Docs.errorEncoder docsErr )
+                , ( "docsErr", Docs.errorEncoder docsErr )
                 ]
 
 

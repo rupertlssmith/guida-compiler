@@ -10,6 +10,9 @@ module Builder.Build exposing
     , fromPaths
     , fromRepl
     , getRootNames
+    , ignoreDocs
+    , keepDocs
+    , writeDocs
     )
 
 import Builder.Elm.Details as Details
@@ -142,7 +145,7 @@ fromExposed docsDecoder docsEncoder style root details docsGoal ((NE.Nonempty e 
                                                     docsNeed =
                                                         toDocsNeed docsGoal
                                                 in
-                                                Utils.mapFromKeysA (fork statusEncoder << crawlModule env mvar docsNeed) (e :: es)
+                                                Map.fromKeysA compare (fork statusEncoder << crawlModule env mvar docsNeed) (e :: es)
                                                     |> IO.bind
                                                         (\roots ->
                                                             Utils.putMVar statusDictEncoder mvar roots
@@ -1142,10 +1145,25 @@ addImportProblems results name problems =
 -- DOCS
 
 
-type DocsGoal a
-    = KeepDocs
-    | WriteDocs FilePath
-    | IgnoreDocs
+type DocsGoal docs
+    = KeepDocs (Dict ModuleName.Raw BResult -> docs)
+    | WriteDocs (Dict ModuleName.Raw BResult -> IO docs)
+    | IgnoreDocs docs
+
+
+keepDocs : DocsGoal (Dict ModuleName.Raw Docs.Module)
+keepDocs =
+    KeepDocs (Utils.mapMapMaybe compare toDocs)
+
+
+writeDocs : FilePath -> DocsGoal ()
+writeDocs path =
+    WriteDocs (E.writeUgly path << Docs.encode << Utils.mapMapMaybe compare toDocs)
+
+
+ignoreDocs : DocsGoal ()
+ignoreDocs =
+    IgnoreDocs ()
 
 
 type DocsNeed
@@ -1155,13 +1173,13 @@ type DocsNeed
 toDocsNeed : DocsGoal a -> DocsNeed
 toDocsNeed goal =
     case goal of
-        IgnoreDocs ->
+        IgnoreDocs _ ->
             DocsNeed False
 
         WriteDocs _ ->
             DocsNeed True
 
-        KeepDocs ->
+        KeepDocs _ ->
             DocsNeed True
 
 
@@ -1181,14 +1199,15 @@ makeDocs (DocsNeed isNeeded) modul =
 
 finalizeDocs : DocsGoal docs -> Dict ModuleName.Raw BResult -> IO docs
 finalizeDocs goal results =
-    -- case goal of
-    --     KeepDocs ->
-    --         IO.pure <| Utils.mapMapMaybe toDocs results
-    --     WriteDocs path ->
-    --         E.writeUgly path <| Docs.encode <| Utils.mapMapMaybe toDocs results
-    --     IgnoreDocs ->
-    --         IO.pure ()
-    Debug.todo "finalizeDocs"
+    case goal of
+        KeepDocs f ->
+            IO.pure <| f results
+
+        WriteDocs f ->
+            f results
+
+        IgnoreDocs val ->
+            IO.pure val
 
 
 toDocs : BResult -> Maybe Docs.Module

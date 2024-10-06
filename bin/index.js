@@ -294,6 +294,11 @@ const io = {
       this.send({ index, value: answer });
     });
   },
+  replGetInputLineWithInitial: function (index, prompt, left, right) {
+    rl.question(prompt + left + right, (answer) => {
+      this.send({ index, value: answer });
+    });
+  },
   procWithCreateProcess: function (index, createProcess) {
     // FIXME needs review, only trying to implement the minimum for repl functionality
     const file = tmp.fileSync();

@@ -123,6 +123,7 @@ type Effect
     | TakeMVar Int
     | PutMVar Int Encode.Value
     | ReplGetInputLine String
+    | ReplGetInputLineWithInitial String ( String, String )
     | HClose Handle
     | StateGet
     | ProcWithCreateProcess CreateProcess

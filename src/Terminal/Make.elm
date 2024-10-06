@@ -204,7 +204,7 @@ buildExposed : Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath 
 buildExposed style root details maybeDocs exposed =
     let
         docsGoal =
-            Maybe.maybe Build.IgnoreDocs Build.WriteDocs maybeDocs
+            Maybe.maybe Build.ignoreDocs Build.writeDocs maybeDocs
     in
     Task.eio Exit.MakeCannotBuild <|
         Build.fromExposed (Decode.succeed ()) (\_ -> Encode.object []) style root details docsGoal exposed
