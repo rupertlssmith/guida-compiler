@@ -28,8 +28,8 @@ module Data.Graph exposing
     , vertices
     )
 
+import Basics.Extra exposing (flip)
 import Data.Map as Dict exposing (Dict)
-import Flip
 import Set exposing (Set)
 import Tree exposing (Tree)
 import Utils.Main as Utils
@@ -262,7 +262,7 @@ list is not within the given @Bounds@.
 -}
 buildG : Bounds -> List Edge -> Graph
 buildG =
-    accumArray (Flip.flip (::)) []
+    accumArray (flip (::)) []
 
 
 {-| (O(V+E)). The graph obtained by reversing all edges.

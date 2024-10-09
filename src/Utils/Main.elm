@@ -107,6 +107,7 @@ module Utils.Main exposing
     , mapUnions
     , mapUnionsWith
     , maybeEncoder
+    , maybeMapM
     , maybeTraverse
     , maybeTraverseStateT
     , maybeTraverseTask
@@ -150,6 +151,7 @@ module Utils.Main exposing
     )
 
 import Array exposing (Array)
+import Basics.Extra exposing (flip)
 import Builder.Reporting.Task as Task exposing (Task)
 import Compiler.Data.Index as Index
 import Compiler.Data.NonEmptyList as NE
@@ -157,7 +159,6 @@ import Compiler.Reporting.Result as R
 import Data.IO as IO exposing (IO(..), IORef(..))
 import Data.Map as Dict exposing (Dict)
 import Data.Set as EverySet exposing (EverySet)
-import Flip exposing (flip)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Maybe.Extra as Maybe
@@ -445,6 +446,11 @@ mapM =
     listTraverse
 
 
+maybeMapM : (a -> Maybe b) -> List a -> Maybe (List b)
+maybeMapM =
+    listMaybeTraverse
+
+
 mapMArray : (a -> IO b) -> Array a -> IO (Array b)
 mapMArray =
     arrayTraverse
@@ -514,6 +520,12 @@ listTraverse : (a -> IO b) -> List a -> IO (List b)
 listTraverse f =
     List.foldr (\a -> IO.bind (\c -> IO.fmap (\va -> va :: c) (f a)))
         (IO.pure [])
+
+
+listMaybeTraverse : (a -> Maybe b) -> List a -> Maybe (List b)
+listMaybeTraverse f =
+    List.foldr (\a -> Maybe.andThen (\c -> Maybe.map (\va -> va :: c) (f a)))
+        (Just [])
 
 
 nonEmptyListTraverse : (a -> IO b) -> NE.Nonempty a -> IO (NE.Nonempty b)

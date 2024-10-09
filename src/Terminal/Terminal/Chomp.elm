@@ -12,9 +12,9 @@ module Terminal.Terminal.Chomp exposing
     , pure
     )
 
+import Basics.Extra exposing (flip)
 import Data.IO as IO exposing (IO)
 import Data.Maybe as Maybe
-import Flip
 import Terminal.Terminal.Internal exposing (ArgError(..), Args(..), CompleteArgs(..), Error(..), Expectation(..), Flag(..), FlagError(..), Flags(..), Parser(..), RequiredArgs(..))
 
 
@@ -111,7 +111,7 @@ chompArgsHelp :
 chompArgsHelp suggest chunks completeArgsList revSuggest revArgErrors =
     case completeArgsList of
         [] ->
-            ( List.foldl (Flip.flip addSuggest) (IO.pure []) revSuggest
+            ( List.foldl (flip addSuggest) (IO.pure []) revSuggest
             , Err (BadArgs (List.reverse revArgErrors))
             )
 

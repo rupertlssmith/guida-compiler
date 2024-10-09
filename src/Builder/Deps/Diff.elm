@@ -253,11 +253,11 @@ isEquivalentRenaming varPairs =
         allUnique list =
             List.length list == EverySet.size (EverySet.fromList compare list)
     in
-    case List.filterMap verify renamings of
-        [] ->
+    case Utils.maybeMapM verify renamings of
+        Nothing ->
             False
 
-        verifiedRenamings ->
+        Just verifiedRenamings ->
             List.all compatibleVars verifiedRenamings
                 && allUnique (List.map Tuple.second verifiedRenamings)
 

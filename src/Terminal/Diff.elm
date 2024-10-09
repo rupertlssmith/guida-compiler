@@ -3,6 +3,7 @@ module Terminal.Diff exposing
     , run
     )
 
+import Basics.Extra exposing (flip)
 import Builder.BackgroundWriter as BW
 import Builder.Build as Build
 import Builder.Deps.Diff as DD exposing (Changes(..), ModuleChanges(..), PackageChanges(..))
@@ -360,7 +361,7 @@ changesToDoc categoryName unions aliases values binops =
     else
         Just <|
             D.vcat <|
-                D.plus (D.fromChars categoryName) (D.fromChars ":")
+                D.append (D.fromChars categoryName) (D.fromChars ":")
                     :: unions
                     ++ aliases
                     ++ binops
@@ -381,7 +382,7 @@ unionToDoc localizer name (Docs.Union _ tvars ctors) =
     D.hang 4
         (D.sep
             (setup
-                :: List.map2 D.plus
+                :: List.map2 (flip D.plus)
                     (D.fromChars "=" :: List.repeat (List.length ctors - 1) (D.fromChars "|"))
                     (List.map ctorDoc ctors)
             )
@@ -404,7 +405,7 @@ aliasToDoc localizer name (Docs.Alias _ tvars tipe) =
 
 valueToDoc : L.Localizer -> Name.Name -> Docs.Value -> D.Doc
 valueToDoc localizer name (Docs.Value _ tipe) =
-    D.hang 4 <| D.sep [ D.plus (D.fromName name) (D.fromChars ":"), typeDoc localizer tipe ]
+    D.hang 4 <| D.sep [ D.fromName name |> D.plus (D.fromChars ":"), typeDoc localizer tipe ]
 
 
 binopToDoc : L.Localizer -> Name.Name -> Docs.Binop -> D.Doc

@@ -12,6 +12,7 @@ module Builder.Deps.Registry exposing
     , update
     )
 
+import Basics.Extra exposing (flip)
 import Builder.Deps.Website as Website
 import Builder.File as File
 import Builder.Http as Http
@@ -24,7 +25,6 @@ import Compiler.Json.Encode as E
 import Compiler.Parse.Primitives as P
 import Data.IO as IO exposing (IO(..))
 import Data.Map as Dict exposing (Dict)
-import Flip
 import Json.Decode as Decode
 import Json.Encode as Encode
 
@@ -104,7 +104,7 @@ allPkgsDecoder =
 
         toKnownVersions : List V.Version -> D.Decoder () KnownVersions
         toKnownVersions versions =
-            case List.sortWith (Flip.flip V.compare) versions of
+            case List.sortWith (flip V.compare) versions of
                 v :: vs ->
                     D.pure (KnownVersions v vs)
 

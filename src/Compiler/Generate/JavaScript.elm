@@ -4,6 +4,7 @@ module Compiler.Generate.JavaScript exposing
     , generateForReplEndpoint
     )
 
+import Basics.Extra exposing (flip)
 import Compiler.AST.Canonical as Can
 import Compiler.AST.Optimized as Opt
 import Compiler.Data.Index as Index
@@ -21,7 +22,6 @@ import Compiler.Reporting.Render.Type.Localizer as L
 import Data.Map as Dict exposing (Dict)
 import Data.Maybe as Maybe
 import Data.Set as EverySet exposing (EverySet)
-import Flip
 import Json.Encode as Encode
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils
@@ -216,7 +216,7 @@ addGlobalHelp mode graph global state =
                     -- This is required given that it looks like `Data.Set.union` sorts its elements
                     List.sortWith Opt.compareGlobal (EverySet.toList deps)
             in
-            List.foldl (Flip.flip (addGlobal mode graph)) someState sortedDeps
+            List.foldl (flip (addGlobal mode graph)) someState sortedDeps
     in
     case Utils.find global graph of
         Opt.Define expr deps ->
@@ -489,7 +489,7 @@ generateManager mode graph (Opt.Global ((ModuleName.Canonical _ moduleName) as h
                 JS.ExprAssign managerLVar <|
                     JS.ExprCall (JS.ExprRef (JsName.fromKernel Name.platform "createManager")) args
     in
-    addStmt (List.foldl (Flip.flip (addGlobal mode graph)) state deps) <|
+    addStmt (List.foldl (flip (addGlobal mode graph)) state deps) <|
         JS.Block (createManager :: stmts)
 
 
@@ -574,7 +574,7 @@ generateExports mode (Trie maybeMain subs) =
                 ++ name
                 ++ "':"
                 ++ generateExports mode subTrie
-                ++ List.foldl (Flip.flip (addSubTrie mode)) "}" otherSubTries
+                ++ List.foldl (flip (addSubTrie mode)) "}" otherSubTries
 
 
 addSubTrie : Mode.Mode -> String -> ( Name.Name, Trie ) -> String

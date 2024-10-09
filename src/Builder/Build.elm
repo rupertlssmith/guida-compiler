@@ -15,6 +15,7 @@ module Builder.Build exposing
     , writeDocs
     )
 
+import Basics.Extra exposing (flip)
 import Builder.Elm.Details as Details
 import Builder.Elm.Outline as Outline
 import Builder.File as File
@@ -46,7 +47,6 @@ import Data.Graph as Graph
 import Data.IO as IO exposing (IO, IORef(..))
 import Data.Map as Dict exposing (Dict)
 import Data.Set as EverySet
-import Flip
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Utils.Crash exposing (crash)
@@ -360,7 +360,7 @@ crawlModule ((Env _ root projectType srcDirs buildID locals foreigns) as env) mv
         fileName =
             ModuleName.toFilePath name ++ ".elm"
     in
-    Utils.filterM File.exists (List.map (Flip.flip addRelative fileName) srcDirs)
+    Utils.filterM File.exists (List.map (flip addRelative fileName) srcDirs)
         |> IO.bind
             (\paths ->
                 case paths of
@@ -1818,11 +1818,7 @@ bResultEncoder bResult =
                 , ( "local", Details.localEncoder local )
                 , ( "iface", I.interfaceEncoder iface )
                 , ( "objects", Opt.localGraphEncoder objects )
-                , ( "docs"
-                  , docs
-                        |> Maybe.map Docs.jsonModuleEncoder
-                        |> Maybe.withDefault Encode.null
-                  )
+                , ( "docs", E.maybe Docs.jsonModuleEncoder docs )
                 ]
 
         RCached main lastChange (MVar ref) ->

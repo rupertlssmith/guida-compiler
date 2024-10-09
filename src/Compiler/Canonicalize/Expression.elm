@@ -6,6 +6,7 @@ module Compiler.Canonicalize.Expression exposing
     , verifyBindings
     )
 
+import Basics.Extra exposing (flip)
 import Compiler.AST.Canonical as Can
 import Compiler.AST.Source as Src
 import Compiler.AST.Utils.Binop as Binop
@@ -25,7 +26,6 @@ import Compiler.Reporting.Result as R
 import Compiler.Reporting.Warning as W
 import Data.Graph as Graph
 import Data.Map as Dict exposing (Dict)
-import Flip
 import List.Extra as List
 import Prelude
 import Utils.Main as Utils
@@ -359,16 +359,16 @@ addBindingsHelp bindings (A.At region pattern) =
             bindings
 
         Src.PTuple a b cs ->
-            List.foldl (Flip.flip addBindingsHelp) bindings (a :: b :: cs)
+            List.foldl (flip addBindingsHelp) bindings (a :: b :: cs)
 
         Src.PCtor _ _ patterns ->
-            List.foldl (Flip.flip addBindingsHelp) bindings patterns
+            List.foldl (flip addBindingsHelp) bindings patterns
 
         Src.PCtorQual _ _ _ patterns ->
-            List.foldl (Flip.flip addBindingsHelp) bindings patterns
+            List.foldl (flip addBindingsHelp) bindings patterns
 
         Src.PList patterns ->
-            List.foldl (Flip.flip addBindingsHelp) bindings patterns
+            List.foldl (flip addBindingsHelp) bindings patterns
 
         Src.PCons hd tl ->
             addBindingsHelp (addBindingsHelp bindings hd) tl
@@ -533,16 +533,16 @@ getPatternNames names (A.At region pattern) =
             names
 
         Src.PTuple a b cs ->
-            List.foldl (Flip.flip getPatternNames) (getPatternNames (getPatternNames names a) b) cs
+            List.foldl (flip getPatternNames) (getPatternNames (getPatternNames names a) b) cs
 
         Src.PCtor _ _ args ->
-            List.foldl (Flip.flip getPatternNames) names args
+            List.foldl (flip getPatternNames) names args
 
         Src.PCtorQual _ _ _ args ->
-            List.foldl (Flip.flip getPatternNames) names args
+            List.foldl (flip getPatternNames) names args
 
         Src.PList patterns ->
-            List.foldl (Flip.flip getPatternNames) names patterns
+            List.foldl (flip getPatternNames) names patterns
 
         Src.PCons hd tl ->
             getPatternNames (getPatternNames names hd) tl
