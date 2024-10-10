@@ -20,6 +20,7 @@ import Prelude
 import Terminal.Develop.Generate.Help as Help
 import Terminal.Develop.Generate.Index as Index
 import Terminal.Develop.StaticFiles as StaticFiles
+import Utils.Crash exposing (todo)
 import Utils.Main as Utils exposing (FilePath)
 
 
@@ -46,7 +47,7 @@ run () (Flags maybePort) =
                 --         serveAssets
                 --         error404
                 --     )
-                Debug.todo "run"
+                todo "run"
             )
 
 
@@ -103,7 +104,7 @@ serveFiles =
     --             Snap.bind guard (liftIO (Utils.dirDoesFileExist path))
     --                 |> Snap.bind (serveElm path (serveFilePretty path))
     --         )
-    Debug.todo "serveFiles"
+    todo "serveFiles"
 
 
 

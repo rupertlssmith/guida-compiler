@@ -41,6 +41,7 @@ import Compiler.Reporting.Annotation as A
 import Data.Map as Dict exposing (Dict)
 import Data.Set as EverySet exposing (EverySet)
 import Json.Decode as Decode
+import Utils.Crash exposing (crash)
 
 
 
@@ -451,7 +452,7 @@ oneOf decoders =
                             oneOfHelp ast decoders_ [] e
 
                 [] ->
-                    Debug.todo "Ran into (Json.Decode.oneOf [])"
+                    crash "Ran into (Json.Decode.oneOf [])"
 
 
 oneOfHelp : AST -> List (Decoder x a) -> List (Problem x) -> Problem x -> Result (Problem x) a

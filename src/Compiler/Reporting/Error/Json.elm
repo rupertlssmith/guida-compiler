@@ -11,6 +11,7 @@ import Compiler.Json.Decode exposing (DecodeExpectation(..), Error(..), ParseErr
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Doc as D
 import Compiler.Reporting.Render.Code as Code
+import Utils.Crash exposing (todo)
 import Utils.Main as Utils
 
 
@@ -371,7 +372,7 @@ expectationToReport path source context (A.Region start end) expectation reason 
 
         region =
             if sr == er then
-                Debug.todo "region"
+                todo "region"
 
             else
                 A.Region start start

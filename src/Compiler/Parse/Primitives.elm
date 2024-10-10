@@ -37,6 +37,7 @@ module Compiler.Parse.Primitives exposing
 import Compiler.Reporting.Annotation as A
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Utils.Crash exposing (crash)
 
 
 
@@ -409,7 +410,7 @@ unsafeIndex str index =
             char
 
         Nothing ->
-            Debug.todo "Error on unsafeIndex!"
+            crash "Error on unsafeIndex!"
 
 
 isWord : String -> Int -> Int -> Char -> Bool

@@ -164,7 +164,7 @@ import Json.Encode as Encode
 import Maybe.Extra as Maybe
 import Prelude
 import Time
-import Utils.Crash exposing (crash)
+import Utils.Crash exposing (crash, todo)
 
 
 liftInputT : IO () -> ReplInputT ()
@@ -601,7 +601,7 @@ zipWithM f xs ys =
 
 listGroupBy : (a -> a -> Bool) -> List a -> List (List a)
 listGroupBy _ _ =
-    Debug.todo "listGroupBy"
+    todo "listGroupBy"
 
 
 listMaximum : (a -> a -> Order) -> List a -> a
@@ -743,12 +743,12 @@ fpJoinPath paths =
 
 fpMakeRelative : String -> String -> String
 fpMakeRelative _ =
-    Debug.todo "fpMakeRelative"
+    todo "fpMakeRelative"
 
 
 fpAddTrailingPathSeparator : FilePath -> FilePath
 fpAddTrailingPathSeparator _ =
-    Debug.todo "fpAddTrailingPathSeparator"
+    todo "fpAddTrailingPathSeparator"
 
 
 fpPathSeparator : Char
@@ -873,7 +873,7 @@ dirRemoveFile path =
 
 dirRemoveDirectoryRecursive : FilePath -> IO ()
 dirRemoveDirectoryRecursive _ =
-    Debug.todo "dirRemoveDirectoryRecursive"
+    todo "dirRemoveDirectoryRecursive"
 
 
 dirDoesDirectoryExist : FilePath -> IO Bool
@@ -888,12 +888,12 @@ dirCanonicalizePath path =
 
 dirGetDirectoryContents : FilePath -> IO (List FilePath)
 dirGetDirectoryContents _ =
-    Debug.todo "dirGetDirectoryContents"
+    todo "dirGetDirectoryContents"
 
 
 dirWithCurrentDirectory : FilePath -> IO a -> IO a
 dirWithCurrentDirectory _ _ =
-    Debug.todo "dirWithCurrentDirectory"
+    todo "dirWithCurrentDirectory"
 
 
 
@@ -985,17 +985,17 @@ type AsyncException
 
 fromException : SomeException -> Maybe e
 fromException _ =
-    Debug.todo "fromException"
+    todo "fromException"
 
 
 throw : e -> a
 throw _ =
-    Debug.todo "throw"
+    todo "throw"
 
 
 bracket_ : IO a -> IO b -> IO c -> IO c
 bracket_ before after thing =
-    Debug.todo "bracket_"
+    todo "bracket_"
 
 
 
@@ -1147,7 +1147,7 @@ exitSuccess =
 
 bsReadFile : String -> IO String
 bsReadFile _ =
-    Debug.todo "bsReadFile"
+    todo "bsReadFile"
 
 
 

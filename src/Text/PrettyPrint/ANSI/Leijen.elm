@@ -42,6 +42,7 @@ import Data.IO as IO exposing (IO)
 import Pretty as P
 import Pretty.Renderer as PR
 import System.Console.Ansi as Ansi
+import Utils.Crash exposing (todo)
 
 
 type alias Doc =
@@ -144,7 +145,7 @@ displayS : SimpleDoc -> String -> String
 displayS simpleDoc acc =
     case simpleDoc of
         SFail ->
-            Debug.todo "SFail"
+            todo "SFail"
 
         SEmpty ->
             acc

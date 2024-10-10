@@ -17,6 +17,7 @@ import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Doc as D exposing (Doc)
 import Data.Set as EverySet
 import List.Extra as List
+import Prelude
 
 
 
@@ -82,18 +83,7 @@ render sourceLines ((A.Region (A.Position startLine _) (A.Position endLine _)) a
                 |> List.take (1 + endLine - startLine)
 
         width =
-            String.length
-                (String.fromInt
-                    (Tuple.first
-                        (case List.last relevantLines of
-                            Just relevantLine ->
-                                relevantLine
-
-                            Nothing ->
-                                Debug.todo "*** Exception: Prelude.last: empty list"
-                        )
-                    )
-                )
+            String.length (String.fromInt (Tuple.first (Prelude.last relevantLines)))
 
         smallerRegion =
             Maybe.withDefault region maybeSubRegion

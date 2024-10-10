@@ -30,6 +30,7 @@ import List.Extra as List
 import Prelude
 import System.Console.Ansi as Ansi
 import Text.PrettyPrint.ANSI.Leijen as P
+import Utils.Crash exposing (crash)
 
 
 
@@ -338,7 +339,7 @@ toJsonHelp : Style -> List String -> P.SimpleDoc -> List E.Value
 toJsonHelp style revChunks simpleDoc =
     case simpleDoc of
         P.SFail ->
-            Debug.todo <|
+            crash <|
                 "according to the main implementation, @SFail@ can not appear uncaught in a rendered @SimpleDoc@"
 
         P.SEmpty ->

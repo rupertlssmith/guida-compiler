@@ -6,6 +6,7 @@ module Terminal.Develop.StaticFiles exposing
     )
 
 import Data.Map as Dict exposing (Dict)
+import Utils.Crash exposing (todo)
 
 
 
@@ -30,7 +31,7 @@ dict =
     --     , ( codeFontPath, ( codeFont, "font/ttf" ) )
     --     , ( sansFontPath, ( sansFont, "font/ttf" ) )
     --     ]
-    Debug.todo "dict"
+    todo "dict"
 
 
 

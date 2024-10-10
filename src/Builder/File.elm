@@ -19,6 +19,7 @@ import Data.IO as IO exposing (IO(..))
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Time
+import Utils.Crash exposing (todo)
 import Utils.Main as Utils exposing (FilePath, ZipArchive, ZipEntry)
 
 
@@ -135,7 +136,7 @@ hGetContentsSizeHint handle =
     --                 )
     -- in
     -- readChunks []
-    Debug.todo "hGetContentsSizeHint"
+    todo "hGetContentsSizeHint"
 
 
 encodingError : FilePath -> IO.IOError -> IO.IOError
@@ -149,7 +150,7 @@ encodingError path ioErr =
     --             (Just path)
     --     _ ->
     --         ioErr
-    Debug.todo "encodingError"
+    todo "encodingError"
 
 
 

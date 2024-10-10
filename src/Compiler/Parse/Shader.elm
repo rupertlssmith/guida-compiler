@@ -120,28 +120,41 @@ parseGlsl startRow startCol src =
         Ok (GLS.TranslationUnit decls) ->
             P.pure (List.foldr addInput emptyTypes (List.concatMap extractInputs decls))
 
-        Err err ->
-            -- let
-            --     pos =
-            --         Parsec.errorPos err
-            --     row =
-            --         fromIntegral (Parsec.sourceLine pos)
-            --     col =
-            --         fromIntegral (Parsec.sourceColumn pos)
-            --     msg =
-            --         Parsec.showErrorMessages
-            --             "or"
-            --             "unknown parse error"
-            --             "expecting"
-            --             "unexpected"
-            --             "end of input"
-            --             (Parsec.errorMessages err)
-            -- in
-            -- if row == 1 then
-            --     failure startRow (startCol + 6 + col) msg
-            -- else
-            --     failure (startRow + row - 1) col msg
-            Debug.todo ("parseGlsl: " ++ Debug.toString err)
+        Err { position, messages } ->
+            -- FIXME this should be moved into guida-lang/glsl
+            let
+                lines =
+                    String.left position src
+                        |> String.lines
+
+                row =
+                    List.length lines
+
+                col =
+                    case List.reverse lines of
+                        lastLine :: _ ->
+                            String.length lastLine
+
+                        _ ->
+                            0
+
+                msg =
+                    showErrorMessages messages
+            in
+            if row == 1 then
+                failure startRow (startCol + 6 + col) msg
+
+            else
+                failure (startRow + row - 1) col msg
+
+
+showErrorMessages : List String -> String
+showErrorMessages msgs =
+    if List.isEmpty msgs then
+        "unknown parse error"
+
+    else
+        String.join "\n" msgs
 
 
 failure : Row -> Col -> String -> Parser E.Expr a

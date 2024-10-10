@@ -11,6 +11,7 @@ import Compiler.AST.Utils.Binop as Binop
 import Compiler.Parse.Primitives as P exposing (Col, Row)
 import Compiler.Parse.Variable as Var
 import Compiler.Reporting.Error.Syntax as E
+import Utils.Crash exposing (todo)
 
 
 
@@ -92,7 +93,7 @@ number toExpectation toError =
                                             copy_
 
                                         Nothing ->
-                                            Debug.todo "Failed `String.toFloat`"
+                                            todo "Failed `String.toFloat`"
 
                                 float =
                                     Float copy

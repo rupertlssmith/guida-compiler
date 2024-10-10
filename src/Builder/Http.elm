@@ -21,11 +21,14 @@ module Builder.Http exposing
     , upload
     )
 
+import Basics.Extra exposing (uncurry)
 import Compiler.Elm.Version as V
 import Compiler.Parse.Keyword exposing (type_)
 import Data.IO as IO exposing (IO(..))
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Url.Builder
+import Utils.Crash exposing (todo)
 import Utils.Main as Utils exposing (HTTPResponse(..), SomeException(..))
 
 
@@ -73,12 +76,13 @@ toUrl url params =
             url
 
         _ :: _ ->
-            url ++ "?" ++ urlEncodeVars params
+            url ++ urlEncodeVars params
 
 
 urlEncodeVars : List ( String, String ) -> String
 urlEncodeVars params =
-    Debug.todo "urlEncodeVars"
+    -- includes the `?`
+    Url.Builder.toQuery (List.map (uncurry Url.Builder.string) params)
 
 
 
@@ -147,7 +151,7 @@ fetch methodVerb manager url headers onError onSuccess =
 addDefaultHeaders : List Header -> List Header
 addDefaultHeaders headers =
     -- ( hUserAgent, userAgent ) :: ( hAcceptEncoding, "gzip" ) :: headers
-    Debug.todo "addDefaultHeaders"
+    todo "addDefaultHeaders"
 
 
 userAgent : String
@@ -158,7 +162,7 @@ userAgent =
 accept : String -> Header
 accept mime =
     -- ( hAccept, mime )
-    Debug.todo "accept"
+    todo "accept"
 
 
 
@@ -188,7 +192,7 @@ handleHttpException url onError httpException =
     --         IO.pure (Err (onError (BadUrl url reason)))
     --     HttpExceptionRequest _ content ->
     --         IO.pure (Err (onError (BadHttp url content)))
-    Debug.todo "handleHttpException"
+    todo "handleHttpException"
 
 
 handleSomeException : String -> (Error -> e) -> SomeException -> IO (Result e a)
@@ -251,13 +255,13 @@ upload manager url parts =
     --             <|
     --                 \_ ->
     --                     return (Right ())
-    Debug.todo "upload"
+    todo "upload"
 
 
 filePart : String -> String -> MultiPart
 filePart name filePath =
     -- Multi.partFileSource (String.fromString name) filePath
-    Debug.todo "filePart"
+    todo "filePart"
 
 
 jsonPart : String -> String -> Encode.Value -> MultiPart
@@ -267,13 +271,13 @@ jsonPart name filePath value =
     --         Multi.RequestBodyLBS <| B.toLazyByteString <| Encode.encodeUgly value
     -- in
     -- Multi.partFileRequestBody (String.fromString name) filePath body
-    Debug.todo "jsonPart"
+    todo "jsonPart"
 
 
 stringPart : String -> String -> MultiPart
 stringPart name string =
     -- Multi.partBS (String.fromString name) (BS.pack string)
-    Debug.todo "stringPart"
+    todo "stringPart"
 
 
 

@@ -72,6 +72,7 @@ import Array.Extra as Array
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Maybe.Extra as Maybe
+import Utils.Crash exposing (todo)
 
 
 make : Decode.Decoder a -> Effect -> IO a
@@ -214,7 +215,7 @@ catch handler (IO io) =
     --                     IO newIo ->
     --                         newIo newIoState
     --     )
-    Debug.todo "catch"
+    todo "catch"
 
 
 ioRefEncoder : IORef a -> Encode.Value
@@ -234,7 +235,7 @@ newIORef encoder value =
 
 readFile : String -> IO String
 readFile _ =
-    Debug.todo "readFile"
+    todo "readFile"
 
 
 readIORef : Decode.Decoder a -> IORef a -> IO a
@@ -357,7 +358,7 @@ mVectorRead decoder ioRef i =
                         a
 
                     Nothing ->
-                        Debug.todo "Failed to find index on vector"
+                        todo "Failed to find index on vector"
             )
 
 
@@ -420,7 +421,7 @@ vectorUnsafeLast decoder ioRef =
             (\value ->
                 case Maybe.join (Array.get (Array.length value - 1) value) of
                     Nothing ->
-                        Debug.todo ("Failed to return last element of array (lenght: " ++ String.fromInt (Array.length value) ++ ")")
+                        todo ("Failed to return last element of array (lenght: " ++ String.fromInt (Array.length value) ++ ")")
 
                     Just a ->
                         a
@@ -544,7 +545,7 @@ hFlush handle =
 
 hFileSize : Handle -> IO Int
 hFileSize handle =
-    Debug.todo "hFileSize"
+    todo "hFileSize"
 
 
 hClose : Handle -> IO ()

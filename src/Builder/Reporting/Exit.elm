@@ -64,6 +64,7 @@ import Data.IO exposing (IO)
 import Data.Map as Dict exposing (Dict)
 import Json.Decode as CoreDecode
 import Json.Encode as CoreEncode
+import Utils.Crash exposing (todo)
 import Utils.Main as Utils exposing (FilePath, HTTPResponse)
 
 
@@ -817,7 +818,7 @@ publishToReport publish =
             --         toHttpErrorReport "PROBLEM VERIFYING TAG"
             --             httpError
             --             "I need to check that the version tag is registered on GitHub"
-            Debug.todo "PublishCannotGetTag"
+            todo "PublishCannotGetTag"
 
         PublishCannotGetTagData version url body ->
             Help.report "PROBLEM VERIFYING TAG"
@@ -2235,7 +2236,7 @@ toRedirectDoc response =
     --         D.red (D.fromInt code) |> D.a (D.fromChars " - ") |> D.a (D.fromChars (BS_UTF8.toString loc))
     --     Nothing ->
     --         D.red (D.fromInt code) |> D.a (D.fromChars " - ") |> D.a (D.fromChars (BS_UTF8.toString message))
-    Debug.todo "toRedirectDoc"
+    todo "toRedirectDoc"
 
 
 

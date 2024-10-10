@@ -16,6 +16,7 @@ import Basics.Extra exposing (flip)
 import Data.IO as IO exposing (IO)
 import Data.Maybe as Maybe
 import Terminal.Terminal.Internal exposing (ArgError(..), Args(..), CompleteArgs(..), Error(..), Expectation(..), Flag(..), FlagError(..), Flags(..), Parser(..), RequiredArgs(..))
+import Utils.Crash exposing (todo)
 
 
 
@@ -243,7 +244,7 @@ chompRequiredArgs numChunks args =
     --                     chompArg numChunks argParser
     --                         |> fmap (\arg -> func arg)
     --                 )
-    Debug.todo ("chompRequiredArgs: " ++ Debug.toString ( numChunks, args ))
+    todo ("chompRequiredArgs: " ++ Debug.toString ( numChunks, args ))
 
 
 chompArg : Int -> Parser -> (String -> Maybe a) -> Chomper ArgError a
@@ -332,7 +333,7 @@ chompFlagsHelp flags =
     --                     chompFlag argFlag
     --                         |> fmap (\arg -> func arg)
     --                 )
-    Debug.todo "chompFlagsHelp"
+    todo "chompFlagsHelp"
 
 
 
@@ -346,7 +347,7 @@ chompFlag flag =
     --         chompOnOffFlag flagName
     --     Flag flagName parser _ ->
     --         chompNormalFlag flagName parser
-    Debug.todo "chompFlag"
+    todo "chompFlag"
 
 
 chompOnOffFlag : String -> Chomper FlagError Bool
