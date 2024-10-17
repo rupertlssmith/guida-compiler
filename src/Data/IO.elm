@@ -126,6 +126,8 @@ type Effect
     | ReplGetInputLine String
     | ReplGetInputLineWithInitial String ( String, String )
     | HClose Handle
+    | HFileSize Handle
+    | WithFile String IOMode
     | StateGet
     | ProcWithCreateProcess CreateProcess
     | NoOp
@@ -545,7 +547,7 @@ hFlush handle =
 
 hFileSize : Handle -> IO Int
 hFileSize handle =
-    todo "hFileSize"
+    make Decode.int (HFileSize handle)
 
 
 hClose : Handle -> IO ()
@@ -643,6 +645,6 @@ hSetEncoding _ _ =
 
 
 withFile : String -> IOMode -> (Handle -> IO a) -> IO a
-withFile _ _ callback =
-    -- TODO review this
-    callback stdout
+withFile path mode callback =
+    make (Decode.map Handle Decode.int) (WithFile path mode)
+        |> bind callback

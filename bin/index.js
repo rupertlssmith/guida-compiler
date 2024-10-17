@@ -316,6 +316,14 @@ const io = {
     fs.close(fd);
     this.send({ index, value: null });
   },
+  hFileSize: function (index, fd) {
+    const stats = fs.fstatSync(fd);
+    this.send({ index, value: stats.size });
+  },
+  withFile: function (index, filename, mode) {
+    var fd = fs.openSync(filename, mode);
+    this.send({ index, value: fd });
+  },
 };
 
 const app = Elm.Terminal.Main.init();

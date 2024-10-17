@@ -429,6 +429,42 @@ effectToCmd index portOut effect =
                         ]
                 }
 
+        IO.HFileSize (IO.Handle fd) ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "hFileSize" )
+                        , ( "args", Encode.list Encode.int [ fd ] )
+                        ]
+                }
+
+        IO.WithFile filename mode ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "withFile" )
+                        , ( "args"
+                          , Encode.list Encode.string
+                                [ filename
+                                , case mode of
+                                    IO.ReadMode ->
+                                        "r"
+
+                                    IO.WriteMode ->
+                                        "w"
+
+                                    IO.AppendMode ->
+                                        "a"
+
+                                    IO.ReadWriteMode ->
+                                        "w+"
+                                ]
+                          )
+                        ]
+                }
+
         IO.DirFindExecutable name ->
             portOut
                 { index = index
