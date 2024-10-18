@@ -1,12 +1,13 @@
 #!/usr/bin/env -S node --stack-size=8192
 
-const fs = require("fs");
-const child_process = require("child_process");
-const readline = require("readline");
-const os = require("os");
-const http = require("http");
-const https = require("https");
-const resolve = require("path").resolve;
+const fs = require("node:fs");
+const child_process = require("node:child_process");
+const readline = require("node:readline");
+const os = require("node:os");
+const http = require("node:http");
+const https = require("node:https");
+const resolve = require("node:path").resolve;
+const zlib = require("node:zlib");
 const AdmZip = require("adm-zip");
 const which = require("which");
 const tmp = require("tmp");
@@ -143,18 +144,40 @@ const io = {
     const url = new URL(urlStr);
     const client = url.protocol == "https:" ? https : http;
     const req = client.request(url, { method, headers }, (res) => {
-      let data = [];
+      let chunks = [];
+
       res.on("data", (chunk) => {
-        data.push(chunk);
+        chunks.push(chunk);
       });
 
       res.on("end", () => {
-        this.send({ index, value: Buffer.concat(data).toString() });
+        const buffer = Buffer.concat(chunks);
+        const encoding = res.headers["content-encoding"];
+
+        if (encoding == "gzip") {
+          zlib.gunzip(buffer, (err, decoded) => {
+            if (err) {
+              console.error(err);
+            } else {
+              this.send({ index, value: decoded && decoded.toString() });
+            }
+          });
+        } else if (encoding == "deflate") {
+          zlib.inflate(buffer, (err, decoded) => {
+            if (err) {
+              console.error(err);
+            } else {
+              this.send({ index, value: decoded && decoded.toString() });
+            }
+          });
+        } else {
+          this.send({ index, value: buffer.toString() });
+        }
       });
     });
 
-    req.on("error", (e) => {
-      console.error(e);
+    req.on("error", (err) => {
+      console.error(err);
     });
 
     req.end();
