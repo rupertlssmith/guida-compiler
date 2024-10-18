@@ -630,7 +630,7 @@ reportCustomCheck waiting success failure work =
             message ++ String.repeat (String.length waiting - String.length message) " "
     in
     Task.eio identity
-        (putFlush (D.plus (D.fromChars "  ") (D.plus waitingMark (D.fromChars waiting)))
+        (putFlush (D.append (D.fromChars "  ") waitingMark |> D.plus (D.fromChars waiting))
             |> IO.bind
                 (\_ ->
                     work
@@ -639,10 +639,10 @@ reportCustomCheck waiting success failure work =
                                 putFlush
                                     (case result of
                                         Ok a ->
-                                            D.append (D.fromChars "\u{000D}  ") (D.plus goodMark (D.fromChars (padded (success a) ++ "\n")))
+                                            D.append (D.fromChars "\u{000D}  ") goodMark |> D.plus (D.fromChars (padded (success a) ++ "\n"))
 
                                         Err _ ->
-                                            D.append (D.fromChars "\u{000D}  ") (D.plus badMark (D.fromChars (padded failure ++ "\n\n")))
+                                            D.append (D.fromChars "\u{000D}  ") badMark |> D.plus (D.fromChars (padded failure ++ "\n\n"))
                                     )
                                     |> IO.fmap (\_ -> result)
                             )

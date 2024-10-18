@@ -31,7 +31,6 @@ module Data.IO exposing
     , hIsTerminalDevice
     , hPutStr
     , hPutStrLn
-    , hSetEncoding
     , ioRefDecoder
     , ioRefEncoder
     , liftIO
@@ -111,7 +110,7 @@ type Effect
     | EnvGetArgs
     | BinaryDecodeFileOrFail String
     | Read String
-    | HttpFetch String String
+    | HttpFetch String String (List ( String, String ))
     | DirGetAppUserDataDirectory String
     | DirGetCurrentDirectory
     | DirGetModificationTime String
@@ -130,6 +129,7 @@ type Effect
     | WithFile String IOMode
     | StateGet
     | ProcWithCreateProcess CreateProcess
+    | ProcWaitForProcess Int
     | NoOp
 
 
@@ -157,7 +157,7 @@ type StdStream
 
 
 type ProcessHandle
-    = ProcessHandle
+    = ProcessHandle Int
 
 
 procProc : String -> List String -> CreateProcess
@@ -171,13 +171,30 @@ procProc cmd args =
 
 procWithCreateProcess : CreateProcess -> (Maybe Handle -> Maybe Handle -> Maybe Handle -> ProcessHandle -> IO ExitCode) -> IO ExitCode
 procWithCreateProcess createProcess f =
-    make Decode.int (ProcWithCreateProcess createProcess)
-        |> bind (\fd -> f (Just (Handle fd)) Nothing Nothing ProcessHandle)
+    make
+        (Decode.map2 Tuple.pair
+            (Decode.maybe (Decode.field "stdin" Decode.int))
+            (Decode.field "ph" Decode.int)
+        )
+        (ProcWithCreateProcess createProcess)
+        |> bind
+            (\( stdinHandle, ph ) ->
+                f (Maybe.map Handle stdinHandle) Nothing Nothing (ProcessHandle ph)
+            )
 
 
 procWaitForProcess : ProcessHandle -> IO ExitCode
-procWaitForProcess _ =
-    pure ExitSuccess
+procWaitForProcess (ProcessHandle ph) =
+    make Decode.int (ProcWaitForProcess ph)
+        |> fmap
+            (\exitCode ->
+                case exitCode of
+                    0 ->
+                        ExitSuccess
+
+                    int ->
+                        ExitFailure int
+            )
 
 
 
@@ -636,12 +653,6 @@ exitWith exitCode =
 exitFailure : IO a
 exitFailure =
     exitWith (ExitFailure 1)
-
-
-hSetEncoding : Handle -> TextEncoding -> IO ()
-hSetEncoding _ _ =
-    -- TODO review this
-    pure ()
 
 
 withFile : String -> IOMode -> (Handle -> IO a) -> IO a

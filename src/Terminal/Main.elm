@@ -274,13 +274,19 @@ effectToCmd index portOut effect =
                         ]
                 }
 
-        IO.HttpFetch method url ->
+        IO.HttpFetch method url headers ->
             portOut
                 { index = index
                 , value =
                     Encode.object
                         [ ( "fn", Encode.string "httpFetch" )
-                        , ( "args", Encode.list Encode.string [ method, url ] )
+                        , ( "args"
+                          , Encode.list identity
+                                [ Encode.string method
+                                , Encode.string url
+                                , Encode.object (List.map (Tuple.mapSecond Encode.string) headers)
+                                ]
+                          )
                         ]
                 }
 
@@ -493,32 +499,61 @@ effectToCmd index portOut effect =
                                                     , ( "args", Encode.list Encode.string args )
                                                     ]
                                       )
-                                    , ( "std_in"
+                                    , ( "stdin"
                                       , case createProcess.std_in of
                                             IO.Inherit ->
-                                                Encode.object
-                                                    [ ( "type", Encode.string "Inherit" )
-                                                    ]
+                                                Encode.string "inherit"
 
                                             IO.UseHandle (IO.Handle handle) ->
-                                                Encode.object
-                                                    [ ( "type", Encode.string "UseHandle" )
-                                                    , ( "handle", Encode.int handle )
-                                                    ]
+                                                Encode.int handle
 
                                             IO.CreatePipe ->
-                                                Encode.object
-                                                    [ ( "type", Encode.string "CreatePipe" )
-                                                    ]
+                                                Encode.string "pipe"
 
                                             IO.NoStream ->
-                                                Encode.object
-                                                    [ ( "type", Encode.string "NoStream" )
-                                                    ]
+                                                Encode.string "ignore"
+                                      )
+                                    , ( "stdout"
+                                      , case createProcess.std_out of
+                                            IO.Inherit ->
+                                                Encode.string "inherit"
+
+                                            IO.UseHandle (IO.Handle handle) ->
+                                                Encode.int handle
+
+                                            IO.CreatePipe ->
+                                                Encode.string "pipe"
+
+                                            IO.NoStream ->
+                                                Encode.string "ignore"
+                                      )
+                                    , ( "stderr"
+                                      , case createProcess.std_err of
+                                            IO.Inherit ->
+                                                Encode.string "inherit"
+
+                                            IO.UseHandle (IO.Handle handle) ->
+                                                Encode.int handle
+
+                                            IO.CreatePipe ->
+                                                Encode.string "pipe"
+
+                                            IO.NoStream ->
+                                                Encode.string "ignore"
                                       )
                                     ]
                                 ]
                           )
+                        ]
+                }
+
+        IO.ProcWaitForProcess ph ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "procWaitForProcess" )
+                        , ( "args", Encode.list Encode.int [ ph ] )
                         ]
                 }
 

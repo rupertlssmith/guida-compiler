@@ -600,8 +600,27 @@ zipWithM f xs ys =
 
 
 listGroupBy : (a -> a -> Bool) -> List a -> List (List a)
-listGroupBy _ _ =
-    todo "listGroupBy"
+listGroupBy p list =
+    case list of
+        [] ->
+            []
+
+        x :: xs ->
+            xs
+                |> List.foldl
+                    (\current ( previous, ys, acc ) ->
+                        if p previous current then
+                            ( current, current :: ys, acc )
+
+                        else
+                            ( current, [ current ], ys :: acc )
+                    )
+                    ( x, [ x ], [] )
+                |> (\( _, ys, acc ) ->
+                        ys :: acc
+                   )
+                |> List.map List.reverse
+                |> List.reverse
 
 
 listMaximum : (a -> a -> Order) -> List a -> a
@@ -741,9 +760,13 @@ fpJoinPath paths =
             String.join "/" paths
 
 
-fpMakeRelative : String -> String -> String
-fpMakeRelative _ =
-    todo "fpMakeRelative"
+fpMakeRelative : FilePath -> FilePath -> FilePath
+fpMakeRelative root path =
+    if String.startsWith path root then
+        String.dropLeft (String.length root) path
+
+    else
+        path
 
 
 fpAddTrailingPathSeparator : FilePath -> FilePath

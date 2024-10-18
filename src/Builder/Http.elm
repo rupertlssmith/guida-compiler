@@ -89,8 +89,8 @@ urlEncodeVars params =
 -- FETCH
 
 
-type Header
-    = Header
+type alias Header =
+    ( String, String )
 
 
 get : Manager -> String -> List Header -> (Error -> e) -> (String -> IO (Result e a)) -> IO (Result e a)
@@ -144,14 +144,14 @@ fetch methodVerb manager url headers onError onSuccess =
                     "POST"
             )
             url
+            (addDefaultHeaders headers)
         )
         |> IO.bind onSuccess
 
 
 addDefaultHeaders : List Header -> List Header
 addDefaultHeaders headers =
-    -- ( hUserAgent, userAgent ) :: ( hAcceptEncoding, "gzip" ) :: headers
-    todo "addDefaultHeaders"
+    ( "User-Agent", userAgent ) :: ( "Accept-Encoding", "gzip" ) :: headers
 
 
 userAgent : String
@@ -161,8 +161,7 @@ userAgent =
 
 accept : String -> Header
 accept mime =
-    -- ( hAccept, mime )
-    todo "accept"
+    ( "Accept", mime )
 
 
 

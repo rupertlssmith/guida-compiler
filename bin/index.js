@@ -4,6 +4,7 @@ const fs = require("fs");
 const child_process = require("child_process");
 const readline = require("readline");
 const os = require("os");
+const http = require("http");
 const https = require("https");
 const resolve = require("path").resolve;
 const AdmZip = require("adm-zip");
@@ -20,6 +21,7 @@ let nextCounter = 0;
 const ioRefs = {};
 const mVars = {};
 const lockedFiles = {};
+const processes = {};
 
 const download = function (index, method, url) {
   const req = https.request(url, { method: method }, (res) => {
@@ -137,8 +139,10 @@ const io = {
 
     this.send({ index, value: null });
   },
-  httpFetch: function (index, method, url) {
-    const req = https.request(url, { method: method }, (res) => {
+  httpFetch: function (index, method, urlStr, headers) {
+    const url = new URL(urlStr);
+    const client = url.protocol == "https:" ? https : http;
+    const req = client.request(url, { method, headers }, (res) => {
       let data = [];
       res.on("data", (chunk) => {
         data.push(chunk);
@@ -300,17 +304,34 @@ const io = {
     });
   },
   procWithCreateProcess: function (index, createProcess) {
-    // FIXME needs review, only trying to implement the minimum for repl functionality
     const file = tmp.fileSync();
     const reader = fs.createReadStream(file.name);
 
-    reader.on("data", function (_chunk) {
-      child_process.spawn(createProcess.cmdspec.cmd, [file.name], {
-        stdio: "inherit",
-      });
+    reader.on("open", (fd) => {
+      nextCounter += 1;
+      processes[nextCounter] = child_process.spawn(
+        createProcess.cmdspec.cmd,
+        createProcess.cmdspec.args,
+        {
+          stdio: [
+            createProcess.stdin,
+            createProcess.stdout,
+            createProcess.stderr,
+          ],
+        }
+      );
+
+      this.send({ index, value: { stdin: file.fd, ph: nextCounter } });
     });
 
-    this.send({ index, value: file.fd });
+    reader.on("data", (chunk) => {
+      processes[nextCounter].stdin.end(chunk);
+    });
+  },
+  procWaitForProcess: function (index, ph) {
+    processes[ph].on("exit", (code) => {
+      this.send({ index, value: code });
+    });
   },
   hClose: function (index, fd) {
     fs.close(fd);

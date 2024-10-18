@@ -30,6 +30,7 @@ import Compiler.Reporting.Report as Report
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Time
+import Utils.Main as Utils
 
 
 
@@ -153,8 +154,7 @@ moduleToDoc root { absolutePath, source, error } =
             toReports (Code.toSource source) error
 
         relativePath =
-            -- FP.makeRelative root absolutePath
-            String.dropLeft (String.length root) absolutePath
+            Utils.fpMakeRelative root absolutePath
     in
     D.vcat <| List.map (reportToDoc relativePath) (NE.toList reports)
 
