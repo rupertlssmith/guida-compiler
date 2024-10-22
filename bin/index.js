@@ -12,6 +12,7 @@ const AdmZip = require("adm-zip");
 const which = require("which");
 const tmp = require("tmp");
 const { Elm } = require("./guida.js");
+const FormData = require("form-data");
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -129,6 +130,24 @@ const io = {
       this.send({ index, value: null });
     });
   },
+  dirRemoveFile: function (index, path) {
+    fs.unlink(path, (err) => {
+      if (err) {
+        console.error(err);
+      } else {
+        this.send({ index, value: null });
+      }
+    });
+  },
+  dirRemoveDirectoryRecursive: function (index, path) {
+    fs.rm(path, { recursive: true, force: true }, (err) => {
+      if (err) {
+        console.error(err);
+      } else {
+        this.send({ index, value: null });
+      }
+    });
+  },
   writeIORef: function (index, id, value) {
     ioRefs[id].value = value;
 
@@ -182,6 +201,48 @@ const io = {
 
     req.end();
   },
+  httpUpload: function (index, urlStr, headers, parts) {
+    const url = new URL(urlStr);
+    const client = url.protocol == "https:" ? https : http;
+
+    const form = new FormData();
+
+    parts.forEach((part) => {
+      switch (part.type) {
+        case "FilePart":
+          form.append(part.name, fs.createReadStream(part.filePath));
+          break;
+
+        case "JsonPart":
+          form.append(part.name, JSON.stringify(part.value), {
+            contentType: "application/json",
+            filepath: part.filePath,
+          });
+          break;
+
+        case "StringPart":
+          form.append(part.name, part.string);
+          break;
+      }
+    });
+
+    const req = client.request(url, {
+      method: "POST",
+      headers: { ...headers, ...form.getHeaders() },
+    });
+
+    form.pipe(req);
+
+    req.on("response", (res) => {
+      res.on("end", () => {
+        this.send({ index, value: null });
+      });
+    });
+
+    req.on("error", (err) => {
+      console.error(err);
+    });
+  },
   write: function (index, path, value) {
     this.send({
       index,
@@ -226,6 +287,14 @@ const io = {
   },
   dirCanonicalizePath: function (index, path) {
     this.send({ index, value: resolve(path) });
+  },
+  dirWithCurrentDirectory: function (index, path) {
+    try {
+      process.chdir(path);
+      this.send({ index, value: null });
+    } catch (err) {
+      console.error(`chdir: ${err}`);
+    }
   },
   getArchive: function (index, method, url) {
     download.apply(this, [index, method, url]);

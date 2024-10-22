@@ -264,6 +264,26 @@ effectToCmd index portOut effect =
                         ]
                 }
 
+        IO.DirRemoveFile path ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "dirRemoveFile" )
+                        , ( "args", Encode.list Encode.string [ path ] )
+                        ]
+                }
+
+        IO.DirRemoveDirectoryRecursive path ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "dirRemoveDirectoryRecursive" )
+                        , ( "args", Encode.list Encode.string [ path ] )
+                        ]
+                }
+
         IO.Read path ->
             portOut
                 { index = index
@@ -285,6 +305,22 @@ effectToCmd index portOut effect =
                                 [ Encode.string method
                                 , Encode.string url
                                 , Encode.object (List.map (Tuple.mapSecond Encode.string) headers)
+                                ]
+                          )
+                        ]
+                }
+
+        IO.HttpUpload url headers parts ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "httpUpload" )
+                        , ( "args"
+                          , Encode.list identity
+                                [ Encode.string url
+                                , Encode.object (List.map (Tuple.mapSecond Encode.string) headers)
+                                , parts
                                 ]
                           )
                         ]
@@ -326,6 +362,16 @@ effectToCmd index portOut effect =
                 , value =
                     Encode.object
                         [ ( "fn", Encode.string "dirCanonicalizePath" )
+                        , ( "args", Encode.list Encode.string [ path ] )
+                        ]
+                }
+
+        IO.DirWithCurrentDirectory path ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "dirWithCurrentDirectory" )
                         , ( "args", Encode.list Encode.string [ path ] )
                         ]
                 }

@@ -53,7 +53,7 @@ toChars =
 
 
 fromComment : P.Snippet -> String
-fromComment (P.Snippet { fptr, offset, length }) =
+fromComment ((P.Snippet { fptr, offset, length }) as snippet) =
     let
         pos =
             offset
@@ -61,7 +61,7 @@ fromComment (P.Snippet { fptr, offset, length }) =
         end =
             pos + length
     in
-    fromChunks (chompChunks fptr pos end pos [])
+    fromChunks snippet (chompChunks fptr pos end pos [])
 
 
 chompChunks : String -> Int -> Int -> Int -> List Chunk -> List Chunk
@@ -130,29 +130,30 @@ type Chunk
     | Escape Char
 
 
-fromChunks : List Chunk -> String
-fromChunks chunks =
-    writeChunks 0 chunks
+fromChunks : P.Snippet -> List Chunk -> String
+fromChunks snippet chunks =
+    writeChunks snippet chunks
 
 
-writeChunks : Int -> List Chunk -> String
-writeChunks offset chunks =
+writeChunks : P.Snippet -> List Chunk -> String
+writeChunks ((P.Snippet { fptr }) as snippet) chunks =
     case chunks of
         [] ->
             ""
 
         chunk :: chunks_ ->
             case chunk of
-                Slice _ len ->
-                    let
-                        newOffset =
-                            offset + len
-                    in
-                    writeChunks newOffset chunks_
+                Slice offset len ->
+                    String.left len (String.dropLeft offset fptr) ++ writeChunks snippet chunks_
+
+                Escape 'n' ->
+                    String.fromChar '\n' ++ writeChunks snippet chunks_
+
+                Escape '"' ->
+                    String.fromChar '"' ++ writeChunks snippet chunks_
+
+                Escape '\\' ->
+                    String.fromChar '\\' ++ writeChunks snippet chunks_
 
                 Escape word ->
-                    let
-                        newOffset =
-                            offset + 2
-                    in
-                    "\\" ++ String.fromChar word ++ writeChunks newOffset chunks_
+                    String.fromList [ '\\', word ] ++ writeChunks snippet chunks_

@@ -108,7 +108,7 @@ oneOrMore encoder oneOrMore_ =
 type Value
     = Array (List Value)
     | Object (List ( String, Value ))
-    | String String
+    | StringVal String
     | Boolean Bool
     | Integer Int
     | Number Float
@@ -127,12 +127,12 @@ object =
 
 string : String -> Value
 string str =
-    String ("\"" ++ str ++ "\"")
+    StringVal str
 
 
 name : String -> Value
 name nm =
-    String ("\"" ++ nm ++ "\"")
+    StringVal nm
 
 
 bool : Bool -> Value
@@ -175,7 +175,7 @@ list encodeEntry entries =
 
 chars : String -> Value
 chars chrs =
-    String ("\"" ++ escape chrs ++ "\"")
+    StringVal (escape chrs)
 
 
 escape : String -> String
@@ -244,8 +244,8 @@ encodeUgly value =
         Object entries ->
             "{" ++ String.join "," (List.map encodeEntryUgly entries) ++ "}"
 
-        String builder ->
-            builder
+        StringVal builder ->
+            "\"" ++ builder ++ "\""
 
         Boolean boolean ->
             if boolean then
@@ -293,8 +293,8 @@ encodeHelp indent value =
         Object (first :: rest) ->
             encodeObject indent first rest
 
-        String builder ->
-            builder
+        StringVal builder ->
+            "\"" ++ builder ++ "\""
 
         Boolean boolean ->
             if boolean then
@@ -369,7 +369,7 @@ toJsonValue value =
         Object obj ->
             Encode.object (List.map (Tuple.mapSecond toJsonValue) obj)
 
-        String builder ->
+        StringVal builder ->
             Encode.string builder
 
         Boolean boolean ->

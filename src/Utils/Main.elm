@@ -895,8 +895,8 @@ dirRemoveFile path =
 
 
 dirRemoveDirectoryRecursive : FilePath -> IO ()
-dirRemoveDirectoryRecursive _ =
-    todo "dirRemoveDirectoryRecursive"
+dirRemoveDirectoryRecursive path =
+    IO.make (Decode.succeed ()) (IO.DirRemoveDirectoryRecursive path)
 
 
 dirDoesDirectoryExist : FilePath -> IO Bool
@@ -915,8 +915,15 @@ dirGetDirectoryContents _ =
 
 
 dirWithCurrentDirectory : FilePath -> IO a -> IO a
-dirWithCurrentDirectory _ _ =
-    todo "dirWithCurrentDirectory"
+dirWithCurrentDirectory dir action =
+    dirGetCurrentDirectory
+        |> IO.bind
+            (\currentDir ->
+                bracket_
+                    (IO.make (Decode.succeed ()) (IO.DirWithCurrentDirectory dir))
+                    (IO.make (Decode.succeed ()) (IO.DirWithCurrentDirectory currentDir))
+                    action
+            )
 
 
 
@@ -1016,9 +1023,23 @@ throw _ =
     todo "throw"
 
 
+bracket : IO a -> (a -> IO b) -> (a -> IO c) -> IO c
+bracket before after thing =
+    before
+        |> IO.bind
+            (\a ->
+                thing a
+                    |> IO.bind
+                        (\r ->
+                            after a
+                                |> IO.fmap (\_ -> r)
+                        )
+            )
+
+
 bracket_ : IO a -> IO b -> IO c -> IO c
 bracket_ before after thing =
-    todo "bracket_"
+    bracket before (always after) (always thing)
 
 
 

@@ -104,6 +104,7 @@ type Effect
     | DirFindExecutable String
     | DirCreateDirectoryIfMissing Bool String
     | DirRemoveFile String
+    | DirRemoveDirectoryRecursive String
     | DirDoesDirectoryExist String
     | EnvLookupEnv String
     | EnvGetProgName
@@ -111,10 +112,12 @@ type Effect
     | BinaryDecodeFileOrFail String
     | Read String
     | HttpFetch String String (List ( String, String ))
+    | HttpUpload String (List ( String, String )) Encode.Value
     | DirGetAppUserDataDirectory String
     | DirGetCurrentDirectory
     | DirGetModificationTime String
     | DirCanonicalizePath String
+    | DirWithCurrentDirectory String
     | GetArchive String String
     | LockFile String
     | UnlockFile String

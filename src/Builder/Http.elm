@@ -109,31 +109,7 @@ type Method
 
 
 fetch : Method -> Manager -> String -> List Header -> (Error -> e) -> (String -> IO (Result e a)) -> IO (Result e a)
-fetch methodVerb manager url headers onError onSuccess =
-    -- handle (handleSomeException url onError) <|
-    --     handle (handleHttpException url onError) <|
-    --         (parseUrlThrow url
-    --             |> IO.bind
-    --                 (\req0 ->
-    --                     let
-    --                         req1 =
-    --                             req0
-    --                                 { method = methodVerb
-    --                                 , requestHeaders = addDefaultHeaders headers
-    --                                 }
-    --                     in
-    --                     withResponse req1
-    --                         manager
-    --                         (\response ->
-    --                             brConsume (responseBody response)
-    --                                 |> IO.bind
-    --                                     (\chunks ->
-    --                                         onSuccess (BS.concat chunks)
-    --                                     )
-    --                         )
-    --                 )
-    --         )
-    -- IO.pure (Err (onError (BadHttp url (ConnectionFailure SomeException))))
+fetch methodVerb _ url headers _ onSuccess =
     IO.make Decode.string
         (IO.HttpFetch
             (case methodVerb of
@@ -231,52 +207,59 @@ getArchive manager url onError err onSuccess =
 
 
 type MultiPart
-    = MultiPart
+    = FilePart String String
+    | JsonPart String String Encode.Value
+    | StringPart String String
 
 
 upload : Manager -> String -> List MultiPart -> IO (Result Error ())
-upload manager url parts =
-    -- handle (handleSomeException url id) <|
-    --     handle (handleHttpException url id) <|
-    --         do req0
-    --             <- parseUrlThrow url
-    --                 req1
-    --             <- Multi.formDataBody parts
-    --         <|
-    --             req0
-    --                 { method = methodPost
-    --                 , requestHeaders = addDefaultHeaders []
-    --                 , responseTimeout = responseTimeoutNone
-    --                 }
-    --                 withResponse
-    --                 req1
-    --                 manager
-    --             <|
-    --                 \_ ->
-    --                     return (Right ())
-    todo "upload"
+upload _ url parts =
+    IO.make (Decode.succeed (Ok ()))
+        (IO.HttpUpload url
+            (addDefaultHeaders [])
+            (Encode.list
+                (\part ->
+                    case part of
+                        FilePart name filePath ->
+                            Encode.object
+                                [ ( "type", Encode.string "FilePart" )
+                                , ( "name", Encode.string name )
+                                , ( "filePath", Encode.string filePath )
+                                ]
+
+                        JsonPart name filePath value ->
+                            Encode.object
+                                [ ( "type", Encode.string "JsonPart" )
+                                , ( "name", Encode.string name )
+                                , ( "filePath", Encode.string filePath )
+                                , ( "value", value )
+                                ]
+
+                        StringPart name string ->
+                            Encode.object
+                                [ ( "type", Encode.string "StringPart" )
+                                , ( "name", Encode.string name )
+                                , ( "string", Encode.string string )
+                                ]
+                )
+                parts
+            )
+        )
 
 
 filePart : String -> String -> MultiPart
 filePart name filePath =
-    -- Multi.partFileSource (String.fromString name) filePath
-    todo "filePart"
+    FilePart name filePath
 
 
 jsonPart : String -> String -> Encode.Value -> MultiPart
 jsonPart name filePath value =
-    -- let
-    --     body =
-    --         Multi.RequestBodyLBS <| B.toLazyByteString <| Encode.encodeUgly value
-    -- in
-    -- Multi.partFileRequestBody (String.fromString name) filePath body
-    todo "jsonPart"
+    JsonPart name filePath value
 
 
 stringPart : String -> String -> MultiPart
 stringPart name string =
-    -- Multi.partBS (String.fromString name) (BS.pack string)
-    todo "stringPart"
+    StringPart name string
 
 
 
