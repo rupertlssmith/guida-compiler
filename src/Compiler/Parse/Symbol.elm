@@ -30,6 +30,7 @@ operator toExpectation toError =
     P.Parser <|
         \(P.State src pos end indent row col) ->
             let
+                newPos : Int
                 newPos =
                     chompOps src pos end
             in
@@ -55,9 +56,11 @@ operator toExpectation toError =
 
                     op ->
                         let
+                            newCol : Col
                             newCol =
                                 col + (newPos - pos)
 
+                            newState : P.State
                             newState =
                                 P.State src newPos end indent row newCol
                         in
@@ -86,6 +89,7 @@ isBinopChar src pos =
 isBinopCharHelp : Char -> Bool
 isBinopCharHelp char =
     let
+        code : Int
         code =
             Char.toCode char
     in

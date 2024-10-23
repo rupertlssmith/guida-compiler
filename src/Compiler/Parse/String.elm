@@ -28,9 +28,11 @@ character toExpectation toError =
 
                         else
                             let
+                                newState : P.State
                                 newState =
                                     P.State src newPos end indent row newCol
 
+                                char : String
                                 char =
                                     ES.fromChunks src [ mostRecent ]
                             in
@@ -57,6 +59,7 @@ chompChar src pos end row col numChars mostRecent =
 
     else
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
         in
@@ -85,9 +88,11 @@ chompChar src pos end row col numChars mostRecent =
 
         else
             let
+                width : Int
                 width =
                     P.getCharWidth word
 
+                newPos : Int
                 newPos =
                     pos + width
             in
@@ -104,20 +109,24 @@ string toExpectation toError =
         (\(P.State src pos end indent row col) ->
             if isDoubleQuote src pos end then
                 let
+                    pos1 : Int
                     pos1 =
                         pos + 1
                 in
                 case
                     if isDoubleQuote src pos1 end then
                         let
+                            pos2 : Int
                             pos2 =
                                 pos + 2
                         in
                         if isDoubleQuote src pos2 end then
                             let
+                                pos3 : Int
                                 pos3 =
                                     pos + 3
 
+                                col3 : Col
                                 col3 =
                                     col + 3
                             in
@@ -131,6 +140,7 @@ string toExpectation toError =
                 of
                     SROk newPos newRow newCol utf8 ->
                         let
+                            newState : P.State
                             newState =
                                 P.State src newPos end indent newRow newCol
                         in
@@ -186,6 +196,7 @@ singleString src pos end row col initialPos revChunks =
 
     else
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
         in
@@ -198,6 +209,7 @@ singleString src pos end row col initialPos revChunks =
 
         else if word == '\'' then
             let
+                newPos : Int
                 newPos =
                     pos + 1
             in
@@ -211,6 +223,7 @@ singleString src pos end row col initialPos revChunks =
 
                 EscapeUnicode delta code ->
                     let
+                        newPos : Int
                         newPos =
                             pos + delta
                     in
@@ -225,6 +238,7 @@ singleString src pos end row col initialPos revChunks =
 
         else
             let
+                newPos : Int
                 newPos =
                     pos + P.getCharWidth word
             in
@@ -242,6 +256,7 @@ multiString src pos end row col initialPos sr sc revChunks =
 
     else
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
         in
@@ -251,6 +266,7 @@ multiString src pos end row col initialPos sr sc revChunks =
 
         else if word == '\'' then
             let
+                pos1 : Int
                 pos1 =
                     pos + 1
             in
@@ -259,6 +275,7 @@ multiString src pos end row col initialPos sr sc revChunks =
 
         else if word == '\n' then
             let
+                pos1 : Int
                 pos1 =
                     pos + 1
             in
@@ -267,6 +284,7 @@ multiString src pos end row col initialPos sr sc revChunks =
 
         else if word == '\u{000D}' then
             let
+                pos1 : Int
                 pos1 =
                     pos + 1
             in
@@ -280,6 +298,7 @@ multiString src pos end row col initialPos sr sc revChunks =
 
                 EscapeUnicode delta code ->
                     let
+                        newPos : Int
                         newPos =
                             pos + delta
                     in
@@ -294,6 +313,7 @@ multiString src pos end row col initialPos sr sc revChunks =
 
         else
             let
+                newPos : Int
                 newPos =
                     pos + P.getCharWidth word
             in
@@ -350,12 +370,14 @@ eatUnicode src pos end row col =
 
     else
         let
+            digitPos : Int
             digitPos =
                 pos + 1
 
             ( newPos, code ) =
                 Number.chompHex src digitPos end
 
+            numDigits : Int
             numDigits =
                 newPos - digitPos
         in

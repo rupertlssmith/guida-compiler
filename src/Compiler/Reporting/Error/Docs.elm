@@ -89,8 +89,10 @@ toReports source err =
 toSyntaxProblemReport : Code.Source -> SyntaxProblem -> Report.Report
 toSyntaxProblemReport source problem =
     let
+        toSyntaxReport : Row -> Col -> String -> Report.Report
         toSyntaxReport row col details =
             let
+                region : A.Region
                 region =
                     toRegion row col
             in
@@ -128,6 +130,7 @@ toSyntaxProblemReport source problem =
 toRegion : Row -> Col -> A.Region
 toRegion row col =
     let
+        pos : A.Position
         pos =
             A.Position row col
     in

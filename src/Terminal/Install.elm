@@ -158,9 +158,11 @@ attemptChanges root env oldOutline toChars changes =
 
         Changes changeDict newOutline ->
             let
+                widths : Widths
                 widths =
                     Dict.foldr (widen toChars) (Widths 0 0 0) changeDict
 
+                changeDocs : ChangeDocs
                 changeDocs =
                     Dict.foldr (addChange toChars widths) (Docs [] [] []) changeDict
             in
@@ -322,9 +324,11 @@ makePkgPlan (Solver.Env cache _ connection registry) pkg (Outline.PkgOutline nam
 
                     Ok (Registry.KnownVersions _ _) ->
                         let
+                            old : Dict Pkg.Name C.Constraint
                             old =
                                 Dict.union Pkg.compareName deps test
 
+                            cons : Dict Pkg.Name C.Constraint
                             cons =
                                 Dict.insert Pkg.compareName pkg C.anything old
                         in
@@ -337,15 +341,19 @@ makePkgPlan (Solver.Env cache _ connection registry) pkg (Outline.PkgOutline nam
                                                 (Solver.Details vsn _) =
                                                     Utils.find pkg solution
 
+                                                con : C.Constraint
                                                 con =
                                                     C.untilNextMajor vsn
 
+                                                new : Dict Pkg.Name C.Constraint
                                                 new =
                                                     Dict.insert Pkg.compareName pkg con old
 
+                                                changes : Dict Pkg.Name (Change C.Constraint)
                                                 changes =
                                                     detectChanges old new
 
+                                                news : Dict Pkg.Name C.Constraint
                                                 news =
                                                     Utils.mapMapMaybe Pkg.compareName keepNew changes
                                             in
@@ -531,9 +539,11 @@ type Widths
 widen : (a -> String) -> Pkg.Name -> Change a -> Widths -> Widths
 widen toChars pkg change (Widths name left right) =
     let
+        toLength : a -> Int
         toLength a =
             String.length (toChars a)
 
+        newName : Int
         newName =
             max name (String.length (Pkg.toChars pkg))
     in

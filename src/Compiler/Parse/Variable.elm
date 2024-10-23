@@ -36,6 +36,7 @@ upper toError =
 
             else
                 let
+                    name : Name
                     name =
                         Name.fromPtr src pos newPos
                 in
@@ -59,6 +60,7 @@ lower toError =
 
             else
                 let
+                    name : Name
                     name =
                         Name.fromPtr src pos newPos
                 in
@@ -67,6 +69,7 @@ lower toError =
 
                 else
                     let
+                        newState : P.State
                         newState =
                             P.State src newPos end indent row newCol
                     in
@@ -116,9 +119,11 @@ moduleName toError =
                 case status of
                     Good ->
                         let
+                            name : Name
                             name =
                                 Name.fromPtr src pos newPos
 
+                            newState : P.State
                             newState =
                                 P.State src newPos end indent row newCol
                         in
@@ -137,6 +142,7 @@ moduleNameHelp : String -> Int -> Int -> Col -> ( ModuleNameStatus, Int, Col )
 moduleNameHelp src pos end col =
     if isDot src pos end then
         let
+            pos1 : Int
             pos1 =
                 pos + 1
 
@@ -175,18 +181,22 @@ foreignUpper toError =
 
             else
                 let
+                    newState : P.State
                     newState =
                         P.State src upperEnd end indent row newCol
 
+                    name : Name
                     name =
                         Name.fromPtr src upperStart upperEnd
 
+                    upperName : Upper
                     upperName =
                         if upperStart == pos then
                             Unqualified name
 
                         else
                             let
+                                home : Name
                                 home =
                                     Name.fromPtr src pos (upperStart + -1)
                             in
@@ -228,9 +238,11 @@ foreignAlpha toError =
 
             else
                 let
+                    name : Name
                     name =
                         Name.fromPtr src alphaStart alphaEnd
 
+                    newState : P.State
                     newState =
                         P.State src alphaEnd end indent row newCol
                 in
@@ -243,6 +255,7 @@ foreignAlpha toError =
 
                 else
                     let
+                        home : Name
                         home =
                             Name.fromPtr src pos (alphaStart + -1)
                     in
@@ -290,6 +303,7 @@ isDot src pos end =
 chompUpper : String -> Int -> Int -> Col -> ( Int, Col )
 chompUpper src pos end col =
     let
+        width : Int
         width =
             getUpperWidth src pos end
     in
@@ -312,6 +326,7 @@ getUpperWidth src pos end =
 getUpperWidthHelp : String -> Int -> Int -> Char -> Int
 getUpperWidthHelp src pos _ word =
     let
+        code : Int
         code =
             Char.toCode word
     in
@@ -353,6 +368,7 @@ getUpperWidthHelp src pos _ word =
 chompLower : String -> Int -> Int -> Col -> ( Int, Col )
 chompLower src pos end col =
     let
+        width : Int
         width =
             getLowerWidth src pos end
     in
@@ -375,6 +391,7 @@ getLowerWidth src pos end =
 getLowerWidthHelp : String -> Int -> Int -> Char -> Int
 getLowerWidthHelp src pos _ word =
     let
+        code : Int
         code =
             Char.toCode word
     in
@@ -416,6 +433,7 @@ getLowerWidthHelp src pos _ word =
 chompInnerChars : String -> Int -> Int -> Col -> ( Int, Col )
 chompInnerChars src pos end col =
     let
+        width : Int
         width =
             getInnerWidth src pos end
     in
@@ -438,6 +456,7 @@ getInnerWidth src pos end =
 getInnerWidthHelp : String -> Int -> Int -> Char -> Int
 getInnerWidthHelp src pos _ word =
     let
+        code : Int
         code =
             Char.toCode word
     in
@@ -488,15 +507,19 @@ getInnerWidthHelp src pos _ word =
 chr2 : String -> Int -> Char -> Char
 chr2 src pos firstWord =
     let
+        i1 : Int
         i1 =
             unpack firstWord
 
+        i2 : Int
         i2 =
             unpack (P.unsafeIndex src (pos + 1))
 
+        c1 : Int
         c1 =
             Bitwise.shiftLeftBy 6 (i1 - 0xC0)
 
+        c2 : Int
         c2 =
             i2 - 0x80
     in
@@ -506,21 +529,27 @@ chr2 src pos firstWord =
 chr3 : String -> Int -> Char -> Char
 chr3 src pos firstWord =
     let
+        i1 : Int
         i1 =
             unpack firstWord
 
+        i2 : Int
         i2 =
             unpack (P.unsafeIndex src (pos + 1))
 
+        i3 : Int
         i3 =
             unpack (P.unsafeIndex src (pos + 2))
 
+        c1 : Int
         c1 =
             Bitwise.shiftLeftBy 12 (i1 - 0xE0)
 
+        c2 : Int
         c2 =
             Bitwise.shiftLeftBy 6 (i2 - 0x80)
 
+        c3 : Int
         c3 =
             i3 - 0x80
     in
@@ -530,27 +559,35 @@ chr3 src pos firstWord =
 chr4 : String -> Int -> Char -> Char
 chr4 src pos firstWord =
     let
+        i1 : Int
         i1 =
             unpack firstWord
 
+        i2 : Int
         i2 =
             unpack (P.unsafeIndex src (pos + 1))
 
+        i3 : Int
         i3 =
             unpack (P.unsafeIndex src (pos + 2))
 
+        i4 : Int
         i4 =
             unpack (P.unsafeIndex src (pos + 3))
 
+        c1 : Int
         c1 =
             Bitwise.shiftLeftBy 18 (i1 - 0xF0)
 
+        c2 : Int
         c2 =
             Bitwise.shiftLeftBy 12 (i2 - 0x80)
 
+        c3 : Int
         c3 =
             Bitwise.shiftLeftBy 6 (i3 - 0x80)
 
+        c4 : Int
         c4 =
             i4 - 0x80
     in

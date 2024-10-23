@@ -182,9 +182,11 @@ tuple ((A.Position row col) as start) =
                                                                                             |> P.bind
                                                                                                 (\_ ->
                                                                                                     let
+                                                                                                        exprStart : A.Position
                                                                                                         exprStart =
                                                                                                             A.Position row (col + 2)
 
+                                                                                                        expr : A.Located Src.Expr_
                                                                                                         expr =
                                                                                                             A.at exprStart end (Src.Negate negatedExpr)
                                                                                                     in
@@ -423,6 +425,7 @@ chompExprEnd start (State { ops, expr, args, end }) =
                                                                 |> P.bind
                                                                     (\_ ->
                                                                         let
+                                                                            arg : A.Located Src.Expr_
                                                                             arg =
                                                                                 A.at opStart newEnd (Src.Negate negatedExpr)
                                                                         in
@@ -440,6 +443,7 @@ chompExprEnd start (State { ops, expr, args, end }) =
 
                                 else
                                     let
+                                        err : P.Row -> P.Col -> E.Expr
                                         err =
                                             E.OperatorRight opName
                                     in
@@ -455,6 +459,7 @@ chompExprEnd start (State { ops, expr, args, end }) =
                                                                     |> P.bind
                                                                         (\_ ->
                                                                             let
+                                                                                newOps : List ( Src.Expr, A.Located Name.Name )
                                                                                 newOps =
                                                                                     ( toCall expr args, op ) :: ops
                                                                             in
@@ -479,9 +484,11 @@ chompExprEnd start (State { ops, expr, args, end }) =
                                             |> P.fmap
                                                 (\( newLast, newEnd ) ->
                                                     let
+                                                        newOps : List ( Src.Expr, A.Located Name.Name )
                                                         newOps =
                                                             ( toCall expr args, op ) :: ops
 
+                                                        finalExpr : Src.Expr_
                                                         finalExpr =
                                                             Src.Binops (List.reverse newOps) newLast
                                                     in
@@ -559,6 +566,7 @@ chompIfEnd start branches =
                                 |> P.bind
                                     (\_ ->
                                         let
+                                            newBranches : List ( Src.Expr, Src.Expr )
                                             newBranches =
                                                 ( condition, thenBranch ) :: branches
                                         in
@@ -569,6 +577,7 @@ chompIfEnd start branches =
                                                 |> P.fmap
                                                     (\( elseBranch, elseEnd ) ->
                                                         let
+                                                            ifExpr : Src.Expr_
                                                             ifExpr =
                                                                 Src.If (List.reverse newBranches) elseBranch
                                                         in
@@ -600,6 +609,7 @@ function start =
                                     |> P.fmap
                                         (\( body, end ) ->
                                             let
+                                                funcExpr : Src.Expr_
                                                 funcExpr =
                                                     Src.Lambda (List.reverse revArgs) body
                                             in

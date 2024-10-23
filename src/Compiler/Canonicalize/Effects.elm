@@ -42,6 +42,7 @@ canonicalize env values unions effects =
 
         Src.Ports ports ->
             let
+                pairs : R.RResult i w Error.Error (List ( Name.Name, Can.Port ))
                 pairs =
                     R.traverse (canonicalizePort env) ports
             in
@@ -49,6 +50,7 @@ canonicalize env values unions effects =
 
         Src.Manager region manager ->
             let
+                dict : Dict Name.Name A.Region
                 dict =
                     Dict.fromList compare (List.map toNameRegion values)
             in

@@ -36,9 +36,11 @@ sort target toString =
 rank : String -> (a -> String) -> List a -> List ( Int, a )
 rank target toString values =
     let
+        toRank : a -> Int
         toRank v =
             distance (String.toLower target) (String.toLower (toString v))
 
+        addRank : a -> ( Int, a )
         addRank v =
             ( toRank v, v )
     in

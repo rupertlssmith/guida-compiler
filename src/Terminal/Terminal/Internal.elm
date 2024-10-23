@@ -81,7 +81,6 @@ type Args
 type CompleteArgs
     = Exactly RequiredArgs
     | Multiple RequiredArgs Parser
-    | Optional RequiredArgs Parser
 
 
 type RequiredArgs

@@ -37,6 +37,7 @@ chomp toError =
             case status of
                 Good ->
                     let
+                        newState : P.State
                         newState =
                             P.State src newPos end indent newRow newCol
                     in
@@ -102,6 +103,7 @@ chompAndCheckIndent toSpaceError toIndentError =
                 Good ->
                     if newCol > indent && newCol > 1 then
                         let
+                            newState : P.State
                             newState =
                                 P.State src newPos end indent newRow newCol
                         in
@@ -145,6 +147,7 @@ eatSpaces src pos end row col =
 
             '-' ->
                 let
+                    pos1 : Int
                     pos1 =
                         pos + 1
                 in
@@ -175,6 +178,7 @@ eatLineComment src pos end row col =
 
     else
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
         in
@@ -183,6 +187,7 @@ eatLineComment src pos end row col =
 
         else
             let
+                newPos : Int
                 newPos =
                     pos + P.getCharWidth word
             in
@@ -196,36 +201,40 @@ eatLineComment src pos end row col =
 eatMultiComment : String -> Int -> Int -> Row -> Col -> ( ( Status, Int ), ( Row, Col ) )
 eatMultiComment src pos end row col =
     let
-        pos1 =
-            pos + 1
-
+        pos2 : Int
         pos2 =
             pos + 2
     in
     if pos2 >= end then
         ( ( Good, pos ), ( row, col ) )
 
-    else if P.unsafeIndex src pos1 == '-' then
-        if P.unsafeIndex src pos2 == '|' then
-            ( ( Good, pos ), ( row, col ) )
+    else
+        let
+            pos1 : Int
+            pos1 =
+                pos + 1
+        in
+        if P.unsafeIndex src pos1 == '-' then
+            if P.unsafeIndex src pos2 == '|' then
+                ( ( Good, pos ), ( row, col ) )
+
+            else
+                let
+                    ( ( status, newPos ), ( newRow, newCol ) ) =
+                        eatMultiCommentHelp src pos2 end row (col + 2) 1
+                in
+                case status of
+                    MultiGood ->
+                        eatSpaces src newPos end newRow newCol
+
+                    MultiTab ->
+                        ( ( HasTab, newPos ), ( newRow, newCol ) )
+
+                    MultiEndless ->
+                        ( ( EndlessMultiComment, pos ), ( row, col ) )
 
         else
-            let
-                ( ( status, newPos ), ( newRow, newCol ) ) =
-                    eatMultiCommentHelp src pos2 end row (col + 2) 1
-            in
-            case status of
-                MultiGood ->
-                    eatSpaces src newPos end newRow newCol
-
-                MultiTab ->
-                    ( ( HasTab, newPos ), ( newRow, newCol ) )
-
-                MultiEndless ->
-                    ( ( EndlessMultiComment, pos ), ( row, col ) )
-
-    else
-        ( ( Good, pos ), ( row, col ) )
+            ( ( Good, pos ), ( row, col ) )
 
 
 type MultiStatus
@@ -241,6 +250,7 @@ eatMultiCommentHelp src pos end row col openComments =
 
     else
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
         in
@@ -262,6 +272,7 @@ eatMultiCommentHelp src pos end row col openComments =
 
         else
             let
+                newPos : Int
                 newPos =
                     pos + P.getCharWidth word
             in
@@ -277,6 +288,7 @@ docComment toExpectation toSpaceError =
     P.Parser <|
         \(P.State src pos end indent row col) ->
             let
+                pos3 : Int
                 pos3 =
                     pos + 3
             in
@@ -287,6 +299,7 @@ docComment toExpectation toSpaceError =
                     && (P.unsafeIndex src (pos + 2) == '|')
             then
                 let
+                    col3 : Col
                     col3 =
                         col + 3
 
@@ -296,12 +309,15 @@ docComment toExpectation toSpaceError =
                 case status of
                     MultiGood ->
                         let
+                            off : Int
                             off =
                                 pos3
 
+                            len : Int
                             len =
                                 newPos - pos3 - 2
 
+                            snippet : P.Snippet
                             snippet =
                                 P.Snippet
                                     { fptr = src
@@ -311,9 +327,11 @@ docComment toExpectation toSpaceError =
                                     , offCol = col3
                                     }
 
+                            comment : Src.Comment
                             comment =
                                 Src.Comment snippet
 
+                            newState : P.State
                             newState =
                                 P.State src newPos end indent newRow newCol
                         in

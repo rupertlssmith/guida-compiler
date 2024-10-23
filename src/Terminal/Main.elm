@@ -9,7 +9,6 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 import Task
 import Terminal.Bump as Bump
-import Terminal.Develop as Develop
 import Terminal.Diff as Diff
 import Terminal.Init as Init
 import Terminal.Install as Install
@@ -50,6 +49,7 @@ addFork portOut maybeFork ( model, cmd ) =
             Decode.map
                 (\( process, effect, _ ) ->
                     let
+                        nextIndex : Int
                         nextIndex =
                             Array.length model
                     in
@@ -491,6 +491,16 @@ effectToCmd index portOut effect =
                         ]
                 }
 
+        IO.HFlush (IO.Handle fd) ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "hFlush" )
+                        , ( "args", Encode.list Encode.int [ fd ] )
+                        ]
+                }
+
         IO.WithFile filename mode ->
             portOut
                 { index = index
@@ -603,12 +613,29 @@ effectToCmd index portOut effect =
                         ]
                 }
 
+        IO.StatePut value ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "statePut" )
+                        , ( "args", Encode.list identity [ value ] )
+                        ]
+                }
+
+        IO.StateGet ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "stateGet" )
+                        , ( "args", Encode.list identity [] )
+                        ]
+                }
+
         IO.NoOp ->
             Task.succeed Encode.null
                 |> Task.perform (Msg index)
-
-        notImplementedEffect ->
-            effectToCmd index portOut (IO.Exit ("Effect not implemented: " ++ Debug.toString notImplementedEffect) 254)
 
 
 step : Encode.Value -> IO.Process -> Result Decode.Error ( IO.Process, IO.Effect, Maybe (IO ()) )
@@ -626,6 +653,7 @@ main =
         { init =
             \() ->
                 let
+                    decoder : Decode.Decoder ( IO.Process, IO.Effect, Maybe (IO ()) )
                     decoder =
                         start main_
                 in
@@ -682,7 +710,6 @@ main_ =
         outro
         [ repl
         , init
-        , reactor
         , make
         , install
         , bump
@@ -730,12 +757,15 @@ outro =
 init : Terminal.Command
 init =
     let
+        summary : String
         summary =
             "Start an Elm project. It creates a starter elm.json file and provides a link explaining what to do from there."
 
+        details : String
         details =
             "The `init` command helps start Elm projects:"
 
+        example : D.Doc
         example =
             reflow
                 "It will ask permission to create an elm.json file, the one thing common to all Elm projects. It also provides a link explaining what to do from there."
@@ -764,16 +794,20 @@ init =
 repl : Terminal.Command
 repl =
     let
+        summary : String
         summary =
             "Open up an interactive programming session. Type in Elm expressions like (2 + 2) or (String.length \"test\") and see if they equal four!"
 
+        details : String
         details =
             "The `repl` command opens up an interactive programming session:"
 
+        example : D.Doc
         example =
             reflow
                 "Start working through <https://guide.elm-lang.org> to learn how to use this! It has a whole chapter that uses the REPL for everything, so that is probably the quickest way to get started."
 
+        replFlags : Terminal.Flags
         replFlags =
             Terminal.flags
                 |> Terminal.more (Terminal.flag "interpreter" interpreter "Path to a alternate JS interpreter, like node or nodejs.")
@@ -809,64 +843,17 @@ interpreter =
 
 
 
--- REACTOR
-
-
-reactor : Terminal.Command
-reactor =
-    let
-        summary =
-            "Compile code with a click. It opens a file viewer in your browser, and when you click on an Elm file, it compiles and you see the result."
-
-        details =
-            "The `reactor` command starts a local server on your computer:"
-
-        example =
-            reflow
-                "After running that command, you would have a server at <http://localhost:8000> that helps with development. It shows your files like a file viewer. If you click on an Elm file, it will compile it for you! And you can just press the refresh button in the browser to recompile things."
-
-        reactorFlags =
-            Terminal.flags
-                |> Terminal.more (Terminal.flag "port" port_ "The port of the server (default: 8000)")
-    in
-    Terminal.Command "reactor" (Terminal.Common summary) details example Terminal.noArgs reactorFlags <|
-        \chunks ->
-            Chomp.chomp Nothing
-                chunks
-                [ Chomp.chompExactly (Chomp.pure ())
-                ]
-                (Chomp.pure Develop.Flags
-                    |> Chomp.apply (Chomp.chompNormalFlag "port" port_ String.toInt)
-                    |> Chomp.bind
-                        (\value ->
-                            Chomp.checkForUnknownFlags reactorFlags
-                                |> Chomp.fmap (\_ -> value)
-                        )
-                )
-                |> Tuple.second
-                |> Result.map (\( args, flags ) -> Develop.run args flags)
-
-
-port_ : Terminal.Parser
-port_ =
-    Terminal.Parser
-        { singular = "port"
-        , plural = "ports"
-        , suggest = \_ -> IO.pure []
-        , examples = \_ -> IO.pure [ "3000", "8000" ]
-        }
-
-
-
 -- MAKE
 
 
 make : Terminal.Command
 make =
     let
+        details : String
         details =
             "The `make` command compiles Elm code into JS or HTML:"
 
+        example : D.Doc
         example =
             stack
                 [ reflow "For example:"
@@ -874,6 +861,7 @@ make =
                 , reflow "This tries to compile an Elm file named src/Main.elm, generating an index.html file if possible."
                 ]
 
+        makeFlags : Terminal.Flags
         makeFlags =
             Terminal.flags
                 |> Terminal.more (Terminal.onOff "debug" "Turn on the time-travelling debugger. It allows you to rewind and replay events. The events can be imported/exported into a file, which makes for very precise bug reports!")
@@ -911,9 +899,11 @@ make =
 install : Terminal.Command
 install =
     let
+        details : String
         details =
             "The `install` command fetches packages from <https://package.elm-lang.org> for use in your project:"
 
+        example : D.Doc
         example =
             stack
                 [ reflow
@@ -930,6 +920,7 @@ install =
                     "What if two projects use different versions of the same package? No problem! Each project is independent, so there cannot be conflicts like that!"
                 ]
 
+        installArgs : Terminal.Args
         installArgs =
             Terminal.oneOf
                 [ Terminal.require0
@@ -968,9 +959,11 @@ install =
 publish : Terminal.Command
 publish =
     let
+        details : String
         details =
             "The `publish` command publishes your package on <https://package.elm-lang.org> so that anyone in the Elm community can use it."
 
+        example : D.Doc
         example =
             stack
                 [ reflow
@@ -1007,9 +1000,11 @@ publish =
 bump : Terminal.Command
 bump =
     let
+        details : String
         details =
             "The `bump` command figures out the next version number based on API changes:"
 
+        example : D.Doc
         example =
             reflow
                 "Say you just published version 1.0.0, but then decided to remove a function. I will compare the published API to what you have locally, figure out that it is a MAJOR change, and bump your version number to 2.0.0. I do this with all packages, so there cannot be MAJOR changes hiding in PATCH releases in Elm!"
@@ -1038,9 +1033,11 @@ bump =
 diff : Terminal.Command
 diff =
     let
+        details : String
         details =
             "The `diff` command detects API changes:"
 
+        example : D.Doc
         example =
             stack
                 [ reflow
@@ -1050,6 +1047,7 @@ diff =
                     "Sometimes a MAJOR change is not actually very big, so this can help you plan your upgrade timelines."
                 ]
 
+        diffArgs : Terminal.Args
         diffArgs =
             Terminal.oneOf
                 [ Terminal.require0

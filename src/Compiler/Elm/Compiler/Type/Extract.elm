@@ -1,5 +1,6 @@
 module Compiler.Elm.Compiler.Type.Extract exposing
     ( Types(..)
+    , Types_
     , fromAnnotation
     , fromDependencyInterface
     , fromInterface
@@ -157,9 +158,11 @@ fromMsg types message =
 extractTransitive : Types -> Deps -> Deps -> ( List T.Alias, List T.Union )
 extractTransitive types (Deps seenAliases seenUnions) (Deps nextAliases nextUnions) =
     let
+        aliases : EverySet Opt.Global
         aliases =
             EverySet.diff nextAliases seenAliases
 
+        unions : EverySet Opt.Global
         unions =
             EverySet.diff nextUnions seenUnions
     in
@@ -175,6 +178,7 @@ extractTransitive types (Deps seenAliases seenUnions) (Deps nextAliases nextUnio
                         |> apply (traverse (extractUnion types) (EverySet.toList unions))
                     )
 
+            oldDeps : Deps
             oldDeps =
                 Deps (EverySet.union Opt.compareGlobal seenAliases nextAliases) (EverySet.union Opt.compareGlobal seenUnions nextUnions)
 
@@ -202,6 +206,7 @@ extractUnion (Types dict) (Opt.Global home name) =
 
     else
         let
+            pname : Name.Name
             pname =
                 toPublicName home name
 

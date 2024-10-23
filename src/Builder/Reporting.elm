@@ -321,6 +321,7 @@ putTransition ((DState total cached _ rcvd failed built broken) as state) =
 
     else
         let
+            char : Char
             char =
                 if rcvd + failed == 0 then
                     '\u{000D}'
@@ -382,6 +383,7 @@ trackBuild decoder encoder style callback =
                 |> IO.bind
                     (\chan ->
                         let
+                            chanEncoder : Result BMsg (BResult a) -> CoreEncode.Value
                             chanEncoder =
                                 Encode.result bMsgEncoder (bResultEncoder encoder)
                         in
@@ -412,6 +414,7 @@ buildLoop decoder chan done =
                 case msg of
                     Err BDone ->
                         let
+                            done1 : Int
                             done1 =
                                 done + 1
                         in
@@ -420,9 +423,11 @@ buildLoop decoder chan done =
 
                     Ok result ->
                         let
+                            message : String
                             message =
                                 toFinalMessage done result
 
+                            width : Int
                             width =
                                 12 + String.length (String.fromInt done)
                         in
@@ -481,6 +486,7 @@ reportGenerate style names output =
                 |> IO.bind
                     (\_ ->
                         let
+                            cnames : NE.Nonempty String
                             cnames =
                                 NE.map (ModuleName.toChars >> String.fromList) names
                         in
@@ -491,6 +497,7 @@ reportGenerate style names output =
 toGenDiagram : NE.Nonempty String -> String -> String
 toGenDiagram (NE.Nonempty name names) output =
     let
+        width : Int
         width =
             3 + List.foldr (max << String.length) (String.length name) names
     in

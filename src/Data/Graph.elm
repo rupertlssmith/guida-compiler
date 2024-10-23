@@ -1,13 +1,12 @@
 module Data.Graph exposing
-    ( Bounds
+    ( Array
+    , Bounds
     , Edge
     , Graph
     , SCC(..)
     , Table
     , Vertex
-      -- , bcc
     , buildG
-      -- , components
     , dff
     , dfs
     , edges
@@ -17,13 +16,9 @@ module Data.Graph exposing
     , graphFromEdges_
     , indegree
     , outdegree
-      -- , path
-      -- , reachable
-      -- , reverseTopSort
     , scc
     , stronglyConnComp
     , stronglyConnCompR
-      -- , topSort
     , transposeG
     , vertices
     )
@@ -79,6 +74,7 @@ array ( l, u ) =
 accumArray : (e -> a -> e) -> e -> ( Int, Int ) -> List ( Int, a ) -> Array i e
 accumArray f initial ( l, u ) ies =
     let
+        initialArr : Dict Int e
         initialArr =
             List.repeat ((u + 1) - l) ()
                 |> List.indexedMap (\i _ -> ( l + i, initial ))
@@ -153,11 +149,14 @@ stronglyConnCompR edges0 =
                 ( graph, vertexFn, _ ) =
                     graphFromEdges edges0
 
+                forest : List (Tree Vertex)
                 forest =
                     scc graph
 
+                decode : Tree Vertex -> SCC ( node, comparable, List comparable )
                 decode tree =
                     let
+                        v : Vertex
                         v =
                             Tree.label tree
                     in
@@ -172,9 +171,11 @@ stronglyConnCompR edges0 =
                         ts ->
                             CyclicSCC (vertexFn v :: List.foldr dec [] ts)
 
+                dec : Tree Vertex -> List ( node, comparable, List comparable ) -> List ( node, comparable, List comparable )
                 dec node vs =
                     vertexFn (Tree.label node) :: List.foldr dec vs (Tree.children node)
 
+                mentionsItself : Int -> Bool
                 mentionsItself v =
                     List.member v (find v graph)
             in
@@ -389,43 +390,51 @@ Get the label for a given key.
 graphFromEdges : List ( node, comparable, List comparable ) -> ( Graph, Vertex -> ( node, comparable, List comparable ), comparable -> Maybe Vertex )
 graphFromEdges edges0 =
     let
+        maxV : Int
         maxV =
             List.length edges0 - 1
 
+        bounds0 : ( number, Int )
         bounds0 =
             ( 0, maxV )
 
+        sortedEdges : List ( node, comparable, List comparable )
         sortedEdges =
             List.sortWith (\( _, k1, _ ) ( _, k2, _ ) -> compare k1 k2) edges0
 
+        edges1 : List ( Int, ( node, comparable, List comparable ) )
         edges1 =
             List.map2 Tuple.pair
                 (List.indexedMap (\i _ -> i) (List.repeat (List.length sortedEdges) ()))
                 sortedEdges
 
+        graph : Array i (List Int)
         graph =
             edges1
                 |> List.map (\( v, ( _, _, ks ) ) -> ( v, List.filterMap keyVertex ks ))
                 |> array bounds0
 
+        keyMap : Array i comparable
         keyMap =
             edges1
                 |> List.map (\( v, ( _, k, _ ) ) -> ( v, k ))
                 |> array bounds0
 
+        vertexMap : Array i ( node, comparable, List comparable )
         vertexMap =
             array bounds0 edges1
 
-        -- keyVertex :: key -> Maybe Vertex
-        --  returns Nothing for non-interesting vertices
+        keyVertex : comparable -> Maybe Int
         keyVertex k =
             let
+                findVertex : Int -> Int -> Maybe Int
                 findVertex a b =
                     if a > b then
                         Nothing
 
                     else
                         let
+                            mid : Int
                             mid =
                                 a + (b - a) // 2
                         in

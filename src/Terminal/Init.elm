@@ -104,12 +104,15 @@ init =
 
                                         Solver.SolverOk details ->
                                             let
+                                                solution : Dict Pkg.Name V.Version
                                                 solution =
                                                     Dict.map (\_ (Solver.Details vsn _) -> vsn) details
 
+                                                directs : Dict Pkg.Name V.Version
                                                 directs =
                                                     Dict.intersection solution defaults
 
+                                                indirects : Dict Pkg.Name V.Version
                                                 indirects =
                                                     Dict.diff solution defaults
                                             in

@@ -62,6 +62,7 @@ addToShortNames fields shortNames =
 addField : Name.Name -> ShortFieldNames -> ShortFieldNames
 addField field shortNames =
     let
+        rename : JsName.Name
         rename =
             JsName.fromInt (Dict.size shortNames)
     in

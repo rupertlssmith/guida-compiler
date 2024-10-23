@@ -58,6 +58,7 @@ toReport localizer source err =
 
         BadFlags region _ invalidPayload ->
             let
+                formatDetails : ( String, D.Doc ) -> Report.Report
                 formatDetails ( aBadKindOfThing, butThatIsNoGood ) =
                     Report.Report "BAD FLAGS" region [] <|
                         Code.toSnippet source region Nothing <|

@@ -699,9 +699,11 @@ pString start =
         \(P.State src pos end indent row col) ->
             if pos < end && P.unsafeIndex src pos == '"' then
                 let
+                    pos1 : Int
                     pos1 =
                         pos + 1
 
+                    col1 : Col
                     col1 =
                         col + 1
 
@@ -711,13 +713,16 @@ pString start =
                 case status of
                     GoodString ->
                         let
+                            off : Int
                             off =
                                 -- FIXME pos1 - unsafeForeignPtrToPtr src
                                 pos1
 
+                            len : Int
                             len =
                                 (newPos - pos1) - 1
 
+                            snp : P.Snippet
                             snp =
                                 P.Snippet
                                     { fptr = src
@@ -727,6 +732,7 @@ pString start =
                                     , offCol = col1
                                     }
 
+                            newState : P.State
                             newState =
                                 P.State src newPos end indent newRow newCol
                         in
@@ -759,6 +765,7 @@ pStringHelp src pos end row col =
 
             '\\' ->
                 let
+                    pos1 : Int
                     pos1 =
                         pos + 1
                 in
@@ -798,6 +805,7 @@ pStringHelp src pos end row col =
                         {- u -}
                         'u' ->
                             let
+                                pos6 : Int
                                 pos6 =
                                     pos + 6
                             in
@@ -822,6 +830,7 @@ pStringHelp src pos end row col =
 
                 else
                     let
+                        newPos : Int
                         newPos =
                             pos + P.getCharWidth word
                     in
@@ -831,6 +840,7 @@ pStringHelp src pos end row col =
 isHex : Char -> Bool
 isHex word =
     let
+        code : Int
         code =
             Char.toCode word
     in
@@ -859,6 +869,7 @@ spaces =
 
             else
                 let
+                    newState : P.State
                     newState =
                         P.State src newPos end indent newRow newCol
                 in
@@ -902,6 +913,7 @@ pInt =
 
             else
                 let
+                    word : Char
                     word =
                         P.unsafeIndex src pos
                 in
@@ -910,14 +922,17 @@ pInt =
 
                 else if word == '0' then
                     let
+                        pos1 : Int
                         pos1 =
                             pos + 1
 
+                        newState : P.State
                         newState =
                             P.State src pos1 end indent row (col + 1)
                     in
                     if pos1 < end then
                         let
+                            word1 : Char
                             word1 =
                                 P.unsafeIndex src pos1
                         in
@@ -938,12 +953,14 @@ pInt =
                         ( status, n, newPos ) =
                             chompInt src (pos + 1) end (Char.toCode word - 0x30 {- 0 -})
 
+                        len : Int
                         len =
                             newPos - pos
                     in
                     case status of
                         GoodInt ->
                             let
+                                newState : P.State
                                 newState =
                                     P.State src newPos end indent row (col + len)
                             in
@@ -962,11 +979,13 @@ chompInt : String -> Int -> Int -> Int -> ( IntStatus, Int, Int )
 chompInt src pos end n =
     if pos < end then
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
         in
         if isDecimalDigit word then
             let
+                m : Int
                 m =
                     10 * n + (Char.toCode word - 0x30 {- 0 -})
             in
@@ -985,6 +1004,7 @@ chompInt src pos end n =
 isDecimalDigit : Char -> Bool
 isDecimalDigit word =
     let
+        code : Int
         code =
             Char.toCode word
     in

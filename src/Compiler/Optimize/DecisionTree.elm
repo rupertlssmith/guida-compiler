@@ -51,6 +51,7 @@ of this module though.
 compile : List ( Can.Pattern, Int ) -> DecisionTree
 compile rawBranches =
     let
+        format : ( Can.Pattern, Int ) -> Branch
         format ( pattern, index ) =
             Branch index [ ( Empty, pattern ) ]
     in
@@ -147,6 +148,7 @@ type Branch
 toDecisionTree : List Branch -> DecisionTree
 toDecisionTree rawBranches =
     let
+        branches : List Branch
         branches =
             List.map flattenPatterns rawBranches
     in
@@ -156,12 +158,14 @@ toDecisionTree rawBranches =
 
         Nothing ->
             let
+                path : Path
                 path =
                     pickPath branches
 
                 ( edges, fallback ) =
                     gatherEdges branches path
 
+                decisionEdges : List ( Test, DecisionTree )
                 decisionEdges =
                     List.map (Tuple.mapSecond toDecisionTree) edges
             in
@@ -324,12 +328,15 @@ checkForMatch branches =
 gatherEdges : List Branch -> Path -> ( List ( Test, List Branch ), List Branch )
 gatherEdges branches path =
     let
+        relevantTests : List Test
         relevantTests =
             testsAtPath path branches
 
+        allEdges : List ( Test, List Branch )
         allEdges =
             List.map (edgesFor path branches) relevantTests
 
+        fallbacks : List Branch
         fallbacks =
             if isComplete relevantTests then
                 []
@@ -347,9 +354,11 @@ gatherEdges branches path =
 testsAtPath : Path -> List Branch -> List Test
 testsAtPath selectedPath branches =
     let
+        allTests : List Test
         allTests =
             List.filterMap (testAtPath selectedPath) branches
 
+        skipVisited : Test -> ( List Test, EverySet.EverySet Test ) -> ( List Test, EverySet.EverySet Test )
         skipVisited test (( uniqueTests, visitedTests ) as curr) =
             if EverySet.member test visitedTests then
                 curr
@@ -437,10 +446,6 @@ toRelevantBranch test path ((Branch goal pathPatterns) as branch) =
         Found start (A.At region pattern) end ->
             case pattern of
                 Can.PCtor { union, name, args } ->
-                    let
-                        (Can.Union _ _ numAlts _) =
-                            union
-                    in
                     case test of
                         IsCtor _ testName _ _ _ ->
                             if name == testName then
@@ -448,6 +453,10 @@ toRelevantBranch test path ((Branch goal pathPatterns) as branch) =
                                     (Branch goal <|
                                         case List.map dearg args of
                                             (arg :: []) as args_ ->
+                                                let
+                                                    (Can.Union _ _ numAlts _) =
+                                                        union
+                                                in
                                                 if numAlts == 1 then
                                                     start ++ (( Unbox path, arg ) :: end)
 
@@ -476,6 +485,7 @@ toRelevantBranch test path ((Branch goal pathPatterns) as branch) =
                     case test of
                         IsCons ->
                             let
+                                tl_ : A.Located Can.Pattern_
                                 tl_ =
                                     A.At region (Can.PList tl)
                             in
@@ -662,6 +672,7 @@ needsTests (A.At _ pattern) =
 pickPath : List Branch -> Path
 pickPath branches =
     let
+        allPaths : List Path
         allPaths =
             List.filterMap isChoicePath (List.concatMap (\(Branch _ patterns) -> patterns) branches)
     in
@@ -695,6 +706,7 @@ bests allPaths =
 
         ( headPath, headWeight ) :: weightedPaths ->
             let
+                gatherMinimum : ( a, comparable ) -> ( comparable, List a ) -> ( comparable, List a )
                 gatherMinimum ( path, weight ) (( minWeight, paths ) as acc) =
                     if weight == minWeight then
                         ( minWeight, path :: paths )

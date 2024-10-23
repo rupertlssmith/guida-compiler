@@ -6,7 +6,6 @@ module Compiler.Reporting.Result exposing
     , bind
     , fmap
     , indexedTraverse
-    , mapError
     , mapTraverseWithKey
     , ok
     , pure
@@ -77,15 +76,6 @@ throw e =
     RResult <|
         \i w ->
             Err (RErr i w (OneOrMore.one e))
-
-
-mapError : (e -> e_) -> RResult i w e a -> RResult i w e_ a
-mapError func (RResult k) =
-    RResult <|
-        \i w ->
-            Result.mapError
-                (\(RErr i1 w1 e1) -> RErr i1 w1 (OneOrMore.map func e1))
-                (k i w)
 
 
 

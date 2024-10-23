@@ -74,12 +74,15 @@ fetch manager cache =
     post manager "/all-packages" allPkgsDecoder <|
         \versions ->
             let
+                size : Int
                 size =
                     Dict.foldr (\_ -> addEntry) 0 versions
 
+                registry : Registry
                 registry =
                     Registry size versions
 
+                path : String
                 path =
                     Stuff.registry cache
             in
@@ -99,6 +102,7 @@ allPkgsDecoder =
         keyDecoder =
             Pkg.keyDecoder bail
 
+        versionsDecoder : D.Decoder () (List V.Version)
         versionsDecoder =
             D.list (D.mapError (\_ -> ()) V.decoder)
 
@@ -128,12 +132,15 @@ update manager cache ((Registry size packages) as oldRegistry) =
 
                 _ :: _ ->
                     let
+                        newSize : Int
                         newSize =
                             size + List.length news
 
+                        newPkgs : Dict Pkg.Name KnownVersions
                         newPkgs =
                             List.foldr addNew packages news
 
+                        newRegistry : Registry
                         newRegistry =
                             Registry newSize newPkgs
                     in
@@ -144,6 +151,7 @@ update manager cache ((Registry size packages) as oldRegistry) =
 addNew : ( Pkg.Name, V.Version ) -> Dict Pkg.Name KnownVersions -> Dict Pkg.Name KnownVersions
 addNew ( name, version ) versions =
     let
+        add : Maybe KnownVersions -> KnownVersions
         add maybeKnowns =
             case maybeKnowns of
                 Just (KnownVersions v vs) ->
@@ -224,6 +232,7 @@ getVersions_ name (Registry _ versions) =
 post : Http.Manager -> String -> D.Decoder x a -> (a -> IO b) -> IO (Result Exit.RegistryProblem b)
 post manager path decoder callback =
     let
+        url : String
         url =
             Website.route path []
     in

@@ -55,9 +55,11 @@ toChars =
 fromComment : P.Snippet -> String
 fromComment ((P.Snippet { fptr, offset, length }) as snippet) =
     let
+        pos : Int
         pos =
             offset
 
+        end : Int
         end =
             pos + length
     in
@@ -71,6 +73,7 @@ chompChunks src pos end start revChunks =
 
     else
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
         in
@@ -87,6 +90,7 @@ chompChunks src pos end start revChunks =
             {- \r -}
             '\u{000D}' ->
                 let
+                    newPos : Int
                     newPos =
                         pos + 1
                 in
@@ -94,9 +98,11 @@ chompChunks src pos end start revChunks =
 
             _ ->
                 let
+                    width : Int
                     width =
                         P.getCharWidth word
 
+                    newPos : Int
                     newPos =
                         pos + width
                 in
@@ -106,6 +112,7 @@ chompChunks src pos end start revChunks =
 chompEscape : String -> Char -> Int -> Int -> Int -> List Chunk -> List Chunk
 chompEscape src escape pos end start revChunks =
     let
+        pos1 : Int
         pos1 =
             pos + 1
     in

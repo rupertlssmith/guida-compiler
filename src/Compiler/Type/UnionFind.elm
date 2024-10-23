@@ -566,6 +566,7 @@ union p1 p2 newDesc =
                                                                                 |> IO.bind
                                                                                     (\weight2 ->
                                                                                         let
+                                                                                            newWeight : Int
                                                                                             newWeight =
                                                                                                 weight1 + weight2
                                                                                         in

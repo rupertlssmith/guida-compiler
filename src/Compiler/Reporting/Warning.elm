@@ -46,6 +46,7 @@ toReport localizer source warning =
 
         UnusedVariable region context name ->
             let
+                title : String
                 title =
                     defOrPat context "unused definition" "unused variable"
             in

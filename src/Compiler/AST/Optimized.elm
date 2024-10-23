@@ -194,9 +194,11 @@ addLocalGraph (LocalGraph _ nodes1 fields1) (GlobalGraph nodes2 fields2) =
 addKernel : Name -> List K.Chunk -> GlobalGraph -> GlobalGraph
 addKernel shortName chunks (GlobalGraph nodes fields) =
     let
+        global : Global
         global =
             toKernelGlobal shortName
 
+        node : Node
         node =
             Kernel chunks (List.foldr addKernelDep EverySet.empty chunks)
     in

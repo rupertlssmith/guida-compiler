@@ -1,5 +1,6 @@
 module Compiler.Generate.JavaScript exposing
-    ( generate
+    ( Mains
+    , generate
     , generateForRepl
     , generateForReplEndpoint
     )
@@ -42,6 +43,7 @@ type alias Mains =
 generate : Mode.Mode -> Opt.GlobalGraph -> Mains -> String
 generate mode (Opt.GlobalGraph graph _) mains =
     let
+        state : State
         state =
             Dict.foldr (addMain mode graph) emptyState mains
     in
@@ -78,12 +80,15 @@ perfNote mode =
 generateForRepl : Bool -> L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Name.Name -> Can.Annotation -> String
 generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _ tipe) =
     let
+        mode : Mode.Mode
         mode =
             Mode.Dev Nothing
 
+        debugState : State
         debugState =
             addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
 
+        evalState : State
         evalState =
             addGlobal mode graph debugState (Opt.Global home name)
     in
@@ -96,15 +101,19 @@ generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _
 print : Bool -> L.Localizer -> ModuleName.Canonical -> Name.Name -> Can.Type -> String
 print ansi localizer home name tipe =
     let
+        value : JsName.Name
         value =
             JsName.fromGlobal home name
 
+        toString : JsName.Name
         toString =
             JsName.fromKernel Name.debug "toAnsiString"
 
+        tipeDoc : D.Doc
         tipeDoc =
             RT.canToDoc localizer RT.None tipe
 
+        bool : String
         bool =
             if ansi then
                 "true"
@@ -132,15 +141,19 @@ print ansi localizer home name tipe =
 generateForReplEndpoint : L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Maybe Name.Name -> Can.Annotation -> String
 generateForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName (Can.Forall _ tipe) =
     let
+        name : Name.Name
         name =
             Maybe.maybe Name.replValueToPrint identity maybeName
 
+        mode : Mode.Mode
         mode =
             Mode.Dev Nothing
 
+        debugState : State
         debugState =
             addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
 
+        evalState : State
         evalState =
             addGlobal mode graph debugState (Opt.Global home name)
     in
@@ -152,18 +165,23 @@ generateForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName (Can.
 postMessage : L.Localizer -> ModuleName.Canonical -> Maybe Name.Name -> Can.Type -> String
 postMessage localizer home maybeName tipe =
     let
+        name : Name.Name
         name =
             Maybe.maybe Name.replValueToPrint identity maybeName
 
+        value : JsName.Name
         value =
             JsName.fromGlobal home name
 
+        toString : JsName.Name
         toString =
             JsName.fromKernel Name.debug "toAnsiString"
 
+        tipeDoc : D.Doc
         tipeDoc =
             RT.canToDoc localizer RT.None tipe
 
+        toName : String -> String
         toName n =
             "\"" ++ n ++ "\""
     in
@@ -210,8 +228,10 @@ addGlobal mode graph ((State revKernels builders seen) as state) global =
 addGlobalHelp : Mode.Mode -> Graph -> Opt.Global -> State -> State
 addGlobalHelp mode graph global state =
     let
+        addDeps : EverySet Opt.Global -> State -> State
         addDeps deps someState =
             let
+                sortedDeps : List Opt.Global
                 sortedDeps =
                     -- This is required given that it looks like `Data.Set.union` sorts its elements
                     List.sortWith Opt.compareGlobal (EverySet.toList deps)
@@ -346,9 +366,11 @@ generateSafeCycle mode home ( name, expr ) =
 generateRealCycle : ModuleName.Canonical -> ( Name.Name, expr ) -> JS.Stmt
 generateRealCycle home ( name, _ ) =
     let
+        safeName : JsName.Name
         safeName =
             JsName.fromCycle home name
 
+        realName : JsName.Name
         realName =
             JsName.fromGlobal home name
     in
@@ -363,15 +385,19 @@ generateRealCycle home ( name, _ ) =
 drawCycle : List Name.Name -> String
 drawCycle names =
     let
+        topLine : String
         topLine =
             "\\n  ┌─────┐"
 
+        nameLine : String -> String
         nameLine name =
             "\\n  │    " ++ name
 
+        midLine : String
         midLine =
             "\\n  │     ↓"
 
+        bottomLine : String
         bottomLine =
             "\\n  └─────┘"
     in
@@ -476,6 +502,7 @@ generatePort mode (Opt.Global home name) makePort converter =
 generateManager : Mode.Mode -> Graph -> Opt.Global -> Opt.EffectsType -> State -> State
 generateManager mode graph (Opt.Global ((ModuleName.Canonical _ moduleName) as home) _) effectsType state =
     let
+        managerLVar : JS.LValue
         managerLVar =
             JS.LBracket
                 (JS.ExprRef (JsName.fromKernel Name.platform "effectManagers"))
@@ -484,6 +511,7 @@ generateManager mode graph (Opt.Global ((ModuleName.Canonical _ moduleName) as h
         ( deps, args, stmts ) =
             generateManagerHelp home effectsType
 
+        createManager : JS.Stmt
         createManager =
             JS.ExprStmt <|
                 JS.ExprAssign managerLVar <|
@@ -507,9 +535,11 @@ leaf =
 generateManagerHelp : ModuleName.Canonical -> Opt.EffectsType -> ( List Opt.Global, List JS.Expr, List JS.Stmt )
 generateManagerHelp home effectsType =
     let
+        dep : Name.Name -> Opt.Global
         dep name =
             Opt.Global home name
 
+        ref : Name.Name -> JS.Expr
         ref name =
             JS.ExprRef (JsName.fromGlobal home name)
     in
@@ -542,9 +572,11 @@ generateManagerHelp home effectsType =
 toMainExports : Mode.Mode -> Mains -> String
 toMainExports mode mains =
     let
+        export : JsName.Name
         export =
             JsName.fromKernel Name.platform "export"
 
+        exports : String
         exports =
             generateExports mode (Dict.foldr addToTrie emptyTrie mains)
     in
@@ -554,6 +586,7 @@ toMainExports mode mains =
 generateExports : Mode.Mode -> Trie -> String
 generateExports mode (Trie maybeMain subs) =
     let
+        starter : String -> String
         starter end =
             case maybeMain of
                 Nothing ->

@@ -151,6 +151,7 @@ fromRawType (A.At _ astType) =
 
         Src.TRecord fields ext ->
             let
+                fromField : ( A.Located a, Src.Type ) -> ( a, Type )
                 fromField ( A.At _ field, tipe ) =
                     ( field, fromRawType tipe )
             in

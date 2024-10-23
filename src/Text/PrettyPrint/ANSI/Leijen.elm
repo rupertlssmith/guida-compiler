@@ -10,7 +10,6 @@ module Text.PrettyPrint.ANSI.Leijen exposing
     , blue
     , cat
     , cyan
-    , defaultStyle
     , displayIO
     , displayS
     , dullcyan
@@ -32,8 +31,6 @@ module Text.PrettyPrint.ANSI.Leijen exposing
     , sep
     , text
     , underline
-    , updateColor
-    , updateStyle
     , vcat
     , yellow
     )
@@ -42,7 +39,6 @@ import Data.IO as IO exposing (IO)
 import Pretty as P
 import Pretty.Renderer as PR
 import System.Console.Ansi as Ansi
-import Utils.Crash exposing (todo)
 
 
 type alias Doc =
@@ -50,10 +46,8 @@ type alias Doc =
 
 
 type SimpleDoc
-    = SFail
-    | SEmpty
-    | SChar Char SimpleDoc
-    | SText Int String SimpleDoc
+    = SEmpty
+    | SText String SimpleDoc
     | SLine Int SimpleDoc
     | SSGR (List Ansi.SGR) SimpleDoc
 
@@ -69,10 +63,11 @@ renderPretty _ w doc =
         { init = { styled = False, newline = False, list = [] }
         , tagged =
             \style str acc ->
-                { acc | styled = True, list = SText (String.length str) str :: SSGR (styleToSgrs style) :: acc.list }
+                { acc | styled = True, list = SText str :: SSGR (styleToSgrs style) :: acc.list }
         , untagged =
             \str acc ->
                 let
+                    newAcc : { styled : Bool, newline : Bool, list : List (SimpleDoc -> SimpleDoc) }
                     newAcc =
                         if acc.styled then
                             { acc | styled = False, list = SSGR [ Ansi.Reset ] :: acc.list }
@@ -84,7 +79,7 @@ renderPretty _ w doc =
                     { newAcc | newline = False, list = SLine (String.length str) :: newAcc.list }
 
                 else
-                    { newAcc | list = SText (String.length str) str :: newAcc.list }
+                    { newAcc | list = SText str :: newAcc.list }
         , newline = \acc -> { acc | newline = True }
         , outer = \{ list } -> List.foldl (<|) SEmpty list
         }
@@ -144,16 +139,10 @@ styleToSgrs style =
 displayS : SimpleDoc -> String -> String
 displayS simpleDoc acc =
     case simpleDoc of
-        SFail ->
-            todo "SFail"
-
         SEmpty ->
             acc
 
-        SChar char sd ->
-            displayS sd (acc ++ String.fromChar char)
-
-        SText _ str sd ->
+        SText str sd ->
             displayS sd (acc ++ str)
 
         SLine n sd ->

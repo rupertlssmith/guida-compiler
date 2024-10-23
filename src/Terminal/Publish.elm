@@ -87,6 +87,7 @@ publish ((Env root _ manager registry outline) as env) =
 
         Outline.Pkg (Outline.PkgOutline pkg summary _ vsn exposed _ _ _) ->
             let
+                maybeKnownVersions : Maybe Registry.KnownVersions
                 maybeKnownVersions =
                     Registry.getVersions pkg registry
             in
@@ -161,6 +162,7 @@ noExposed exposed =
 verifyReadme : String -> Task.Task Exit.Publish ()
 verifyReadme root =
     let
+        readmePath : String
         readmePath =
             root ++ "/README.md"
     in
@@ -192,6 +194,7 @@ verifyReadme root =
 verifyLicense : String -> Task.Task Exit.Publish ()
 verifyLicense root =
     let
+        licensePath : String
         licensePath =
             root ++ "/LICENSE"
     in
@@ -263,6 +266,7 @@ getGit =
                             Git
                                 (\args ->
                                     let
+                                        process : { cmdspec : IO.CmdSpec, std_in : IO.StdStream, std_out : IO.StdStream, std_err : IO.StdStream }
                                         process =
                                             IO.procProc git args
                                                 |> (\cp ->
@@ -298,6 +302,7 @@ verifyTag (Git run_) manager pkg vsn =
 
                         IO.ExitSuccess ->
                             let
+                                url : String
                                 url =
                                     toTagUrl pkg vsn
                             in
@@ -353,6 +358,7 @@ verifyZip (Env root _ manager _ _) pkg vsn =
     withPrepublishDir root <|
         \prepublishDir ->
             let
+                url : String
                 url =
                     toZipUrl pkg vsn
             in
@@ -384,6 +390,7 @@ toZipUrl pkg vsn =
 withPrepublishDir : String -> (String -> Task.Task x a) -> Task.Task x a
 withPrepublishDir root callback =
     let
+        dir : String
         dir =
             Stuff.prepublishDir root
     in
@@ -470,9 +477,11 @@ verifyBump (Env _ cache manager _ _) pkg vsn newDocs ((Registry.KnownVersions la
 
                             Ok oldDocs ->
                                 let
+                                    changes : Diff.PackageChanges
                                     changes =
                                         Diff.diff oldDocs newDocs
 
+                                    realNew : V.Version
                                     realNew =
                                         Diff.bump changes old
                                 in
@@ -492,6 +501,7 @@ verifyBump (Env _ cache manager _ _) pkg vsn newDocs ((Registry.KnownVersions la
 register : Http.Manager -> Pkg.Name -> V.Version -> Docs.Documentation -> String -> Http.Sha -> Task.Task Exit.Publish ()
 register manager pkg vsn docs commitHash sha =
     let
+        url : String
         url =
             Website.route "/register"
                 [ ( "name", Pkg.toChars pkg )
@@ -555,15 +565,19 @@ reportBuildCheck =
 reportSemverCheck : V.Version -> IO (Result x GoodVersion) -> Task.Task x ()
 reportSemverCheck version work =
     let
+        vsn : String
         vsn =
             V.toChars version
 
+        waiting : String
         waiting =
             "Checking semantic versioning rules. Is " ++ vsn ++ " correct?"
 
+        failure : String
         failure =
             "Version " ++ vsn ++ " is not correct!"
 
+        success : GoodVersion -> String
         success result =
             case result of
                 GoodStart ->
@@ -623,9 +637,11 @@ reportCheck waiting success failure work =
 reportCustomCheck : String -> (a -> String) -> String -> IO (Result x a) -> Task.Task x a
 reportCustomCheck waiting success failure work =
     let
+        putFlush : D.Doc -> IO ()
         putFlush doc =
-            Help.toStdout doc |> IO.fmap (\_ -> IO.hFlush IO.stdout)
+            Help.toStdout doc |> IO.bind (\_ -> IO.hFlush IO.stdout)
 
+        padded : String -> String
         padded message =
             message ++ String.repeat (String.length waiting - String.length message) " "
     in

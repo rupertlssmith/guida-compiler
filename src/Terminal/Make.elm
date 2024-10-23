@@ -203,6 +203,7 @@ getExposed (Details.Details _ validOutline _ _ _ _) =
 buildExposed : Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath -> NE.Nonempty ModuleName.Raw -> Task ()
 buildExposed style root details maybeDocs exposed =
     let
+        docsGoal : Build.DocsGoal ()
         docsGoal =
             Maybe.maybe Build.ignoreDocs Build.writeDocs maybeDocs
     in

@@ -10,6 +10,7 @@ module Data.IO exposing
     , IOMode(..)
     , IORef(..)
     , Process(..)
+    , ProcessHandle
     , StateT(..)
     , StdStream(..)
     , apply
@@ -50,13 +51,10 @@ module Data.IO exposing
     , pure
     , pureStateT
     , putStr
-    , readFile
     , readIORef
     , runStateT
     , stderr
-    , stdin
     , stdout
-    , utf8
     , vectorForM_
     , vectorImapM_
     , vectorUnsafeFreeze
@@ -129,7 +127,9 @@ type Effect
     | ReplGetInputLineWithInitial String ( String, String )
     | HClose Handle
     | HFileSize Handle
+    | HFlush Handle
     | WithFile String IOMode
+    | StatePut Encode.Value
     | StateGet
     | ProcWithCreateProcess CreateProcess
     | ProcWaitForProcess Int
@@ -216,15 +216,6 @@ type IORef a
     = IORef Int
 
 
-type TextEncoding
-    = UTF8
-
-
-utf8 : TextEncoding
-utf8 =
-    UTF8
-
-
 catch : (e -> IO a) -> IO (Result e a) -> IO a
 catch handler (IO io) =
     -- IO
@@ -253,11 +244,6 @@ ioRefDecoder =
 newIORef : (a -> Encode.Value) -> a -> IO (IORef a)
 newIORef encoder value =
     make (Decode.map IORef Decode.int) (NewIORef (encoder value))
-
-
-readFile : String -> IO String
-readFile _ =
-    todo "readFile"
 
 
 readIORef : Decode.Decoder a -> IORef a -> IO a
@@ -318,6 +304,7 @@ bind cont (IO fn) =
 foldrM : (a -> b -> IO b) -> b -> List a -> IO b
 foldrM f z0 xs =
     let
+        c : a -> (b -> IO c) -> b -> IO c
         c x k z =
             bind k (f x z)
     in
@@ -545,11 +532,6 @@ type Handle
     = Handle Int
 
 
-stdin : Handle
-stdin =
-    Handle 0
-
-
 stdout : Handle
 stdout =
     Handle 1
@@ -562,7 +544,7 @@ stderr =
 
 hFlush : Handle -> IO ()
 hFlush handle =
-    make (Decode.succeed ()) NoOp
+    make (Decode.succeed ()) (HFlush handle)
 
 
 hFileSize : Handle -> IO Int
@@ -641,6 +623,7 @@ exitWith exitCode =
     IO
         (\_ ->
             let
+                code : Int
                 code =
                     case exitCode of
                         ExitSuccess ->

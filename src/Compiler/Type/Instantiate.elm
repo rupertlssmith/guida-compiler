@@ -23,7 +23,7 @@ type alias FreeVars =
 -- FROM SOURCE TYPE
 
 
-fromSrcType : Dict Name Type -> Can.Type -> IO Type
+fromSrcType : FreeVars -> Can.Type -> IO Type
 fromSrcType freeVars sourceType =
     case sourceType of
         Can.TLambda arg result ->

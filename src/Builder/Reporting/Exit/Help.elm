@@ -59,9 +59,11 @@ reportToDoc report_ =
 
         Report title maybePath message ->
             let
+                makeDashes : Int -> String
                 makeDashes n =
                     String.repeat (max 1 (80 - n)) "-"
 
+                errorBarEnd : String
                 errorBarEnd =
                     case maybePath of
                         Nothing ->
@@ -72,6 +74,7 @@ reportToDoc report_ =
                                 ++ " "
                                 ++ path
 
+                errorBar : D.Doc
                 errorBar =
                     D.dullcyan
                         (D.fromChars "--"

@@ -46,6 +46,7 @@ number toExpectation toError =
 
             else
                 let
+                    word : Char
                     word =
                         String.uncons (String.dropLeft pos src) |> Maybe.map Tuple.first |> Maybe.withDefault ' '
                 in
@@ -54,6 +55,7 @@ number toExpectation toError =
 
                 else
                     let
+                        outcome : Outcome
                         outcome =
                             if word == '0' then
                                 chompZero src (pos + 1) end
@@ -64,6 +66,7 @@ number toExpectation toError =
                     case outcome of
                         Err_ newPos problem ->
                             let
+                                newCol : Col
                                 newCol =
                                     col + (newPos - pos)
                             in
@@ -71,12 +74,15 @@ number toExpectation toError =
 
                         OkInt newPos n ->
                             let
+                                newCol : Col
                                 newCol =
                                     col + (newPos - pos)
 
+                                integer : Number
                                 integer =
                                     Int n
 
+                                newState : P.State
                                 newState =
                                     P.State src newPos end indent row newCol
                             in
@@ -84,9 +90,11 @@ number toExpectation toError =
 
                         OkFloat newPos ->
                             let
+                                newCol : Col
                                 newCol =
                                     col + (newPos - pos)
 
+                                copy : Float
                                 copy =
                                     case String.toFloat (String.slice pos newPos src) of
                                         Just copy_ ->
@@ -95,9 +103,11 @@ number toExpectation toError =
                                         Nothing ->
                                             todo "Failed `String.toFloat`"
 
+                                float : Number
                                 float =
                                     Float copy
 
+                                newState : P.State
                                 newState =
                                     P.State src newPos end indent row newCol
                             in
@@ -125,6 +135,7 @@ chompInt src pos end n =
 
     else
         let
+            word : Char
             word =
                 String.uncons (String.dropLeft pos src) |> Maybe.map Tuple.first |> Maybe.withDefault ' '
         in
@@ -151,6 +162,7 @@ chompInt src pos end n =
 chompFraction : String -> Int -> Int -> Int -> Outcome
 chompFraction src pos end n =
     let
+        pos1 : Int
         pos1 =
             pos + 1
     in
@@ -171,6 +183,7 @@ chompFractionHelp src pos end =
 
     else
         let
+            word : Char
             word =
                 String.uncons (String.dropLeft pos src) |> Maybe.map Tuple.first |> Maybe.withDefault ' '
         in
@@ -198,6 +211,7 @@ chompExponent src pos end =
 
     else
         let
+            word : Char
             word =
                 String.uncons (String.dropLeft pos src) |> Maybe.map Tuple.first |> Maybe.withDefault ' '
         in
@@ -206,6 +220,7 @@ chompExponent src pos end =
 
         else if word == '+' || word == '-' then
             let
+                pos1 : Int
                 pos1 =
                     pos + 1
             in
@@ -242,6 +257,7 @@ chompZero src pos end =
 
     else
         let
+            word : Char
             word =
                 String.uncons (String.dropLeft pos src) |> Maybe.map Tuple.first |> Maybe.withDefault ' '
         in
@@ -290,6 +306,7 @@ chompHexHelp src pos end answer accumulator =
 
     else
         let
+            newAnswer : Int
             newAnswer =
                 stepHex src pos end (String.uncons (String.dropLeft pos src) |> Maybe.map Tuple.first |> Maybe.withDefault ' ') accumulator
         in
@@ -337,6 +354,7 @@ precedence toExpectation =
 
             else
                 let
+                    word : Char
                     word =
                         String.uncons (String.dropLeft pos src) |> Maybe.map Tuple.first |> Maybe.withDefault ' '
                 in

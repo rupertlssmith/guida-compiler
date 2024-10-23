@@ -27,7 +27,6 @@ module Compiler.Json.Encode exposing
 
 import Compiler.Data.NonEmptyList as NE
 import Compiler.Data.OneOrMore exposing (OneOrMore(..))
-import Compiler.Json.String as Json
 import Data.IO as IO exposing (IO(..))
 import Data.Map as Dict exposing (Dict)
 import Data.Set as EverySet exposing (EverySet)
@@ -186,6 +185,7 @@ escape chrs =
 
         c :: cs ->
             let
+                escapedChar : String
                 escapedChar =
                     case c of
                         '\u{000D}' ->
@@ -320,12 +320,15 @@ encodeHelp indent value =
 encodeArray : String -> Value -> List Value -> String
 encodeArray indent first rest =
     let
+        newIndent : String
         newIndent =
             indent ++ "    "
 
+        closer : String
         closer =
             "\n" ++ indent ++ "]"
 
+        addValue : Value -> String -> String
         addValue field builder =
             ",\n" ++ newIndent ++ encodeHelp newIndent field ++ builder
     in
@@ -339,12 +342,15 @@ encodeArray indent first rest =
 encodeObject : String -> ( String, Value ) -> List ( String, Value ) -> String
 encodeObject indent first rest =
     let
+        newIndent : String
         newIndent =
             indent ++ "    "
 
+        closer : String
         closer =
             "\n" ++ indent ++ "}"
 
+        addValue : ( String, Value ) -> String -> String
         addValue field builder =
             ",\n" ++ newIndent ++ encodeField newIndent field ++ builder
     in

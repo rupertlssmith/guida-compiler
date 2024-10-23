@@ -44,9 +44,11 @@ type Changes k v
 getChanges : (k -> k -> Order) -> (v -> v -> Bool) -> Dict k v -> Dict k v -> Changes k v
 getChanges keyComparison isEquivalent old new =
     let
+        overlap : Dict k ( v, v )
         overlap =
             Utils.mapIntersectionWith keyComparison Tuple.pair old new
 
+        changed : Dict k ( v, v )
         changed =
             Dict.filter (\_ ( v1, v2 ) -> not (isEquivalent v1 v2)) overlap
     in
@@ -63,6 +65,7 @@ getChanges keyComparison isEquivalent old new =
 diff : Docs.Documentation -> Docs.Documentation -> PackageChanges
 diff oldDocs newDocs =
     let
+        filterOutPatches : Dict a ModuleChanges -> Dict a ModuleChanges
         filterOutPatches chngs =
             Dict.filter (\_ chng -> moduleChangeMagnitude chng /= M.PATCH) chngs
 
@@ -94,6 +97,7 @@ isEquivalentUnion (Docs.Union oldComment oldVars oldCtors) (Docs.Union newCommen
         equiv : List Type.Type -> List Type.Type -> Bool
         equiv oldTypes newTypes =
             let
+                allEquivalent : List Bool
                 allEquivalent =
                     List.map2
                         isEquivalentAlias
@@ -189,6 +193,7 @@ diffType oldType newType =
 isSameName : Name.Name -> Name.Name -> Bool
 isSameName oldFullName newFullName =
     let
+        dedot : String -> List String
         dedot name =
             List.reverse (String.split "." name)
     in
@@ -205,24 +210,28 @@ isSameName oldFullName newFullName =
 
 diffFields : List ( Name.Name, Type.Type ) -> List ( Name.Name, Type.Type ) -> Maybe (List ( Name.Name, Name.Name ))
 diffFields oldRawFields newRawFields =
-    let
-        sort fields =
-            List.sortBy Tuple.first fields
-
-        oldFields =
-            sort oldRawFields
-
-        newFields =
-            sort newRawFields
-    in
     if List.length oldRawFields /= List.length newRawFields then
         Nothing
 
-    else if List.any identity (List.map2 (/=) (List.map Tuple.first oldFields) (List.map Tuple.first newFields)) then
-        Nothing
-
     else
-        Maybe.map List.concat (Utils.zipWithM diffType (List.map Tuple.second oldFields) (List.map Tuple.second newFields))
+        let
+            sort : List ( comparable, b ) -> List ( comparable, b )
+            sort fields =
+                List.sortBy Tuple.first fields
+
+            oldFields : List ( Name.Name, Type.Type )
+            oldFields =
+                sort oldRawFields
+
+            newFields : List ( Name.Name, Type.Type )
+            newFields =
+                sort newRawFields
+        in
+        if List.any identity (List.map2 (/=) (List.map Tuple.first oldFields) (List.map Tuple.first newFields)) then
+            Nothing
+
+        else
+            Maybe.map List.concat (Utils.zipWithM diffType (List.map Tuple.second oldFields) (List.map Tuple.second newFields))
 
 
 
@@ -232,12 +241,15 @@ diffFields oldRawFields newRawFields =
 isEquivalentRenaming : List ( Name.Name, Name.Name ) -> Bool
 isEquivalentRenaming varPairs =
     let
+        renamings : List ( Name.Name, List Name.Name )
         renamings =
             Dict.toList (List.foldr insert Dict.empty varPairs)
 
+        insert : ( Name.Name, Name.Name ) -> Dict Name.Name (List Name.Name) -> Dict Name.Name (List Name.Name)
         insert ( old, new ) dict =
             Utils.mapInsertWith compare (++) old [ new ] dict
 
+        verify : ( a, List b ) -> Maybe ( a, b )
         verify ( old, news ) =
             case news of
                 [] ->
@@ -250,6 +262,7 @@ isEquivalentRenaming varPairs =
                     else
                         Nothing
 
+        allUnique : List comparable -> Bool
         allUnique list =
             List.length list == EverySet.size (EverySet.fromList compare list)
     in
@@ -333,6 +346,7 @@ bump changes version =
 toMagnitude : PackageChanges -> M.Magnitude
 toMagnitude (PackageChanges added changed removed) =
     let
+        addMag : M.Magnitude
         addMag =
             if List.isEmpty added then
                 M.PATCH
@@ -340,6 +354,7 @@ toMagnitude (PackageChanges added changed removed) =
             else
                 M.MINOR
 
+        removeMag : M.Magnitude
         removeMag =
             if List.isEmpty removed then
                 M.PATCH
@@ -347,6 +362,7 @@ toMagnitude (PackageChanges added changed removed) =
             else
                 M.MAJOR
 
+        changeMags : List M.Magnitude
         changeMags =
             List.map moduleChangeMagnitude (Dict.values changed)
     in
@@ -382,9 +398,11 @@ changeMagnitude (Changes added changed removed) =
 getDocs : Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Result Exit.DocsProblem Docs.Documentation)
 getDocs cache manager name version =
     let
+        home : String
         home =
             Stuff.package cache name version
 
+        path : String
         path =
             home ++ "/docs.json"
     in
@@ -406,6 +424,7 @@ getDocs cache manager name version =
 
                 else
                     let
+                        url : String
                         url =
                             Website.metadata name version "docs.json"
                     in

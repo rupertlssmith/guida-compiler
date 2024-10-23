@@ -1,5 +1,6 @@
 module Compiler.Canonicalize.Expression exposing
-    ( FreeLocals
+    ( EResult
+    , FreeLocals
     , Uses(..)
     , canonicalize
     , gatherTypedArgs
@@ -148,6 +149,7 @@ canonicalize env (A.At region expression) =
 
             Src.Update (A.At reg name) fields ->
                 let
+                    makeCanFields : R.RResult i w Error.Error (Dict Name (R.RResult FreeLocals (List W.Warning) Error.Error Can.FieldUpdate))
                     makeCanFields =
                         Dups.checkFields_ (\r t -> R.fmap (Can.FieldUpdate r) (canonicalize env t)) fields
                 in
@@ -230,6 +232,7 @@ canonicalizeCaseBranch env ( pattern, expr ) =
 canonicalizeBinops : A.Region -> Env.Env -> List ( Src.Expr, A.Located Name.Name ) -> Src.Expr -> EResult FreeLocals (List W.Warning) Can.Expr
 canonicalizeBinops overallRegion env ops final =
     let
+        canonicalizeHelp : ( Src.Expr, A.Located Name ) -> R.RResult FreeLocals (List W.Warning) Error.Error ( Can.Expr, Env.Binop )
         canonicalizeHelp ( expr, A.At region op ) =
             R.ok Tuple.pair
                 |> R.apply (canonicalize env expr)
@@ -350,6 +353,7 @@ addBindingsHelp bindings (A.At region pattern) =
 
         Src.PRecord fields ->
             let
+                addField : A.Located Name -> Dups.Tracker A.Region -> Dups.Tracker A.Region
                 addField (A.At fieldRegion name) dict =
                     Dups.insert name fieldRegion fieldRegion dict
             in
@@ -414,9 +418,11 @@ addDefNodes env nodes (A.At _ def) =
                                                 |> R.bind
                                                     (\( cbody, freeLocals ) ->
                                                         let
+                                                            cdef : Can.Def
                                                             cdef =
                                                                 Can.Def aname args cbody
 
+                                                            node : ( Binding, Name, List Name )
                                                             node =
                                                                 ( Define cdef, name, Dict.keys freeLocals )
                                                         in
@@ -440,9 +446,11 @@ addDefNodes env nodes (A.At _ def) =
                                                             |> R.bind
                                                                 (\( cbody, freeLocals ) ->
                                                                     let
+                                                                        cdef : Can.Def
                                                                         cdef =
                                                                             Can.TypedDef aname freeVars args cbody resultType
 
+                                                                        node : ( Binding, Name, List Name )
                                                                         node =
                                                                             ( Define cdef, name, Dict.keys freeLocals )
                                                                     in
@@ -464,12 +472,15 @@ addDefNodes env nodes (A.At _ def) =
                                         case k Dict.empty ws of
                                             Ok (R.ROk freeLocals warnings cbody) ->
                                                 let
+                                                    names : List (A.Located Name)
                                                     names =
                                                         getPatternNames [] pattern
 
+                                                    name : Name
                                                     name =
                                                         Name.fromManyNames (List.map A.toValue names)
 
+                                                    node : ( Binding, Name, List Name )
                                                     node =
                                                         ( Destruct cpattern cbody, name, Dict.keys freeLocals )
                                                 in
@@ -723,9 +734,11 @@ verifyBindings context bindings (R.RResult k) =
             case k Dict.empty warnings of
                 Ok (R.ROk freeLocals warnings1 value) ->
                     let
+                        outerFreeLocals : Dict Name Uses
                         outerFreeLocals =
                             Dict.diff freeLocals bindings
 
+                        warnings2 : List W.Warning
                         warnings2 =
                             -- NOTE: Uses Map.size for O(1) lookup. This means there is
                             -- no dictionary allocation unless a problem is detected.
@@ -768,6 +781,7 @@ delayedUsage (R.RResult k) =
             case k () warnings of
                 Ok (R.ROk () ws ( value, newFreeLocals )) ->
                     let
+                        delayedLocals : Dict Name Uses
                         delayedLocals =
                             Dict.map (\_ -> delayUse) newFreeLocals
                     in
@@ -854,12 +868,15 @@ toVarCtor name ctor =
     case ctor of
         Env.Ctor home typeName (Can.Union vars _ _ opts) index args ->
             let
+                freeVars : Dict Name ()
                 freeVars =
                     Dict.fromList compare (List.map (\v -> ( v, () )) vars)
 
+                result : Can.Type
                 result =
                     Can.TType home typeName (List.map Can.TVar vars)
 
+                tipe : Can.Type
                 tipe =
                     List.foldr Can.TLambda result args
             in
@@ -867,6 +884,7 @@ toVarCtor name ctor =
 
         Env.RecordCtor home vars tipe ->
             let
+                freeVars : Dict Name ()
                 freeVars =
                     Dict.fromList compare (List.map (\v -> ( v, () )) vars)
             in

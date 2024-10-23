@@ -14,12 +14,15 @@ import Utils.Main as Utils
 getPossibilities : KnownVersions -> List ( V.Version, V.Version, M.Magnitude )
 getPossibilities (KnownVersions latest previous) =
     let
+        allVersions : List V.Version
         allVersions =
             List.reverse (latest :: previous)
 
+        minorPoints : List V.Version
         minorPoints =
             List.filterMap List.Extra.last (Utils.listGroupBy sameMajor allVersions)
 
+        patchPoints : List V.Version
         patchPoints =
             List.filterMap List.Extra.last (Utils.listGroupBy sameMinor allVersions)
     in

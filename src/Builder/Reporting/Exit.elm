@@ -236,9 +236,11 @@ diffToReport diff =
                     D.dullyellow <|
                         D.vcat <|
                             let
+                                sameMajor : V.Version -> V.Version -> Bool
                                 sameMajor v1 v2 =
                                     V.major v1 == V.major v2
 
+                                mkRow : List V.Version -> D.Doc
                                 mkRow vsns =
                                     D.hsep <| List.map D.fromVersion vsns
                             in
@@ -754,6 +756,7 @@ publishToReport publish =
 
         PublishMissingTag version ->
             let
+                vsn : String
                 vsn =
                     V.toChars version
             in
@@ -884,6 +887,7 @@ publishToReport publish =
 
         PublishLocalChanges version ->
             let
+                vsn : String
                 vsn =
                     V.toChars version
             in
@@ -1398,9 +1402,11 @@ toOutlineReport problem =
 toOutlineProblemReport : FilePath -> Code.Source -> Json.Context -> A.Region -> OutlineProblem -> Help.Report
 toOutlineProblemReport path source _ region problem =
     let
+        toHighlight : Int -> Int -> Maybe A.Region
         toHighlight row col =
             Just <| A.Region (A.Position row col) (A.Position row col)
 
+        toSnippet : String -> Maybe A.Region -> ( D.Doc, D.Doc ) -> Help.Report
         toSnippet title highlight pair =
             Help.jsonReport title (Just path) <|
                 Code.toSnippet source region highlight pair
@@ -2058,6 +2064,7 @@ type PackageProblem
 toPackageProblemReport : Pkg.Name -> V.Version -> PackageProblem -> Help.Report
 toPackageProblemReport pkg vsn problem =
     let
+        thePackage : String
         thePackage =
             Pkg.toChars pkg ++ " " ++ V.toChars vsn
     in
@@ -2152,6 +2159,7 @@ toRegistryProblemReport title problem context =
 toHttpErrorReport : String -> Http.Error -> String -> Help.Report
 toHttpErrorReport title err context =
     let
+        toHttpReport : String -> String -> List D.Doc -> Help.Report
         toHttpReport intro url details =
             Help.report title Nothing intro <|
                 D.indent 4 (D.dullyellow (D.fromChars url))
@@ -2675,6 +2683,7 @@ toProjectProblemReport projectProblem =
 toModuleNameConventionTable : FilePath -> List String -> D.Doc
 toModuleNameConventionTable srcDir names =
     let
+        toPair : String -> ( String, FilePath )
         toPair name =
             ( name
             , Utils.fpForwardSlash srcDir
@@ -2693,18 +2702,23 @@ toModuleNameConventionTable srcDir names =
                 )
             )
 
+        namePairs : List ( String, FilePath )
         namePairs =
             List.map toPair names
 
+        nameWidth : Int
         nameWidth =
             Utils.listMaximum compare (11 :: List.map (String.length << Tuple.first) namePairs)
 
+        pathWidth : Int
         pathWidth =
             Utils.listMaximum compare (9 :: List.map (String.length << Tuple.second) namePairs)
 
+        padded : Int -> String -> String
         padded width str =
             str ++ String.repeat (width - String.length str) " "
 
+        toRow : ( String, String ) -> D.Doc
         toRow ( name, path ) =
             D.fromChars <|
                 "| "
@@ -2713,6 +2727,7 @@ toModuleNameConventionTable srcDir names =
                     ++ padded pathWidth path
                     ++ " |"
 
+        bar : D.Doc
         bar =
             D.fromChars <|
                 "+-"

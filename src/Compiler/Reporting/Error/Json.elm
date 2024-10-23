@@ -45,14 +45,18 @@ because (ExplicitReason iNeedThings) problem =
 parseErrorToReport : String -> Code.Source -> ParseError -> Reason -> Help.Report
 parseErrorToReport path source parseError reason =
     let
+        toSnippet : String -> Int -> Int -> ( String, D.Doc ) -> Help.Report
         toSnippet title row col ( problem, details ) =
             let
+                pos : A.Position
                 pos =
                     A.Position row col
 
+                surroundings : A.Region
                 surroundings =
                     A.Region (A.Position (max 1 (row - 2)) 1) pos
 
+                region : A.Region
                 region =
                     A.Region pos pos
             in
@@ -370,6 +374,7 @@ expectationToReport path source context (A.Region start end) expectation reason 
         (A.Position er _) =
             end
 
+        region : A.Region
         region =
             if sr == er then
                 todo "region"
@@ -377,6 +382,7 @@ expectationToReport path source context (A.Region start end) expectation reason 
             else
                 A.Region start start
 
+        introduction : String
         introduction =
             case context of
                 CRoot ->
@@ -395,6 +401,7 @@ expectationToReport path source context (A.Region start end) expectation reason 
                 CIndex index _ ->
                     "I ran into trouble with the " ++ D.intToOrdinal index ++ " index of this array:"
 
+        toSnippet : String -> List D.Doc -> Help.Report
         toSnippet title aThing =
             Help.jsonReport title (Just path) <|
                 Code.toSnippet source

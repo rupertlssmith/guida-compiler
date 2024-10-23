@@ -1,4 +1,4 @@
-module Compiler.Canonicalize.Module exposing (canonicalize)
+module Compiler.Canonicalize.Module exposing (MResult, canonicalize)
 
 import Compiler.AST.Canonical as Can
 import Compiler.AST.Source as Src
@@ -41,9 +41,11 @@ type alias MResult i w a =
 canonicalize : Pkg.Name -> Dict ModuleName.Raw I.Interface -> Src.Module -> MResult i (List W.Warning) Can.Module
 canonicalize pkg ifaces ((Src.Module _ exports docs imports values _ _ binops effects) as modul) =
     let
+        home : ModuleName.Canonical
         home =
             ModuleName.Canonical pkg (Src.getName modul)
 
+        cbinops : Dict Name Can.Binop
         cbinops =
             Dict.fromList compare (List.map canonicalizeBinop binops)
     in
@@ -129,6 +131,7 @@ detectBadCycles scc =
                 (A.At region name) =
                     extractDefName def
 
+                names : List Name
                 names =
                     List.map (A.toValue << extractDefName) defs
             in
@@ -182,6 +185,7 @@ toNodeOne env (A.At _ (Src.Value ((A.At _ name) as aname) srcArgs body maybeType
                                         |> R.fmap
                                             (\( cbody, freeLocals ) ->
                                                 let
+                                                    def : Can.Def
                                                     def =
                                                         Can.Def aname args cbody
                                                 in
@@ -208,6 +212,7 @@ toNodeOne env (A.At _ (Src.Value ((A.At _ name) as aname) srcArgs body maybeType
                                                     |> R.fmap
                                                         (\( cbody, freeLocals ) ->
                                                             let
+                                                                def : Can.Def
                                                                 def =
                                                                     Can.TypedDef aname freeVars args cbody resultType
                                                             in
@@ -259,6 +264,7 @@ canonicalizeExports values unions aliases binops effects (A.At region exposing_)
 
         Src.Explicit exposeds ->
             let
+                names : Dict Name ()
                 names =
                     Dict.fromList compare (List.map valueToName values)
             in

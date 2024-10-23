@@ -1,6 +1,7 @@
 module Compiler.Elm.Kernel exposing
     ( Chunk(..)
     , Content(..)
+    , Foreigns
     , chunkDecoder
     , chunkEncoder
     , countFields
@@ -150,6 +151,7 @@ chompChunks : VarTable -> Enums -> Fields -> String -> Int -> Int -> Row -> Col 
 chompChunks vs es fs src pos end row col lastPos revChunks =
     if pos >= end then
         let
+            js : String
             js =
                 toByteString src lastPos end
         in
@@ -157,19 +159,23 @@ chompChunks vs es fs src pos end row col lastPos revChunks =
 
     else
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
         in
         if word == '_' then
             let
+                pos1 : Int
                 pos1 =
                     pos + 1
 
+                pos3 : Int
                 pos3 =
                     pos + 3
             in
             if pos3 <= end && P.unsafeIndex src pos1 == '_' then
                 let
+                    js : String
                     js =
                         toByteString src lastPos pos
                 in
@@ -183,6 +189,7 @@ chompChunks vs es fs src pos end row col lastPos revChunks =
 
         else
             let
+                newPos : Int
                 newPos =
                     pos + P.getCharWidth word
             in
@@ -200,10 +207,12 @@ type alias Fields =
 toByteString : String -> Int -> Int -> String
 toByteString src pos end =
     let
+        off : Int
         off =
             -- pos - unsafeForeignPtrToPtr src
             pos
 
+        len : Int
         len =
             end - pos
     in
@@ -216,14 +225,17 @@ chompTag vs es fs src pos end row col revChunks =
         ( newPos, newCol ) =
             Var.chompInnerChars src pos end col
 
+        tagPos : Int
         tagPos =
             pos + -1
 
+        word : Char
         word =
             P.unsafeIndex src tagPos
     in
     if word == '$' then
         let
+            name : Name
             name =
                 Name.fromPtr src pos newPos
         in
@@ -232,9 +244,11 @@ chompTag vs es fs src pos end row col revChunks =
 
     else
         let
+            name : Name
             name =
                 Name.fromPtr src tagPos newPos
 
+            code : Int
             code =
                 Char.toCode word
         in
@@ -277,6 +291,7 @@ lookupField name fields =
 
         Nothing ->
             let
+                n : Int
                 n =
                     Dict.size fields
             in
@@ -286,9 +301,11 @@ lookupField name fields =
 lookupEnum : Char -> Name -> Enums -> ( Int, Enums )
 lookupEnum word var allEnums =
     let
+        code : Int
         code =
             Char.toCode word
 
+        enums : Dict Name Int
         enums =
             Dict.get code allEnums
                 |> Maybe.withDefault Dict.empty
@@ -299,6 +316,7 @@ lookupEnum word var allEnums =
 
         Nothing ->
             let
+                n : Int
                 n =
                     Dict.size enums
             in
@@ -327,9 +345,11 @@ addImport pkg foreigns (Src.Import (A.At _ importName) maybeAlias exposing_) vta
 
             Nothing ->
                 let
+                    home : Name
                     home =
                         Name.getKernel importName
 
+                    add : Name -> Dict Name Chunk -> Dict Name Chunk
                     add name table =
                         Dict.insert compare (Name.sepBy '_' home name) (JsVar home name) table
                 in
@@ -337,12 +357,15 @@ addImport pkg foreigns (Src.Import (A.At _ importName) maybeAlias exposing_) vta
 
     else
         let
+            home : ModuleName.Canonical
             home =
                 ModuleName.Canonical (Dict.get importName foreigns |> Maybe.withDefault pkg) importName
 
+            prefix : Name
             prefix =
                 toPrefix importName maybeAlias
 
+            add : Name -> Dict Name Chunk -> Dict Name Chunk
             add name table =
                 Dict.insert compare (Name.sepBy '_' prefix name) (ElmVar home name) table
         in

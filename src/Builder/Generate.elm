@@ -1,5 +1,6 @@
 module Builder.Generate exposing
-    ( debug
+    ( Task
+    , debug
     , dev
     , prod
     , repl
@@ -50,12 +51,15 @@ debug root details (Build.Artifacts pkg ifaces roots modules) =
                                 |> Task.fmap
                                     (\objects ->
                                         let
+                                            mode : Mode.Mode
                                             mode =
                                                 Mode.Dev (Just types)
 
+                                            graph : Opt.GlobalGraph
                                             graph =
                                                 objectsToGlobalGraph objects
 
+                                            mains : Dict ModuleName.Canonical Opt.Main
                                             mains =
                                                 gatherMains pkg objects roots
                                         in
@@ -71,12 +75,15 @@ dev root details (Build.Artifacts pkg _ roots modules) =
         |> Task.fmap
             (\objects ->
                 let
+                    mode : Mode.Mode
                     mode =
                         Mode.Dev Nothing
 
+                    graph : Opt.GlobalGraph
                     graph =
                         objectsToGlobalGraph objects
 
+                    mains : Dict ModuleName.Canonical Opt.Main
                     mains =
                         gatherMains pkg objects roots
                 in
@@ -93,12 +100,15 @@ prod root details (Build.Artifacts pkg _ roots modules) =
                     |> Task.fmap
                         (\_ ->
                             let
+                                graph : Opt.GlobalGraph
                                 graph =
                                     objectsToGlobalGraph objects
 
+                                mode : Mode.Mode
                                 mode =
                                     Mode.Prod (Mode.shortenFieldNames graph)
 
+                                mains : Dict ModuleName.Canonical Opt.Main
                                 mains =
                                     gatherMains pkg objects roots
                             in
@@ -113,6 +123,7 @@ repl root details ansi (Build.ReplArtifacts home modules localizer annotations) 
         |> Task.fmap
             (\objects ->
                 let
+                    graph : Opt.GlobalGraph
                     graph =
                         objectsToGlobalGraph objects
                 in
@@ -146,6 +157,7 @@ gatherMains pkg (Objects _ locals) roots =
 lookupMain : Pkg.Name -> Dict ModuleName.Raw Opt.LocalGraph -> Build.Root -> Maybe ( ModuleName.Canonical, Opt.Main )
 lookupMain pkg locals root =
     let
+        toPair : N.Name -> Opt.LocalGraph -> Maybe ( ModuleName.Canonical, Opt.Main )
         toPair name (Opt.LocalGraph maybeMain _ _) =
             Maybe.map (Tuple.pair (ModuleName.Canonical pkg name)) maybeMain
     in
@@ -240,6 +252,7 @@ loadTypes root ifaces modules =
             |> IO.bind
                 (\mvars ->
                     let
+                        foreigns : Extract.Types
                         foreigns =
                             Extract.mergeMany (Dict.values (Dict.map Extract.fromDependencyInterface ifaces))
                     in

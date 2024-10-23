@@ -215,6 +215,7 @@ consider using `get` in conjunction with `insert` instead.)
 update : (k -> k -> Order) -> k -> (Maybe v -> Maybe v) -> Dict k v -> Dict k v
 update keyComparison targetKey alter ((D alist) as dict) =
     let
+        maybeValue : Maybe v
         maybeValue =
             get targetKey dict
     in
@@ -282,6 +283,7 @@ Preference is given to values in the first dictionary.
 intersection : Dict k a -> Dict k b -> Dict k a
 intersection dict1 dict2 =
     let
+        keys2 : List k
         keys2 =
             keys dict2
     in
@@ -329,6 +331,7 @@ merge leftStep bothStep rightStep ((D leftAlist) as leftDict) (D rightAlist) ini
                 )
                 rightAlist
 
+        intermediateResult : result
         intermediateResult =
             List.foldr
                 (\( rKey, rValue ) result ->

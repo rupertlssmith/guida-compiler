@@ -24,6 +24,7 @@ const ioRefs = {};
 const mVars = {};
 const lockedFiles = {};
 const processes = {};
+let state = null;
 
 const download = function (index, method, url) {
   const req = https.request(url, { method: method }, (res) => {
@@ -433,10 +434,21 @@ const io = {
     const stats = fs.fstatSync(fd);
     this.send({ index, value: stats.size });
   },
+  hFlush: function (index, fd) {
+    // TODO no-op?
+    this.send({ index, value: null });
+  },
   withFile: function (index, filename, mode) {
     var fd = fs.openSync(filename, mode);
     this.send({ index, value: fd });
   },
+  statePut: function (index, value) {
+    state = value;
+    this.send({ index, value: null });
+  },
+  stateGet: function (index) {
+    this.send({ index, value: state });
+  }
 };
 
 const app = Elm.Terminal.Main.init();

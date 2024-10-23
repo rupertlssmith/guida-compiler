@@ -227,9 +227,11 @@ generateDocs (Env maybeRoot _ _ _) =
 writeDiff : Docs.Documentation -> Docs.Documentation -> Task ()
 writeDiff oldDocs newDocs =
     let
+        changes : PackageChanges
         changes =
             DD.diff oldDocs newDocs
 
+        localizer : L.Localizer
         localizer =
             L.fromNames (Dict.union compare oldDocs newDocs)
     in
@@ -249,14 +251,17 @@ toDoc localizer ((PackageChanges added changed removed) as changes) =
 
     else
         let
+            magDoc : D.Doc
             magDoc =
                 D.fromChars (M.toChars (DD.toMagnitude changes))
 
+            header : D.Doc
             header =
                 D.fromChars "This is a"
                     |> D.plus (D.green magDoc)
                     |> D.plus (D.fromChars "change.")
 
+            addedChunk : List Chunk
             addedChunk =
                 if List.isEmpty added then
                     []
@@ -267,6 +272,7 @@ toDoc localizer ((PackageChanges added changed removed) as changes) =
                             List.map D.fromName added
                     ]
 
+            removedChunk : List Chunk
             removedChunk =
                 if List.isEmpty removed then
                     []
@@ -277,6 +283,7 @@ toDoc localizer ((PackageChanges added changed removed) as changes) =
                             List.map D.fromName removed
                     ]
 
+            chunks : List Chunk
             chunks =
                 addedChunk ++ removedChunk ++ List.map (changesToChunk localizer) (Dict.toList changed)
         in
@@ -290,6 +297,7 @@ type Chunk
 chunkToDoc : Chunk -> D.Doc
 chunkToDoc (Chunk title magnitude details) =
     let
+        header : D.Doc
         header =
             D.fromChars "----"
                 |> D.plus (D.fromChars title)
@@ -309,6 +317,7 @@ chunkToDoc (Chunk title magnitude details) =
 changesToChunk : L.Localizer -> ( Name.Name, ModuleChanges ) -> Chunk
 changesToChunk localizer ( name, (ModuleChanges unions aliases values binops) as changes ) =
     let
+        magnitude : M.Magnitude
         magnitude =
             DD.moduleChangeMagnitude changes
 
@@ -337,9 +346,11 @@ changesToChunk localizer ( name, (ModuleChanges unions aliases values binops) as
 changesToDocTriple : (k -> v -> D.Doc) -> Changes k v -> ( List D.Doc, List D.Doc, List D.Doc )
 changesToDocTriple entryToDoc (Changes added changed removed) =
     let
+        indented : ( k, v ) -> D.Doc
         indented ( name, value ) =
             D.indent 4 (entryToDoc name value)
 
+        diffed : ( k, ( v, v ) ) -> D.Doc
         diffed ( name, ( oldValue, newValue ) ) =
             D.vcat
                 [ D.fromChars "  - " |> D.a (entryToDoc name oldValue)
@@ -371,11 +382,13 @@ changesToDoc categoryName unions aliases values binops =
 unionToDoc : L.Localizer -> Name.Name -> Docs.Union -> D.Doc
 unionToDoc localizer name (Docs.Union _ tvars ctors) =
     let
+        setup : D.Doc
         setup =
             D.fromChars "type"
                 |> D.plus (D.fromName name)
                 |> D.plus (D.hsep (List.map D.fromName tvars))
 
+        ctorDoc : ( Name.Name, List Type.Type ) -> D.Doc
         ctorDoc ( ctor, tipes ) =
             typeDoc localizer (Type.Type ctor tipes)
     in
@@ -392,6 +405,7 @@ unionToDoc localizer name (Docs.Union _ tvars ctors) =
 aliasToDoc : L.Localizer -> Name.Name -> Docs.Alias -> D.Doc
 aliasToDoc localizer name (Docs.Alias _ tvars tipe) =
     let
+        declaration : D.Doc
         declaration =
             D.plus (D.fromChars "type")
                 (D.plus (D.fromChars "alias")
@@ -411,6 +425,7 @@ valueToDoc localizer name (Docs.Value _ tipe) =
 binopToDoc : L.Localizer -> Name.Name -> Docs.Binop -> D.Doc
 binopToDoc localizer name (Docs.Binop _ tipe associativity n) =
     let
+        details : D.Doc
         details =
             D.plus (D.fromChars "    (")
                 (D.plus (D.fromName assoc)
@@ -421,6 +436,7 @@ binopToDoc localizer name (Docs.Binop _ tipe associativity n) =
                     )
                 )
 
+        assoc : String
         assoc =
             case associativity of
                 Binop.Left ->

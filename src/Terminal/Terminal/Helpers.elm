@@ -51,9 +51,11 @@ suggestVersion _ =
 exampleVersions : String -> List String
 exampleVersions chars =
     let
+        chunks : List String
         chunks =
             String.split "." chars
 
+        isNumber : String -> Bool
         isNumber cs =
             not (String.isEmpty cs) && String.all Char.isDigit cs
     in

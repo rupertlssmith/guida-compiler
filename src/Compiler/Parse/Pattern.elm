@@ -47,6 +47,7 @@ termHelp start =
                         |> P.fmap
                             (\end ->
                                 let
+                                    region : A.Region
                                     region =
                                         A.Region start end
                                 in
@@ -73,6 +74,7 @@ termHelp start =
                                         P.Parser <|
                                             \(P.State _ _ _ _ row col) ->
                                                 let
+                                                    width : Int
                                                     width =
                                                         String.fromFloat float
                                                             |> String.length
@@ -100,9 +102,11 @@ wildcard =
 
             else
                 let
+                    newPos : Int
                     newPos =
                         pos + 1
 
+                    newCol : P.Col
                     newCol =
                         col + 1
                 in
@@ -115,6 +119,7 @@ wildcard =
 
                 else
                     let
+                        newState : P.State
                         newState =
                             P.State src newPos end indent row newCol
                     in
@@ -290,6 +295,7 @@ exprHelp start revPatterns ( pattern, end ) =
                                                 |> P.fmap
                                                     (\_ ->
                                                         let
+                                                            alias_ : A.Located Name.Name
                                                             alias_ =
                                                                 A.at nameStart newEnd name
                                                         in

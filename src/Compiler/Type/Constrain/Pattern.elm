@@ -1,5 +1,6 @@
 module Compiler.Type.Constrain.Pattern exposing
-    ( State(..)
+    ( Header
+    , State(..)
     , add
     , emptyState
     )
@@ -50,6 +51,7 @@ add (A.At region pattern) expectation state =
                 (State headers vars revCons) =
                     state
 
+                unitCon : Type.Constraint
                 unitCon =
                     Type.CPattern region E.PUnit Type.UnitN expectation
             in
@@ -70,9 +72,11 @@ add (A.At region pattern) expectation state =
                 |> IO.bind
                     (\entryVar ->
                         let
+                            entryType : Type
                             entryType =
                                 Type.VarN entryVar
 
+                            listType : Type
                             listType =
                                 Type.AppN ModuleName.list Name.list [ entryType ]
                         in
@@ -80,6 +84,7 @@ add (A.At region pattern) expectation state =
                             |> IO.fmap
                                 (\(State headers vars revCons) ->
                                     let
+                                        listCon : Type.Constraint
                                         listCon =
                                             Type.CPattern region E.PList listType expectation
                                     in
@@ -92,15 +97,19 @@ add (A.At region pattern) expectation state =
                 |> IO.bind
                     (\entryVar ->
                         let
+                            entryType : Type
                             entryType =
                                 Type.VarN entryVar
 
+                            listType : Type
                             listType =
                                 Type.AppN ModuleName.list Name.list [ entryType ]
 
+                            headExpectation : E.PExpected Type
                             headExpectation =
                                 E.PNoExpectation entryType
 
+                            tailExpectation : E.PExpected Type
                             tailExpectation =
                                 E.PFromContext region E.PTail listType
                         in
@@ -109,6 +118,7 @@ add (A.At region pattern) expectation state =
                             |> IO.fmap
                                 (\(State headers vars revCons) ->
                                     let
+                                        listCon : Type.Constraint
                                         listCon =
                                             Type.CPattern region E.PList listType expectation
                                     in
@@ -121,6 +131,7 @@ add (A.At region pattern) expectation state =
                 |> IO.bind
                     (\extVar ->
                         let
+                            extType : Type
                             extType =
                                 Type.VarN extVar
                         in
@@ -128,15 +139,18 @@ add (A.At region pattern) expectation state =
                             |> IO.fmap
                                 (\fieldVars ->
                                     let
+                                        fieldTypes : Dict Name.Name Type
                                         fieldTypes =
                                             Dict.fromList compare (List.map (Tuple.mapSecond Type.VarN) fieldVars)
 
+                                        recordType : Type
                                         recordType =
                                             Type.RecordN fieldTypes extType
 
                                         (State headers vars revCons) =
                                             state
 
+                                        recordCon : Type.Constraint
                                         recordCon =
                                             Type.CPattern region E.PRecord recordType expectation
                                     in
@@ -152,6 +166,7 @@ add (A.At region pattern) expectation state =
                 (State headers vars revCons) =
                     state
 
+                intCon : Type.Constraint
                 intCon =
                     Type.CPattern region E.PInt Type.int expectation
             in
@@ -162,6 +177,7 @@ add (A.At region pattern) expectation state =
                 (State headers vars revCons) =
                     state
 
+                strCon : Type.Constraint
                 strCon =
                     Type.CPattern region E.PStr Type.string expectation
             in
@@ -172,6 +188,7 @@ add (A.At region pattern) expectation state =
                 (State headers vars revCons) =
                     state
 
+                chrCon : Type.Constraint
                 chrCon =
                     Type.CPattern region E.PChr Type.char expectation
             in
@@ -182,6 +199,7 @@ add (A.At region pattern) expectation state =
                 (State headers vars revCons) =
                     state
 
+                boolCon : Type.Constraint
                 boolCon =
                     Type.CPattern region E.PBool Type.bool expectation
             in
@@ -200,9 +218,11 @@ emptyState =
 addToHeaders : A.Region -> Name.Name -> E.PExpected Type -> State -> State
 addToHeaders region name expectation (State headers vars revCons) =
     let
+        tipe : Type
         tipe =
             getType expectation
 
+        newHeaders : Dict Name.Name (A.Located Type)
         newHeaders =
             Dict.insert compare name (A.At region tipe) headers
     in
@@ -226,6 +246,7 @@ getType expectation =
 addEntry : A.Region -> Type -> State -> ( Index.ZeroBased, Can.Pattern ) -> IO State
 addEntry listRegion tipe state ( index, pattern ) =
     let
+        expectation : E.PExpected Type
         expectation =
             E.PFromContext listRegion (E.PListEntry index) tipe
     in
@@ -245,9 +266,11 @@ addTuple region a b maybeC expectation state =
                     |> IO.bind
                         (\bVar ->
                             let
+                                aType : Type
                                 aType =
                                     Type.VarN aVar
 
+                                bType : Type
                                 bType =
                                     Type.VarN bVar
                             in
@@ -258,6 +281,7 @@ addTuple region a b maybeC expectation state =
                                         |> IO.fmap
                                             (\(State headers vars revCons) ->
                                                 let
+                                                    tupleCon : Type.Constraint
                                                     tupleCon =
                                                         Type.CPattern region E.PTuple (Type.TupleN aType bType Nothing) expectation
                                                 in
@@ -269,6 +293,7 @@ addTuple region a b maybeC expectation state =
                                         |> IO.bind
                                             (\cVar ->
                                                 let
+                                                    cType : Type
                                                     cType =
                                                         Type.VarN cVar
                                                 in
@@ -278,6 +303,7 @@ addTuple region a b maybeC expectation state =
                                                     |> IO.fmap
                                                         (\(State headers vars revCons) ->
                                                             let
+                                                                tupleCon : Type.Constraint
                                                                 tupleCon =
                                                                     Type.CPattern region E.PTuple (Type.TupleN aType bType (Just cType)) expectation
                                                             in
@@ -303,9 +329,11 @@ addCtor region home typeName typeVarNames ctorName args expectation state =
         |> IO.bind
             (\varPairs ->
                 let
+                    typePairs : List ( Name.Name, Type )
                     typePairs =
                         List.map (Tuple.mapSecond Type.VarN) varPairs
 
+                    freeVarDict : Dict Name.Name Type
                     freeVarDict =
                         Dict.fromList compare typePairs
                 in
@@ -313,9 +341,11 @@ addCtor region home typeName typeVarNames ctorName args expectation state =
                     |> IO.bind
                         (\(State headers vars revCons) ->
                             let
+                                ctorType : Type
                                 ctorType =
                                     Type.AppN home typeName (List.map Tuple.second typePairs)
 
+                                ctorCon : Type.Constraint
                                 ctorCon =
                                     Type.CPattern region (E.PCtor ctorName) ctorType expectation
                             in
@@ -333,6 +363,7 @@ addCtorArg region ctorName freeVarDict state (Can.PatternCtorArg index srcType p
         |> IO.bind
             (\tipe ->
                 let
+                    expectation : E.PExpected Type
                     expectation =
                         E.PFromContext region (E.PCtorArg ctorName index) tipe
                 in

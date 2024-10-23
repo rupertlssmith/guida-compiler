@@ -19,7 +19,6 @@ import Data.IO as IO exposing (IO(..))
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Time
-import Utils.Crash exposing (todo)
 import Utils.Main as Utils exposing (FilePath, ZipArchive, ZipEntry)
 
 
@@ -48,6 +47,7 @@ zeroTime =
 writeBinary : (a -> Encode.Value) -> FilePath -> a -> IO ()
 writeBinary encoder path value =
     let
+        dir : FilePath
         dir =
             Utils.fpDropFileName path
     in
@@ -107,52 +107,6 @@ readUtf8 path =
     IO.make Decode.string (IO.Read path)
 
 
-useZeroIfNotRegularFile : IO.IOException -> IO Int
-useZeroIfNotRegularFile _ =
-    IO.pure 0
-
-
-hGetContentsSizeHint : IO.Handle -> Int -> Int -> IO String
-hGetContentsSizeHint handle =
-    -- let
-    --     readChunks chunks readSize incrementSize =
-    --         BS.mallocByteString readSize
-    --             |> IO.bind
-    --                 (\fp ->
-    --                     FPtr.withForeignPtr fp <|
-    --                         \buf ->
-    --                             IO.hGetBuf handle buf readSize
-    --                                 |> IO.bind
-    --                                     (\readCount ->
-    --                                         let
-    --                                             chunk =
-    --                                                 BS.PS fp 0 readCount
-    --                                         in
-    --                                         if readCount < readSize && readSize > 0 then
-    --                                             return <| BS.concat (reverse (chunk :: chunks))
-    --                                         else
-    --                                             readChunks (chunk :: chunks) incrementSize (min 32752 (readSize + incrementSize))
-    --                                     )
-    --                 )
-    -- in
-    -- readChunks []
-    todo "hGetContentsSizeHint"
-
-
-encodingError : FilePath -> IO.IOError -> IO.IOError
-encodingError path ioErr =
-    -- case ioeGetErrorType ioErr of
-    --     InvalidArgument ->
-    --         annotateIOError
-    --             (userError "Bad encoding; the file must be valid UTF-8")
-    --             ""
-    --             Nothing
-    --             (Just path)
-    --     _ ->
-    --         ioErr
-    todo "encodingError"
-
-
 
 -- WRITE BUILDER
 
@@ -174,6 +128,7 @@ writePackage destination archive =
 
         entry :: entries ->
             let
+                root : Int
                 root =
                     String.length (Utils.zipERelativePath entry)
             in
@@ -183,6 +138,7 @@ writePackage destination archive =
 writeEntry : FilePath -> Int -> ZipEntry -> IO ()
 writeEntry destination root entry =
     let
+        path : String
         path =
             String.dropLeft root (Utils.zipERelativePath entry)
     in

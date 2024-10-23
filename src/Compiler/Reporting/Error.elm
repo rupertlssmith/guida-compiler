@@ -127,9 +127,11 @@ toDocHelp root module1 modules =
 toSeparator : Module -> Module -> D.Doc
 toSeparator beforeModule afterModule =
     let
+        before : ModuleName.Raw
         before =
             beforeModule.name ++ "  ↑    "
 
+        after : String
         after =
             "    ↓  " ++ afterModule.name
     in
@@ -150,9 +152,11 @@ toSeparator beforeModule afterModule =
 moduleToDoc : String -> Module -> D.Doc
 moduleToDoc root { absolutePath, source, error } =
     let
+        reports : NE.Nonempty Report.Report
         reports =
             toReports (Code.toSource source) error
 
+        relativePath : Utils.FilePath
         relativePath =
             Utils.fpMakeRelative root absolutePath
     in
@@ -172,6 +176,7 @@ reportToDoc relativePath (Report.Report title _ _ message) =
 toMessageBar : String -> String -> D.Doc
 toMessageBar title filePath =
     let
+        usedSpace : Int
         usedSpace =
             4 + String.length title + 1 + String.length filePath
     in
@@ -192,6 +197,7 @@ toMessageBar title filePath =
 toJson : Module -> E.Value
 toJson { name, absolutePath, source, error } =
     let
+        reports : NE.Nonempty Report.Report
         reports =
             toReports (Code.toSource source) error
     in

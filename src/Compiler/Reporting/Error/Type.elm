@@ -599,7 +599,7 @@ problemToHint problem =
                     "It looks like it takes too many arguments. I see " ++ String.fromInt (x - y) ++ " extra."
             ]
 
-        T.BadFlexSuper direction super _ tipe ->
+        T.BadFlexSuper direction super tipe ->
             case tipe of
                 T.Lambda _ _ _ ->
                     badFlexSuper direction super tipe
@@ -935,6 +935,7 @@ badRigidSuper super aThing =
 badFlexFlexSuper : T.Super -> T.Super -> List D.Doc
 badFlexFlexSuper s1 s2 =
     let
+        likeThis : T.Super -> String
         likeThis super =
             case super of
                 T.Number ->
@@ -981,6 +982,7 @@ toExprReport source localizer exprRegion category tipe expected =
 
         FromAnnotation name _ subContext expectedType ->
             let
+                thing : String
                 thing =
                     case subContext of
                         TypedIfBranch index ->
@@ -992,6 +994,7 @@ toExprReport source localizer exprRegion category tipe expected =
                         TypedBody ->
                             "body of the `" ++ name ++ "` definition:"
 
+                itIs : String
                 itIs =
                     case subContext of
                         TypedIfBranch index ->
@@ -1016,6 +1019,7 @@ toExprReport source localizer exprRegion category tipe expected =
 
         FromContext region context expectedType ->
             let
+                mismatch : ( ( Maybe A.Region, String ), ( String, String, List D.Doc ) ) -> Report.Report
                 mismatch ( ( maybeHighlight, problem ), ( thisIs, insteadOf, furtherDetails ) ) =
                     Report.Report "TYPE MISMATCH" exprRegion [] <|
                         Code.toSnippet source
@@ -1025,6 +1029,7 @@ toExprReport source localizer exprRegion category tipe expected =
                             , typeComparison localizer tipe expectedType (addCategory thisIs category) insteadOf furtherDetails
                             )
 
+                badType : ( ( Maybe A.Region, String ), ( String, List D.Doc ) ) -> Report.Report
                 badType ( ( maybeHighlight, problem ), ( thisIs, furtherDetails ) ) =
                     Report.Report "TYPE MISMATCH" exprRegion [] <|
                         Code.toSnippet source
@@ -1034,6 +1039,7 @@ toExprReport source localizer exprRegion category tipe expected =
                             , loneType localizer tipe expectedType (D.reflow (addCategory thisIs category)) furtherDetails
                             )
 
+                custom : Maybe A.Region -> ( D.Doc, D.Doc ) -> Report.Report
                 custom maybeHighlight docPair =
                     Report.Report "TYPE MISMATCH" exprRegion [] <|
                         Code.toSnippet source region maybeHighlight docPair
@@ -1041,6 +1047,7 @@ toExprReport source localizer exprRegion category tipe expected =
             case context of
                 ListEntry index ->
                     let
+                        ith : String
                         ith =
                             D.ordinal index
                     in
@@ -1118,6 +1125,7 @@ toExprReport source localizer exprRegion category tipe expected =
 
                 IfBranch index ->
                     let
+                        ith : String
                         ith =
                             D.ordinal index
                     in
@@ -1137,6 +1145,7 @@ toExprReport source localizer exprRegion category tipe expected =
 
                 CaseBranch index ->
                     let
+                        ith : String
                         ith =
                             D.ordinal index
                     in
@@ -1160,6 +1169,7 @@ toExprReport source localizer exprRegion category tipe expected =
                             case countArgs tipe of
                                 0 ->
                                     let
+                                        thisValue : String
                                         thisValue =
                                             case maybeFuncName of
                                                 NoName ->
@@ -1180,6 +1190,7 @@ toExprReport source localizer exprRegion category tipe expected =
 
                                 n ->
                                     let
+                                        thisFunction : String
                                         thisFunction =
                                             case maybeFuncName of
                                                 NoName ->
@@ -1200,9 +1211,11 @@ toExprReport source localizer exprRegion category tipe expected =
 
                 CallArg maybeFuncName index ->
                     let
+                        ith : String
                         ith =
                             D.ordinal index
 
+                        thisFunction : String
                         thisFunction =
                             case maybeFuncName of
                                 NoName ->
@@ -1306,9 +1319,11 @@ toExprReport source localizer exprRegion category tipe expected =
 
                                 ( field, Can.FieldUpdate fieldRegion _ ) :: _ ->
                                     let
+                                        rStr : String
                                         rStr =
                                             "`" ++ record ++ "`"
 
+                                        fStr : String
                                         fStr =
                                             "`" ++ field ++ "`"
                                     in
@@ -2025,7 +2040,7 @@ badAppendRight localizer category tipe expected =
                     ]
                 )
 
-        ( _, _ ) ->
+        _ ->
             EmphBoth
                 ( D.reflow "The (++) operator cannot append these two values:"
                 , typeComparison localizer
@@ -2054,15 +2069,19 @@ badCast op thisThenThat =
                 ++ op
                 ++ ") to be the exact same type. Both Int or both Float."
         , let
+            anInt : List D.Doc
             anInt =
                 [ D.fromChars "an", D.dullyellow (D.fromChars "Int") ]
 
+            aFloat : List D.Doc
             aFloat =
                 [ D.fromChars "a", D.dullyellow (D.fromChars "Float") ]
 
+            toFloat : D.Doc
             toFloat =
                 D.green (D.fromChars "toFloat")
 
+            round : D.Doc
             round =
                 D.green (D.fromChars "round")
           in

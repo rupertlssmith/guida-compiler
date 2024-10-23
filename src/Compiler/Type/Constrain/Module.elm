@@ -9,7 +9,7 @@ import Compiler.Type.Constrain.Expression as Expr
 import Compiler.Type.Instantiate as Instantiate
 import Compiler.Type.Type as Type exposing (Constraint(..), Type(..), mkFlexVar, nameToRigid)
 import Data.IO as IO exposing (IO)
-import Data.Map as Dict
+import Data.Map as Dict exposing (Dict)
 import Utils.Main as Utils
 
 
@@ -77,6 +77,7 @@ letPort name port_ makeConstraint =
                             |> IO.bind
                                 (\tipe ->
                                     let
+                                        header : Dict Name (A.Located Type)
                                         header =
                                             Dict.singleton name (A.At A.zero tipe)
                                     in
@@ -92,6 +93,7 @@ letPort name port_ makeConstraint =
                             |> IO.bind
                                 (\tipe ->
                                     let
+                                        header : Dict Name (A.Located Type)
                                         header =
                                             Dict.singleton name (A.At A.zero tipe)
                                     in
@@ -110,12 +112,15 @@ letCmd home tipe constraint =
         |> IO.fmap
             (\msgVar ->
                 let
+                    msg : Type
                     msg =
                         VarN msgVar
 
+                    cmdType : Type
                     cmdType =
                         FunN (AppN home tipe [ msg ]) (AppN ModuleName.cmd Name.cmd [ msg ])
 
+                    header : Dict Name (A.Located Type)
                     header =
                         Dict.singleton "command" (A.At A.zero cmdType)
                 in
@@ -129,12 +134,15 @@ letSub home tipe constraint =
         |> IO.fmap
             (\msgVar ->
                 let
+                    msg : Type
                     msg =
                         VarN msgVar
 
+                    subType : Type
                     subType =
                         FunN (AppN home tipe [ msg ]) (AppN ModuleName.sub Name.sub [ msg ])
 
+                    header : Dict Name (A.Located Type)
                     header =
                         Dict.singleton "subscription" (A.At A.zero subType)
                 in
@@ -166,30 +174,39 @@ constrainEffects home r0 r1 r2 manager =
                                                                                 |> IO.bind
                                                                                     (\sm2 ->
                                                                                         let
+                                                                                            state0 : Type
                                                                                             state0 =
                                                                                                 VarN s0
 
+                                                                                            state1 : Type
                                                                                             state1 =
                                                                                                 VarN s1
 
+                                                                                            state2 : Type
                                                                                             state2 =
                                                                                                 VarN s2
 
+                                                                                            msg1 : Type
                                                                                             msg1 =
                                                                                                 VarN m1
 
+                                                                                            msg2 : Type
                                                                                             msg2 =
                                                                                                 VarN m2
 
+                                                                                            self1 : Type
                                                                                             self1 =
                                                                                                 VarN sm1
 
+                                                                                            self2 : Type
                                                                                             self2 =
                                                                                                 VarN sm2
 
+                                                                                            onSelfMsg : Type
                                                                                             onSelfMsg =
                                                                                                 Type.funType (router msg2 self2) (Type.funType self2 (Type.funType state2 (task state2)))
 
+                                                                                            onEffects : Type
                                                                                             onEffects =
                                                                                                 case manager of
                                                                                                     Can.Cmd cmd ->
@@ -201,6 +218,7 @@ constrainEffects home r0 r1 r2 manager =
                                                                                                     Can.Fx cmd sub ->
                                                                                                         Type.funType (router msg1 self1) (Type.funType (effectList home cmd msg1) (Type.funType (effectList home sub msg1) (Type.funType state1 (task state1))))
 
+                                                                                            effectCons : Constraint
                                                                                             effectCons =
                                                                                                 CAnd
                                                                                                     [ CLocal r0 "init" (E.NoExpectation (task state0))
@@ -256,9 +274,11 @@ checkMap name home tipe constraint =
                     |> IO.fmap
                         (\b ->
                             let
+                                mapType : Type
                                 mapType =
                                     toMapType home tipe (VarN a) (VarN b)
 
+                                mapCon : Constraint
                                 mapCon =
                                     CLocal A.zero name (E.NoExpectation mapType)
                             in

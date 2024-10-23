@@ -1,5 +1,5 @@
 module Compiler.Type.Constrain.Expression exposing
-    ( constrain
+    ( RTV
     , constrainDef
     , constrainRecursiveDefs
     )
@@ -84,6 +84,7 @@ constrain rtv (A.At region expression) expected =
                 |> IO.bind
                     (\numberVar ->
                         let
+                            numberType : Type
                             numberType =
                                 VarN numberVar
                         in
@@ -91,6 +92,7 @@ constrain rtv (A.At region expression) expected =
                             |> IO.fmap
                                 (\numberCon ->
                                     let
+                                        negateCon : Constraint
                                         negateCon =
                                             CEqual region E.Number numberType expected
                                     in
@@ -133,12 +135,15 @@ constrain rtv (A.At region expression) expected =
                             |> IO.fmap
                                 (\fieldVar ->
                                     let
+                                        extType : Type
                                         extType =
                                             VarN extVar
 
+                                        fieldType : Type
                                         fieldType =
                                             VarN fieldVar
 
+                                        recordType : Type
                                         recordType =
                                             RecordN (Dict.singleton field fieldType) extType
                                     in
@@ -154,15 +159,19 @@ constrain rtv (A.At region expression) expected =
                             |> IO.bind
                                 (\fieldVar ->
                                     let
+                                        extType : Type
                                         extType =
                                             VarN extVar
 
+                                        fieldType : Type
                                         fieldType =
                                             VarN fieldVar
 
+                                        recordType : Type
                                         recordType =
                                             RecordN (Dict.singleton field fieldType) extType
 
+                                        context : Context
                                         context =
                                             RecordAccess (A.toRegion expr) (getAccessName expr) accessRegion field
                                     in
@@ -222,6 +231,7 @@ constrainLambda rtv region args body expected =
 constrainCall : RTV -> A.Region -> Can.Expr -> List Can.Expr -> E.Expected Type -> IO Constraint
 constrainCall rtv region ((A.At funcRegion _) as func) args expected =
     let
+        maybeName : MaybeName
         maybeName =
             getName func
     in
@@ -232,9 +242,11 @@ constrainCall rtv region ((A.At funcRegion _) as func) args expected =
                     |> IO.bind
                         (\resultVar ->
                             let
+                                funcType : Type
                                 funcType =
                                     VarN funcVar
 
+                                resultType : Type
                                 resultType =
                                     VarN resultVar
                             in
@@ -245,9 +257,11 @@ constrainCall rtv region ((A.At funcRegion _) as func) args expected =
                                             |> IO.fmap
                                                 (\( argVars, argTypes, argCons ) ->
                                                     let
+                                                        arityType : Type
                                                         arityType =
                                                             List.foldr FunN resultType argTypes
 
+                                                        category : Category
                                                         category =
                                                             CallResult maybeName
                                                     in
@@ -271,6 +285,7 @@ constrainArg rtv region maybeName index arg =
         |> IO.bind
             (\argVar ->
                 let
+                    argType : Type
                     argType =
                         VarN argVar
                 in
@@ -339,18 +354,23 @@ constrainBinop rtv region op annotation leftExpr rightExpr expected =
                                 |> IO.bind
                                     (\answerVar ->
                                         let
+                                            leftType : Type
                                             leftType =
                                                 VarN leftVar
 
+                                            rightType : Type
                                             rightType =
                                                 VarN rightVar
 
+                                            answerType : Type
                                             answerType =
                                                 VarN answerVar
 
+                                            binopType : Type
                                             binopType =
                                                 Type.funType leftType (Type.funType rightType answerType)
 
+                                            opCon : Constraint
                                             opCon =
                                                 CForeign region op annotation (NoExpectation binopType)
                                         in
@@ -385,9 +405,11 @@ constrainList rtv region entries expected =
         |> IO.bind
             (\entryVar ->
                 let
+                    entryType : Type
                     entryType =
                         VarN entryVar
 
+                    listType : Type
                     listType =
                         AppN ModuleName.list Name.list [ entryType ]
                 in
@@ -416,6 +438,7 @@ constrainListEntry rtv region tipe index expr =
 constrainIf : RTV -> A.Region -> List ( Can.Expr, Can.Expr ) -> Can.Expr -> E.Expected Type -> IO Constraint
 constrainIf rtv region branches final expected =
     let
+        boolExpect : Expected Type
         boolExpect =
             FromContext region IfCondition Type.bool
 
@@ -438,6 +461,7 @@ constrainIf rtv region branches final expected =
                             |> IO.bind
                                 (\branchVar ->
                                     let
+                                        branchType : Type
                                         branchType =
                                             VarN branchVar
                                     in
@@ -469,6 +493,7 @@ constrainCase rtv region expr branches expected =
         |> IO.bind
             (\ptrnVar ->
                 let
+                    ptrnType : Type
                     ptrnType =
                         VarN ptrnVar
                 in
@@ -494,6 +519,7 @@ constrainCase rtv region expr branches expected =
                                         |> IO.bind
                                             (\branchVar ->
                                                 let
+                                                    branchType : Type
                                                     branchType =
                                                         VarN branchVar
                                                 in
@@ -539,18 +565,23 @@ constrainRecord rtv region fields expected =
         |> IO.fmap
             (\dict ->
                 let
+                    getType : a -> ( b, c, d ) -> c
                     getType _ ( _, t, _ ) =
                         t
 
+                    recordType : Type
                     recordType =
                         RecordN (Dict.map getType dict) EmptyRecordN
 
+                    recordCon : Constraint
                     recordCon =
                         CEqual region Record recordType expected
 
+                    vars : List UF.Variable
                     vars =
                         Dict.foldr (\_ ( v, _, _ ) vs -> v :: vs) [] dict
 
+                    cons : List Constraint
                     cons =
                         Dict.foldr (\_ ( _, _, c ) cs -> c :: cs) [ recordCon ] dict
                 in
@@ -564,6 +595,7 @@ constrainField rtv expr =
         |> IO.bind
             (\var ->
                 let
+                    tipe : Type
                     tipe =
                         VarN var
                 in
@@ -591,22 +623,28 @@ constrainUpdate rtv region name expr fields expected =
                                 |> IO.bind
                                     (\recordVar ->
                                         let
+                                            recordType : Type
                                             recordType =
                                                 VarN recordVar
 
+                                            fieldsType : Type
                                             fieldsType =
                                                 RecordN (Dict.map (\_ ( _, t, _ ) -> t) fieldDict) (VarN extVar)
 
                                             -- NOTE: fieldsType is separate so that Error propagates better
+                                            fieldsCon : Constraint
                                             fieldsCon =
                                                 CEqual region Record recordType (NoExpectation fieldsType)
 
+                                            recordCon : Constraint
                                             recordCon =
                                                 CEqual region Record recordType expected
 
+                                            vars : List UF.Variable
                                             vars =
                                                 Dict.foldr (\_ ( v, _, _ ) vs -> v :: vs) [ recordVar, extVar ] fieldDict
 
+                                            cons : List Constraint
                                             cons =
                                                 Dict.foldr (\_ ( _, _, c ) cs -> c :: cs) [ recordCon ] fieldDict
                                         in
@@ -623,6 +661,7 @@ constrainUpdateField rtv region field (Can.FieldUpdate _ expr) =
         |> IO.bind
             (\var ->
                 let
+                    tipe : Type
                     tipe =
                         VarN var
                 in
@@ -644,9 +683,11 @@ constrainTuple rtv region a b maybeC expected =
                     |> IO.bind
                         (\bVar ->
                             let
+                                aType : Type
                                 aType =
                                     VarN aVar
 
+                                bType : Type
                                 bType =
                                     VarN bVar
                             in
@@ -659,9 +700,11 @@ constrainTuple rtv region a b maybeC expected =
                                                     case maybeC of
                                                         Nothing ->
                                                             let
+                                                                tupleType : Type
                                                                 tupleType =
                                                                     TupleN aType bType Nothing
 
+                                                                tupleCon : Constraint
                                                                 tupleCon =
                                                                     CEqual region Tuple tupleType expected
                                                             in
@@ -672,6 +715,7 @@ constrainTuple rtv region a b maybeC expected =
                                                                 |> IO.bind
                                                                     (\cVar ->
                                                                         let
+                                                                            cType : Type
                                                                             cType =
                                                                                 VarN cVar
                                                                         in
@@ -679,9 +723,11 @@ constrainTuple rtv region a b maybeC expected =
                                                                             |> IO.fmap
                                                                                 (\cCon ->
                                                                                     let
+                                                                                        tupleType : Type
                                                                                         tupleType =
                                                                                             TupleN aType bType (Just cType)
 
+                                                                                        tupleCon : Constraint
                                                                                         tupleCon =
                                                                                             CEqual region Tuple tupleType expected
                                                                                     in
@@ -707,12 +753,15 @@ constrainShader region (Shader.Types attributes uniforms varyings) expected =
                     |> IO.fmap
                         (\unifVar ->
                             let
+                                attrType : Type
                                 attrType =
                                     VarN attrVar
 
+                                unifType : Type
                                 unifType =
                                     VarN unifVar
 
+                                shaderType : Type
                                 shaderType =
                                     AppN ModuleName.webgl
                                         Name.shader
@@ -770,6 +819,7 @@ constrainDestruct rtv region pattern expr bodyCon =
         |> IO.bind
             (\patternVar ->
                 let
+                    patternType : Type
                     patternType =
                         VarN patternVar
                 in
@@ -814,6 +864,7 @@ constrainDef rtv def bodyCon =
 
         Can.TypedDef (A.At region name) freeVars typedArgs expr srcResultType ->
             let
+                newNames : Dict Name ()
                 newNames =
                     Dict.diff freeVars rtv
             in
@@ -821,6 +872,7 @@ constrainDef rtv def bodyCon =
                 |> IO.bind
                     (\newRigids ->
                         let
+                            newRtv : Dict Name Type
                             newRtv =
                                 Dict.union compare rtv (Dict.map (\_ -> VarN) newRigids)
                         in
@@ -828,6 +880,7 @@ constrainDef rtv def bodyCon =
                             |> IO.bind
                                 (\(TypedArgs tipe resultType (Pattern.State headers pvars revCons)) ->
                                     let
+                                        expected : Expected Type
                                         expected =
                                             FromAnnotation name (List.length typedArgs) TypedBody resultType
                                     in
@@ -897,6 +950,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
                                     |> IO.bind
                                         (\exprCon ->
                                             let
+                                                defCon : Constraint
                                                 defCon =
                                                     CLet []
                                                         pvars
@@ -913,6 +967,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
 
                 Can.TypedDef (A.At region name) freeVars typedArgs expr srcResultType ->
                     let
+                        newNames : Dict Name ()
                         newNames =
                             Dict.diff freeVars rtv
                     in
@@ -920,6 +975,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
                         |> IO.bind
                             (\newRigids ->
                                 let
+                                    newRtv : Dict Name Type
                                     newRtv =
                                         Dict.union compare rtv (Dict.map (\_ -> VarN) newRigids)
                                 in
@@ -930,6 +986,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
                                                 |> IO.bind
                                                     (\exprCon ->
                                                         let
+                                                            defCon : Constraint
                                                             defCon =
                                                                 CLet []
                                                                     pvars
@@ -975,6 +1032,7 @@ argsHelp args state =
                 |> IO.fmap
                     (\resultVar ->
                         let
+                            resultType : Type
                             resultType =
                                 VarN resultVar
                         in
@@ -986,6 +1044,7 @@ argsHelp args state =
                 |> IO.bind
                     (\argVar ->
                         let
+                            argType : Type
                             argType =
                                 VarN argVar
                         in
@@ -1026,6 +1085,7 @@ typedArgsHelp rtv name index args srcResultType state =
                 |> IO.bind
                     (\argType ->
                         let
+                            expected : PExpected Type
                             expected =
                                 PFromContext region (PTypedArg name index) argType
                         in

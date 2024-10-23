@@ -30,6 +30,7 @@ term =
                                     |> P.fmap
                                         (\end ->
                                             let
+                                                region : A.Region
                                                 region =
                                                     A.Region start end
                                             in
@@ -161,6 +162,7 @@ expression =
                                                                         |> P.fmap
                                                                             (\( tipe2, end2 ) ->
                                                                                 let
+                                                                                    tipe : A.Located Src.Type_
                                                                                     tipe =
                                                                                         A.at start end2 (Src.TLambda tipe1 tipe2)
                                                                                 in
@@ -194,9 +196,11 @@ app start =
                                             |> P.fmap
                                                 (\( args, end ) ->
                                                     let
+                                                        region : A.Region
                                                         region =
                                                             A.Region start upperEnd
 
+                                                        tipe : Src.Type_
                                                         tipe =
                                                             case upper of
                                                                 Var.Unqualified name ->

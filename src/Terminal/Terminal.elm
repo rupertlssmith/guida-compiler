@@ -1,7 +1,5 @@
 module Terminal.Terminal exposing
     ( app
-    , args
-    , exactly
     , flag
     , flags
     , more
@@ -20,9 +18,8 @@ import Compiler.Elm.Version as V
 import Compiler.Reporting.Doc as D
 import Data.IO as IO exposing (IO)
 import List.Extra as List
-import Prelude
 import Terminal.Terminal.Error as Error
-import Terminal.Terminal.Internal exposing (Args(..), Command(..), CompleteArgs(..), Flag(..), Flags(..), Parser(..), RequiredArgs(..), Summary(..), toName)
+import Terminal.Terminal.Internal exposing (Args(..), Command(..), CompleteArgs(..), Flag(..), Flags(..), Parser, RequiredArgs(..), toName)
 import Utils.Main as Utils
 
 
@@ -63,80 +60,6 @@ app intro outro commands =
                                         Err err ->
                                             Error.exitWithError err
             )
-
-
-
--- AUTO-COMPLETE
-
-
-getCompIndex : String -> IO ( Int, List String )
-getCompIndex line =
-    Utils.envLookupEnv "COMP_POINT"
-        |> IO.bind
-            (\maybePoint ->
-                case Maybe.andThen String.toInt maybePoint of
-                    Nothing ->
-                        let
-                            chunks =
-                                String.words line
-                        in
-                        IO.pure ( List.length chunks, chunks )
-
-                    Just point ->
-                        let
-                            lineChars =
-                                String.toList line
-
-                            lineIndexes =
-                                List.repeat (String.length line) ()
-                                    |> List.indexedMap (\i _ -> i)
-
-                            groups =
-                                Utils.listGroupBy grouper
-                                    (List.zip lineChars lineIndexes)
-
-                            rawChunks =
-                                List.drop 1 (List.filter (List.all (not << isSpace << Tuple.first)) groups)
-                        in
-                        IO.pure
-                            ( findIndex 1 point rawChunks
-                            , List.map (String.fromList << List.map Tuple.first) rawChunks
-                            )
-            )
-
-
-grouper : ( Char, Int ) -> ( Char, Int ) -> Bool
-grouper ( c1, _ ) ( c2, _ ) =
-    isSpace c1 == isSpace c2
-
-
-isSpace : Char -> Bool
-isSpace char =
-    char == ' ' || char == '\t' || char == '\n'
-
-
-findIndex : Int -> Int -> List (List ( Char, Int )) -> Int
-findIndex index point chunks =
-    case chunks of
-        [] ->
-            index
-
-        chunk :: cs ->
-            let
-                lo =
-                    Tuple.second (Prelude.head chunk)
-
-                hi =
-                    Tuple.second (Prelude.last chunk)
-            in
-            if point < lo then
-                0
-
-            else if point <= hi + 1 then
-                index
-
-            else
-                findIndex (index + 1) point cs
 
 
 

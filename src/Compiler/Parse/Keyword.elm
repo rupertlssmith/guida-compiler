@@ -167,6 +167,7 @@ subscription_ toError =
     P.Parser <|
         \(P.State src pos end indent row col) ->
             let
+                pos12 : Int
                 pos12 =
                     pos + 12
             in
@@ -187,6 +188,7 @@ subscription_ toError =
                     && (Var.getInnerWidth src pos12 end == 0)
             then
                 let
+                    s : P.State
                     s =
                         P.State src pos12 end indent row (col + 12)
                 in
@@ -205,6 +207,7 @@ k2 w1 w2 toError =
     P.Parser <|
         \(P.State src pos end indent row col) ->
             let
+                pos2 : Int
                 pos2 =
                     pos + 2
             in
@@ -215,6 +218,7 @@ k2 w1 w2 toError =
                     && (Var.getInnerWidth src pos2 end == 0)
             then
                 let
+                    s : P.State
                     s =
                         P.State src pos2 end indent row (col + 2)
                 in
@@ -229,6 +233,7 @@ k3 w1 w2 w3 toError =
     P.Parser <|
         \(P.State src pos end indent row col) ->
             let
+                pos3 : Int
                 pos3 =
                     pos + 3
             in
@@ -240,6 +245,7 @@ k3 w1 w2 w3 toError =
                     && (Var.getInnerWidth src pos3 end == 0)
             then
                 let
+                    s : P.State
                     s =
                         P.State src pos3 end indent row (col + 3)
                 in
@@ -254,6 +260,7 @@ k4 w1 w2 w3 w4 toError =
     P.Parser <|
         \(P.State src pos end indent row col) ->
             let
+                pos4 : Int
                 pos4 =
                     pos + 4
             in
@@ -266,6 +273,7 @@ k4 w1 w2 w3 w4 toError =
                     && (Var.getInnerWidth src pos4 end == 0)
             then
                 let
+                    s : P.State
                     s =
                         P.State src pos4 end indent row (col + 4)
                 in
@@ -280,6 +288,7 @@ k5 w1 w2 w3 w4 w5 toError =
     P.Parser <|
         \(P.State src pos end indent row col) ->
             let
+                pos5 : Int
                 pos5 =
                     pos + 5
             in
@@ -293,6 +302,7 @@ k5 w1 w2 w3 w4 w5 toError =
                     && (Var.getInnerWidth src pos5 end == 0)
             then
                 let
+                    s : P.State
                     s =
                         P.State src pos5 end indent row (col + 5)
                 in
@@ -307,6 +317,7 @@ k6 w1 w2 w3 w4 w5 w6 toError =
     P.Parser <|
         \(P.State src pos end indent row col) ->
             let
+                pos6 : Int
                 pos6 =
                     pos + 6
             in
@@ -321,6 +332,7 @@ k6 w1 w2 w3 w4 w5 w6 toError =
                     && (Var.getInnerWidth src pos6 end == 0)
             then
                 let
+                    s : P.State
                     s =
                         P.State src pos6 end indent row (col + 6)
                 in
@@ -335,6 +347,7 @@ k7 w1 w2 w3 w4 w5 w6 w7 toError =
     P.Parser <|
         \(P.State src pos end indent row col) ->
             let
+                pos7 : Int
                 pos7 =
                     pos + 7
             in
@@ -350,6 +363,7 @@ k7 w1 w2 w3 w4 w5 w6 w7 toError =
                     && (Var.getInnerWidth src pos7 end == 0)
             then
                 let
+                    s : P.State
                     s =
                         P.State src pos7 end indent row (col + 7)
                 in
@@ -364,6 +378,7 @@ k8 w1 w2 w3 w4 w5 w6 w7 w8 toError =
     P.Parser <|
         \(P.State src pos end indent row col) ->
             let
+                pos8 : Int
                 pos8 =
                     pos + 8
             in
@@ -380,6 +395,7 @@ k8 w1 w2 w3 w4 w5 w6 w7 w8 toError =
                     && (Var.getInnerWidth src pos8 end == 0)
             then
                 let
+                    s : P.State
                     s =
                         P.State src pos8 end indent row (col + 8)
                 in

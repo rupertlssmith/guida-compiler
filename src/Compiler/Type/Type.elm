@@ -621,6 +621,7 @@ getFreshVarName =
 getFreshVarNameHelp : Int -> Dict Name () -> ( Name, Int, Dict Name () )
 getFreshVarNameHelp index taken =
     let
+        name : Name
         name =
             Name.fromTypeVariableScheme index
     in
@@ -691,6 +692,7 @@ getFreshSuper prefix getter setter =
 getFreshSuperHelp : Name -> Int -> Dict Name () -> ( Name, Int, Dict Name () )
 getFreshSuperHelp prefix index taken =
     let
+        name : Name
         name =
             Name.fromTypeVariable prefix index
     in
@@ -782,6 +784,7 @@ getVarNames var takenNames =
 addName : Int -> Name -> UF.Variable -> (Name -> UF.Content) -> Dict Name UF.Variable -> IO (Dict Name UF.Variable)
 addName index givenName var makeContent takenNames =
     let
+        indexedName : Name
         indexedName =
             Name.fromTypeVariable givenName index
     in

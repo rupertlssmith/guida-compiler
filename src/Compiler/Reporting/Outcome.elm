@@ -66,6 +66,7 @@ mapError func (Outcome k) =
     Outcome
         (\i w bad good ->
             let
+                bad1 : a -> b -> OneOrMore e -> c
                 bad1 i1 w1 e1 =
                     bad i1 w1 (OneOrMore.map func e1)
             in

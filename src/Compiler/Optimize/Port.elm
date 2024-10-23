@@ -79,11 +79,13 @@ toEncoder tipe =
 
         Can.TRecord fields Nothing ->
             let
+                encodeField : ( Name, Can.FieldType ) -> Names.Tracker Opt.Expr
                 encodeField ( name, Can.FieldType _ fieldType ) =
                     toEncoder fieldType
                         |> Names.fmap
                             (\encoder ->
                                 let
+                                    value : Opt.Expr
                                     value =
                                         Opt.Call encoder [ Opt.Access (Opt.VarLocal Name.dollar) name ]
                                 in
@@ -152,9 +154,11 @@ encodeArray tipe =
 encodeTuple : Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker Opt.Expr
 encodeTuple a b maybeC =
     let
+        let_ : Name -> Index.ZeroBased -> Opt.Expr -> Opt.Expr
         let_ arg index body =
             Opt.Destruct (Opt.Destructor arg (Opt.Index index (Opt.Root Name.dollar))) body
 
+        encodeArg : Name -> Can.Type -> Names.Tracker Opt.Expr
         encodeArg arg tipe =
             toEncoder tipe
                 |> Names.fmap (\encoder -> Opt.Call encoder [ Opt.VarLocal arg ])
@@ -370,6 +374,7 @@ decodeTuple a b maybeC =
             case maybeC of
                 Nothing ->
                     let
+                        tuple : Opt.Expr
                         tuple =
                             Opt.Tuple (toLocal 0) (toLocal 1) Nothing
                     in
@@ -378,6 +383,7 @@ decodeTuple a b maybeC =
 
                 Just c ->
                     let
+                        tuple : Opt.Expr
                         tuple =
                             Opt.Tuple (toLocal 0) (toLocal 1) (Just (toLocal 2))
                     in
@@ -420,9 +426,11 @@ indexAndThen i tipe decoder =
 decodeRecord : Dict Name.Name Can.FieldType -> Names.Tracker Opt.Expr
 decodeRecord fields =
     let
+        toFieldExpr : Name -> b -> Opt.Expr
         toFieldExpr name _ =
             Opt.VarLocal name
 
+        record : Opt.Expr
         record =
             Opt.Record (Dict.map toFieldExpr fields)
     in

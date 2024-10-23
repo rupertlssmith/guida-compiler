@@ -192,6 +192,7 @@ bind callback (Parser parserA) =
 fromByteString : Parser x a -> (Row -> Col -> x) -> String -> Result x a
 fromByteString (Parser parser) toBadEnd src =
     let
+        initialState : State
         initialState =
             State src 0 (String.length src) 0 1 1
     in
@@ -234,6 +235,7 @@ type Snippet
 fromSnippet : Parser x a -> (Row -> Col -> x) -> Snippet -> Result x a
 fromSnippet (Parser parser) toBadEnd (Snippet { fptr, offset, length, offRow, offCol }) =
     let
+        initialState : State
         initialState =
             State fptr offset (offset + length) 0 offRow offCol
     in
@@ -298,6 +300,7 @@ setIndent indent =
     Parser <|
         \(State src pos end _ row col) ->
             let
+                newState : State
                 newState =
                     State src pos end indent row col
             in
@@ -371,6 +374,7 @@ word1 word toError =
         \(State src pos end indent row col) ->
             if pos < end && unsafeIndex src pos == word then
                 let
+                    newState : State
                     newState =
                         State src (pos + 1) end indent row (col + 1)
                 in
@@ -385,11 +389,13 @@ word2 w1 w2 toError =
     Parser <|
         \(State src pos end indent row col) ->
             let
+                pos1 : Int
                 pos1 =
                     pos + 1
             in
             if pos < end && unsafeIndex src pos == w1 && unsafeIndex src pos1 == w2 then
                 let
+                    newState : State
                     newState =
                         State src (pos + 2) end indent row (col + 2)
                 in

@@ -1,4 +1,4 @@
-module Compiler.Optimize.Module exposing (optimize)
+module Compiler.Optimize.Module exposing (Annotations, MResult, optimize)
 
 import Compiler.AST.Canonical as Can
 import Compiler.AST.Optimized as Opt
@@ -60,6 +60,7 @@ addUnion home (Can.Union _ ctors _ opts) nodes =
 addCtorNode : ModuleName.Canonical -> Can.CtorOpts -> Can.Ctor -> Nodes -> Nodes
 addCtorNode home opts (Can.Ctor name index numArgs _) nodes =
     let
+        node : Opt.Node
         node =
             case opts of
                 Can.Normal ->
@@ -88,11 +89,13 @@ addAlias home name (Can.Alias _ tipe) ((Opt.LocalGraph main nodes fieldCounts) a
     case tipe of
         Can.TRecord fields Nothing ->
             let
+                function : Opt.Expr
                 function =
                     Opt.Function (List.map Tuple.first (Can.fieldsToList fields)) <|
                         Opt.Record <|
                             Dict.map (\field _ -> Opt.VarLocal field) fields
 
+                node : Opt.Node
                 node =
                     Opt.Define function EverySet.empty
             in
@@ -125,18 +128,23 @@ addEffects home effects ((Opt.LocalGraph main nodes fields) as graph) =
 
         Can.Manager _ _ _ manager ->
             let
+                fx : Opt.Global
                 fx =
                     Opt.Global home "$fx$"
 
+                cmd : Opt.Global
                 cmd =
                     Opt.Global home "command"
 
+                sub : Opt.Global
                 sub =
                     Opt.Global home "subscription"
 
+                link : Opt.Node
                 link =
                     Opt.Link fx
 
+                newNodes : Dict Opt.Global Opt.Node
                 newNodes =
                     case manager of
                         Can.Cmd _ ->
@@ -163,6 +171,7 @@ addPort home name port_ graph =
                 ( deps, fields, decoder ) =
                     Names.run (Port.toDecoder payload)
 
+                node : Opt.Node
                 node =
                     Opt.PortIncoming decoder deps
             in
@@ -173,6 +182,7 @@ addPort home name port_ graph =
                 ( deps, fields, encoder ) =
                     Names.run (Port.toEncoder payload)
 
+                node : Opt.Node
                 node =
                     Opt.PortOutgoing encoder deps
             in
@@ -204,6 +214,7 @@ addDecls home annotations decls graph =
 
         Can.DeclareRec d ds subDecls ->
             let
+                defs : List Can.Def
                 defs =
                     d :: ds
             in
@@ -280,6 +291,7 @@ addDefHelp region annotations home name args body ((Opt.LocalGraph _ nodes field
             (Can.Forall _ tipe) =
                 Utils.find name annotations
 
+            addMain : ( EverySet Opt.Global, Dict Name.Name Int, Opt.Main ) -> Opt.LocalGraph
             addMain ( deps, fields, main ) =
                 addDefNode home name args body deps <|
                     Opt.LocalGraph (Just main) nodes (Utils.mapUnionWith compare (+) fields fieldCounts)
@@ -346,15 +358,19 @@ type State
 addRecDefs : ModuleName.Canonical -> List Can.Def -> Opt.LocalGraph -> Opt.LocalGraph
 addRecDefs home defs (Opt.LocalGraph main nodes fieldCounts) =
     let
+        names : List Name.Name
         names =
             List.reverse (List.map toName defs)
 
+        cycleName : Opt.Global
         cycleName =
             Opt.Global home (Name.fromManyNames names)
 
+        cycle : EverySet Name.Name
         cycle =
             List.foldr addValueName EverySet.empty defs
 
+        links : Dict Opt.Global Opt.Node
         links =
             List.foldr (addLink home (Opt.Link cycleName)) Dict.empty defs
 

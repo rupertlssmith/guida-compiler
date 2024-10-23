@@ -1,5 +1,6 @@
 module Compiler.Canonicalize.Type exposing
-    ( canonicalize
+    ( CResult
+    , canonicalize
     , toAnnotation
     )
 
@@ -89,6 +90,7 @@ canonicalize env (A.At typeRegion tipe) =
 canonicalizeFields : Env.Env -> List ( A.Located Name.Name, Src.Type ) -> List ( A.Located Name.Name, CResult i w Can.FieldType )
 canonicalizeFields env fields =
     let
+        canonicalizeField : Int -> ( a, Src.Type ) -> ( a, R.RResult i w Error.Error Can.FieldType )
         canonicalizeField index ( name, srcType ) =
             ( name, R.fmap (Can.FieldType index) (canonicalize env srcType) )
     in
@@ -118,6 +120,7 @@ canonicalizeType env region name args info =
 checkArity : Int -> A.Region -> Name.Name -> List (A.Located arg) -> answer -> CResult i w answer
 checkArity expected region name args answer =
     let
+        actual : Int
         actual =
             List.length args
     in

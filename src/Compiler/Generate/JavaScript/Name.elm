@@ -241,11 +241,13 @@ intToAsciiHelp width blockSize badFields n =
 
         (BadFields renamings) :: biggerBadFields ->
             let
+                availableSize : Int
                 availableSize =
                     blockSize - Dict.size renamings
             in
             if n < availableSize then
                 let
+                    name : Name.Name
                     name =
                         unsafeIntToAscii width [] n
                 in
@@ -266,9 +268,11 @@ unsafeIntToAscii width bytes n =
 
     else
         let
+            quotient : Int
             quotient =
                 n // numInnerBytes
 
+            remainder : Int
             remainder =
                 n - (numInnerBytes * quotient)
         in
@@ -331,6 +335,7 @@ type alias Renamings =
 allBadFields : List BadFields
 allBadFields =
     let
+        add : String -> Dict Int BadFields -> Dict Int BadFields
         add keyword dict =
             Dict.update compare (String.length keyword) (Just << addRenaming keyword) dict
     in
@@ -340,9 +345,11 @@ allBadFields =
 addRenaming : String -> Maybe BadFields -> BadFields
 addRenaming keyword maybeBadFields =
     let
+        width : Int
         width =
             String.length keyword
 
+        maxName : Int
         maxName =
             numStartBytes * numInnerBytes ^ (width - 1) - 1
     in

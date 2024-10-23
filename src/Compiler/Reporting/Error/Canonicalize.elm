@@ -168,9 +168,11 @@ toReport source err =
     case err of
         AnnotationTooShort region name index leftovers ->
             let
+                numTypeArgs : Int
                 numTypeArgs =
                     Index.toMachine index
 
+                numDefArgs : Int
                 numDefArgs =
                     numTypeArgs + leftovers
             in
@@ -213,6 +215,7 @@ toReport source err =
 
         BadArity region badArityContext name expected actual ->
             let
+                thing : String
                 thing =
                     case badArityContext of
                         TypeArity ->
@@ -363,6 +366,7 @@ toReport source err =
 
         ExportDuplicate name r1 r2 ->
             let
+                messageThatEndsWithPunctuation : String
                 messageThatEndsWithPunctuation =
                     "You are trying to expose `" ++ name ++ "` multiple times!"
             in
@@ -380,6 +384,7 @@ toReport source err =
 
         ExportNotFound region kind rawName possibleNames ->
             let
+                suggestions : List String
                 suggestions =
                     List.take 4 <| Suggest.sort rawName identity possibleNames
             in
@@ -503,6 +508,7 @@ toReport source err =
 
         ImportExposingNotFound region (ModuleName.Canonical _ home) value possibleNames ->
             let
+                suggestions : List String
                 suggestions =
                     List.take 4 <| Suggest.sort home identity possibleNames
             in
@@ -603,9 +609,11 @@ toReport source err =
 
             else
                 let
+                    suggestions : List String
                     suggestions =
                         List.take 2 <| Suggest.sort op identity (EverySet.toList locals)
 
+                    format : D.Doc -> D.Doc
                     format altOp =
                         D.green
                             (D.fromChars "("
@@ -658,6 +666,7 @@ toReport source err =
 
         PortPayloadInvalid region portName _ invalidPayload ->
             let
+                formatDetails : ( String, D.Doc ) -> Report.Report
                 formatDetails ( aBadKindOfThing, elaboration ) =
                     Report.Report "PORT ERROR" region [] <|
                         Code.toSnippet source
@@ -708,6 +717,7 @@ toReport source err =
 
         PortTypeInvalid region name portProblem ->
             let
+                formatDetails : ( String, D.Doc ) -> Report.Report
                 formatDetails ( before, after ) =
                     Report.Report "BAD PORT" region [] <|
                         Code.toSnippet source
@@ -734,6 +744,7 @@ toReport source err =
                     CmdExtraArgs n ->
                         ( "The `" ++ name ++ "` port can only send ONE value out to JavaScript."
                         , let
+                            theseItemsInSomething : String
                             theseItemsInSomething =
                                 if n == 2 then
                                     "both of these items into a tuple or record"
@@ -775,6 +786,7 @@ toReport source err =
 
         RecursiveDecl region name names ->
             let
+                makeTheory : String -> String -> D.Doc
                 makeTheory question details =
                     D.fillSep <| List.map (D.dullyellow << D.fromChars) (String.words question) ++ List.map D.fromChars (String.words details)
             in
@@ -805,6 +817,7 @@ toReport source err =
                     case names of
                         [] ->
                             let
+                                makeTheory : String -> String -> D.Doc
                                 makeTheory question details =
                                     D.fillSep <| List.map (D.dullyellow << D.fromChars) (String.words question) ++ List.map D.fromChars (String.words details)
                             in
@@ -827,6 +840,7 @@ toReport source err =
 
         Shadowing name r1 r2 ->
             let
+                advice : D.Doc
                 advice =
                     D.stack
                         [ D.reflow <| "Think of a more helpful name for one of them and you should be all set!"
@@ -864,11 +878,13 @@ toReport source err =
             case ( unusedVars, unboundVars ) of
                 ( unused :: unuseds, [] ) ->
                     let
+                        backQuote : Name -> D.Doc
                         backQuote name =
                             D.fromChars "`"
                                 |> D.a (D.fromName name)
                                 |> D.a (D.fromChars "`")
 
+                        allUnusedNames : List Name
                         allUnusedNames =
                             List.map Tuple.first unusedVars
 
@@ -927,12 +943,15 @@ toReport source err =
 
                 ( _, _ ) ->
                     let
+                        unused : List Name
                         unused =
                             List.map Tuple.first unusedVars
 
+                        unbound : List Name
                         unbound =
                             List.map Tuple.first unboundVars
 
+                        theseAreUsed : List D.Doc
                         theseAreUsed =
                             case unbound of
                                 [ x ] ->
@@ -973,6 +992,7 @@ toReport source err =
                                            , D.fromChars "declared."
                                            ]
 
+                        butTheseAreUnused : List D.Doc
                         butTheseAreUnused =
                             case unused of
                                 [ x ] ->
@@ -1012,6 +1032,7 @@ toReport source err =
 unboundTypeVars : Code.Source -> A.Region -> List D.Doc -> Name.Name -> List Name.Name -> ( Name.Name, A.Region ) -> List ( Name.Name, A.Region ) -> Report.Report
 unboundTypeVars source declRegion tipe typeName allVars ( unboundVar, varRegion ) unboundVars =
     let
+        backQuote : Name -> D.Doc
         backQuote name =
             D.fromChars "`"
                 |> D.a (D.fromName name)
@@ -1093,6 +1114,7 @@ nameClash source r1 r2 messageThatEndsWithPunctuation =
 ambiguousName : Code.Source -> A.Region -> Maybe Name.Name -> Name.Name -> ModuleName.Canonical -> OneOrMore.OneOrMore ModuleName.Canonical -> String -> Report.Report
 ambiguousName source region maybePrefix name h hs thing =
     let
+        possibleHomes : List ModuleName.Canonical
         possibleHomes =
             List.sortWith ModuleName.compareCanonical (h :: OneOrMore.destruct (::) hs)
     in
@@ -1101,6 +1123,7 @@ ambiguousName source region maybePrefix name h hs thing =
             case maybePrefix of
                 Nothing ->
                     let
+                        homeToYellowDoc : ModuleName.Canonical -> D.Doc
                         homeToYellowDoc (ModuleName.Canonical _ home) =
                             D.dullyellow
                                 (D.fromName home
@@ -1122,6 +1145,7 @@ ambiguousName source region maybePrefix name h hs thing =
 
                 Just prefix ->
                     let
+                        homeToYellowDoc : ModuleName.Canonical -> D.Doc
                         homeToYellowDoc (ModuleName.Canonical _ home) =
                             if prefix == home then
                                 D.cyan (D.fromChars "import")
@@ -1133,6 +1157,7 @@ ambiguousName source region maybePrefix name h hs thing =
                                     |> D.plus (D.cyan (D.fromChars "as"))
                                     |> D.plus (D.fromName prefix)
 
+                        eitherOrAny : String
                         eitherOrAny =
                             if List.length possibleHomes == 2 then
                                 "either"
@@ -1157,19 +1182,24 @@ ambiguousName source region maybePrefix name h hs thing =
 notFound : Code.Source -> A.Region -> Maybe Name.Name -> Name.Name -> String -> PossibleNames -> Report.Report
 notFound source region maybePrefix name thing { locals, quals } =
     let
+        givenName : Name
         givenName =
             Maybe.withDefault name (Maybe.map2 toQualString maybePrefix (Just name))
 
+        possibleNames : List String
         possibleNames =
             let
+                addQuals : Name -> EverySet Name -> List String -> List String
                 addQuals prefix localSet allNames =
                     EverySet.foldr (\x xs -> toQualString prefix x :: xs) allNames localSet
             in
             Dict.foldr addQuals (EverySet.toList locals) quals
 
+        nearbyNames : List String
         nearbyNames =
             List.take 4 (Suggest.sort givenName identity possibleNames)
 
+        toDetails : String -> String -> D.Doc
         toDetails noSuggestionDetails yesSuggestionDetails =
             case nearbyNames of
                 [] ->
@@ -1213,32 +1243,6 @@ notFound source region maybePrefix name thing { locals, quals } =
 toQualString : Name.Name -> Name.Name -> String
 toQualString prefix name =
     prefix ++ "." ++ name
-
-
-
--- ARG MISMATCH
-
-
-argMismatchReport : Code.Source -> A.Region -> String -> Name -> Int -> Int -> Report.Report
-argMismatchReport source region kind name expected actual =
-    let
-        numArgs =
-            "too "
-                ++ (if actual < expected then
-                        "few"
-
-                    else
-                        "many"
-                   )
-                ++ " arguments"
-    in
-    Report.Report numArgs region [] <|
-        Code.toSnippet source
-            region
-            Nothing
-            ( D.reflow <| kind ++ " " ++ name ++ " has " ++ numArgs ++ "."
-            , D.reflow <| "Expecting " ++ String.fromInt expected ++ ", but got " ++ String.fromInt actual ++ "."
-            )
 
 
 

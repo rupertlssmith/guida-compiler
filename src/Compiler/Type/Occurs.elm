@@ -1,6 +1,5 @@
 module Compiler.Type.Occurs exposing (occurs)
 
-import Compiler.Type.Type as Type
 import Compiler.Type.UnionFind as UF
 import Data.IO as IO exposing (IO)
 import Data.Map as Dict
@@ -39,6 +38,7 @@ occursHelp seen var foundCycle =
 
                         UF.Structure term ->
                             let
+                                newSeen : List UF.Variable
                                 newSeen =
                                     var :: seen
                             in

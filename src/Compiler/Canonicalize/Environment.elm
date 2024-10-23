@@ -1,6 +1,7 @@
 module Compiler.Canonicalize.Environment exposing
     ( Binop(..)
     , Ctor(..)
+    , EResult
     , Env
     , Exposed
     , Info(..)

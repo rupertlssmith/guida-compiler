@@ -122,6 +122,7 @@ nil =
 unit : Can.Union
 unit =
     let
+        ctor : Can.Ctor
         ctor =
             Can.Ctor unitName Index.first 0 []
     in
@@ -131,6 +132,7 @@ unit =
 pair : Can.Union
 pair =
     let
+        ctor : Can.Ctor
         ctor =
             Can.Ctor pairName Index.first 2 [ Can.TVar "a", Can.TVar "b" ]
     in
@@ -140,6 +142,7 @@ pair =
 triple : Can.Union
 triple =
     let
+        ctor : Can.Ctor
         ctor =
             Can.Ctor tripleName Index.first 3 [ Can.TVar "a", Can.TVar "b", Can.TVar "c" ]
     in
@@ -149,9 +152,11 @@ triple =
 list : Can.Union
 list =
     let
+        nilCtor : Can.Ctor
         nilCtor =
             Can.Ctor nilName Index.first 0 []
 
+        consCtor : Can.Ctor
         consCtor =
             Can.Ctor consName
                 Index.second
@@ -440,9 +445,11 @@ isExhaustive matrix n =
 
             else
                 let
+                    ctors : Dict Name.Name Can.Union
                     ctors =
                         collectCtors matrix
 
+                    numSeen : Int
                     numSeen =
                         Dict.size ctors
                 in
@@ -462,6 +469,7 @@ isExhaustive matrix n =
 
                     else
                         let
+                            isAltExhaustive : Can.Ctor -> List (List Pattern)
                             isAltExhaustive (Can.Ctor name _ arity _) =
                                 List.map (recoverCtor alts name arity)
                                     (isExhaustive
@@ -511,6 +519,7 @@ toSimplifiedUsefulRows overallRegion checkedRows uncheckedPatterns =
 
         ((A.At region _) as pattern) :: rest ->
             let
+                nextRow : List Pattern
                 nextRow =
                     [ simplify pattern ]
             in
@@ -561,6 +570,7 @@ isUseful matrix vector =
                                     -- of those. But what if some of those Ctors have subpatterns
                                     -- that make them less general? If so, this actually is useful!
                                     let
+                                        isUsefulAlt : Can.Ctor -> Bool
                                         isUsefulAlt (Can.Ctor name _ arity _) =
                                             isUseful
                                                 (List.filterMap (specializeRowByCtor name arity) matrix)
@@ -657,9 +667,11 @@ type Complete
 isComplete : List (List Pattern) -> Complete
 isComplete matrix =
     let
+        ctors : Dict Name.Name Can.Union
         ctors =
             collectCtors matrix
 
+        numSeen : Int
         numSeen =
             Dict.size ctors
     in

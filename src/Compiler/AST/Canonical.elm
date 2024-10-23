@@ -15,6 +15,7 @@ module Compiler.AST.Canonical exposing
     , Expr_(..)
     , FieldType(..)
     , FieldUpdate(..)
+    , FreeVars
     , Manager(..)
     , Module(..)
     , Pattern
@@ -222,9 +223,11 @@ type FieldType
 fieldsToList : Dict Name FieldType -> List ( Name, Type )
 fieldsToList fields =
     let
+        getIndex : ( a, FieldType ) -> Int
         getIndex ( _, FieldType index _ ) =
             index
 
+        dropIndex : ( a, FieldType ) -> ( a, Type )
         dropIndex ( name, FieldType _ tipe ) =
             ( name, tipe )
     in

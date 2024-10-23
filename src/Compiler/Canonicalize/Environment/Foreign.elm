@@ -1,4 +1,4 @@
-module Compiler.Canonicalize.Environment.Foreign exposing (createInitialEnv)
+module Compiler.Canonicalize.Environment.Foreign exposing (FResult, createInitialEnv)
 
 import Compiler.AST.Canonical as Can
 import Compiler.AST.Source as Src
@@ -108,12 +108,15 @@ addImport ifaces state (Src.Import (A.At _ name) maybeAlias exposing_) =
         (I.Interface pkg defs unions aliases binops) =
             Utils.find name ifaces
 
+        prefix : Name
         prefix =
             Maybe.withDefault name maybeAlias
 
+        home : ModuleName.Canonical
         home =
             ModuleName.Canonical pkg name
 
+        rawTypeInfo : Dict Name ( Env.Type, Env.Exposed Env.Ctor )
         rawTypeInfo =
             Dict.union compare
                 (Dict.toList unions
@@ -125,36 +128,46 @@ addImport ifaces state (Src.Import (A.At _ name) maybeAlias exposing_) =
                     |> Dict.fromList compare
                 )
 
+        vars : Dict Name (Env.Info Can.Annotation)
         vars =
             Dict.map (\_ -> Env.Specific home) defs
 
+        types : Dict Name (Env.Info Env.Type)
         types =
             Dict.map (\_ -> Env.Specific home << Tuple.first) rawTypeInfo
 
+        ctors : Env.Exposed Env.Ctor
         ctors =
             Dict.foldr (\_ -> addExposed << Tuple.second) Dict.empty rawTypeInfo
 
+        qvs2 : Env.Qualified Can.Annotation
         qvs2 =
             addQualified prefix vars state.q_vars
 
+        qts2 : Env.Qualified Env.Type
         qts2 =
             addQualified prefix types state.q_types
 
+        qcs2 : Env.Qualified Env.Ctor
         qcs2 =
             addQualified prefix ctors state.q_ctors
     in
     case exposing_ of
         Src.Open ->
             let
+                vs2 : Env.Exposed Can.Annotation
                 vs2 =
                     addExposed state.vars vars
 
+                ts2 : Env.Exposed Env.Type
                 ts2 =
                     addExposed state.types types
 
+                cs2 : Env.Exposed Env.Ctor
                 cs2 =
                     addExposed state.ctors ctors
 
+                bs2 : Env.Exposed Env.Binop
                 bs2 =
                     addExposed state.binops (Dict.map (binopToBinop home) binops)
             in
@@ -189,6 +202,7 @@ unionToType home name union =
 unionToTypeHelp : ModuleName.Canonical -> Name -> Can.Union -> ( Env.Type, Env.Exposed Env.Ctor )
 unionToTypeHelp home name ((Can.Union vars ctors _ _) as union) =
     let
+        addCtor : Can.Ctor -> Dict Name (Env.Info Env.Ctor) -> Dict Name (Env.Info Env.Ctor)
         addCtor (Can.Ctor ctor index _ args) dict =
             Dict.insert compare ctor (Env.Specific home (Env.Ctor home name union index args)) dict
     in
@@ -212,9 +226,11 @@ aliasToTypeHelp home name (Can.Alias vars tipe) =
     , case tipe of
         Can.TRecord fields Nothing ->
             let
+                avars : List ( Name, Can.Type )
                 avars =
                     List.map (\var -> ( var, Can.TVar var )) vars
 
+                alias_ : Can.Type
                 alias_ =
                     List.foldr
                         (\( _, t1 ) t2 -> Can.TLambda t1 t2)
@@ -267,6 +283,7 @@ addExposedValue home vars types binops state exposed =
                             case tipe of
                                 Env.Union _ _ ->
                                     let
+                                        ts2 : Dict Name (Env.Info Env.Type)
                                         ts2 =
                                             Dict.insert compare name (Env.Specific home tipe) state.types
                                     in
@@ -274,9 +291,11 @@ addExposedValue home vars types binops state exposed =
 
                                 Env.Alias _ _ _ _ ->
                                     let
+                                        ts2 : Dict Name (Env.Info Env.Type)
                                         ts2 =
                                             Dict.insert compare name (Env.Specific home tipe) state.types
 
+                                        cs2 : Env.Exposed Env.Ctor
                                         cs2 =
                                             addExposed state.ctors ctors
                                     in
@@ -296,9 +315,11 @@ addExposedValue home vars types binops state exposed =
                             case tipe of
                                 Env.Union _ _ ->
                                     let
+                                        ts2 : Dict Name (Env.Info Env.Type)
                                         ts2 =
                                             Dict.insert compare name (Env.Specific home tipe) state.types
 
+                                        cs2 : Env.Exposed Env.Ctor
                                         cs2 =
                                             addExposed state.ctors ctors
                                     in
@@ -314,6 +335,7 @@ addExposedValue home vars types binops state exposed =
             case Dict.get op binops of
                 Just binop ->
                     let
+                        bs2 : Dict Name (Env.Info Env.Binop)
                         bs2 =
                             Dict.insert compare op (binopToBinop home op binop) state.binops
                     in
@@ -326,9 +348,11 @@ addExposedValue home vars types binops state exposed =
 checkForCtorMistake : Name -> Dict Name ( Env.Type, Env.Exposed Env.Ctor ) -> List Name
 checkForCtorMistake givenName types =
     let
+        addMatches : a -> ( b, Dict Name (Env.Info Env.Ctor) ) -> List Name -> List Name
         addMatches _ ( _, exposedCtors ) matches =
             Dict.foldr addMatch matches exposedCtors
 
+        addMatch : Name -> Env.Info Env.Ctor -> List Name -> List Name
         addMatch ctorName info matches =
             if ctorName /= givenName then
                 matches

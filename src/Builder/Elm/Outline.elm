@@ -1,5 +1,6 @@
 module Builder.Elm.Outline exposing
     ( AppOutline(..)
+    , Decoder
     , Exposed(..)
     , Outline(..)
     , PkgOutline(..)
@@ -282,9 +283,11 @@ type alias Decoder a =
 decoder : Decoder Outline
 decoder =
     let
+        application : String
         application =
             "application"
 
+        package : String
         package =
             "package"
     in
@@ -404,9 +407,11 @@ boundParser bound tooLong =
     P.Parser <|
         \(P.State src pos end indent row col) ->
             let
+                len : Int
                 len =
                     end - pos
 
+                newCol : P.Col
                 newCol =
                     col + len
             in

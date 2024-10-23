@@ -54,6 +54,7 @@ check givenCode =
 
     else
         let
+            pairs : List ( String, String )
             pairs =
                 List.map (\code -> ( code, code )) (Dict.keys osiApprovedSpdxLicenses)
                     ++ Dict.toList osiApprovedSpdxLicenses

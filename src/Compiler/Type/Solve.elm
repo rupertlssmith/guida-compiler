@@ -4,7 +4,6 @@ import Array exposing (Array)
 import Compiler.AST.Canonical as Can
 import Compiler.Data.Name as Name
 import Compiler.Data.NonEmptyList as NE
-import Compiler.Elm.Kernel exposing (Chunk(..))
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Error.Type as Error
 import Compiler.Reporting.Render.Type as RT
@@ -200,6 +199,7 @@ solve env rank pools ((State _ sMark sErrors) as state) constraint =
                             |> IO.bind
                                 (\locals ->
                                     let
+                                        newEnv : Env
                                         newEnv =
                                             Dict.union compare env (Dict.map (\_ -> A.toValue) locals)
                                     in
@@ -214,6 +214,7 @@ solve env rank pools ((State _ sMark sErrors) as state) constraint =
         CLet rigids flexs header headerCon subCon ->
             let
                 -- work in the next pool to localize header
+                nextRank : Int
                 nextRank =
                     rank + 1
             in
@@ -233,6 +234,7 @@ solve env rank pools ((State _ sMark sErrors) as state) constraint =
                                 (\nextPools ->
                                     let
                                         -- introduce variables
+                                        vars : List Variable
                                         vars =
                                             rigids ++ flexs
                                     in
@@ -255,12 +257,15 @@ solve env rank pools ((State _ sMark sErrors) as state) constraint =
                                                                             |> IO.bind
                                                                                 (\(State savedEnv mark errors) ->
                                                                                     let
+                                                                                        youngMark : Mark
                                                                                         youngMark =
                                                                                             mark
 
+                                                                                        visitMark : Mark
                                                                                         visitMark =
                                                                                             nextMark youngMark
 
+                                                                                        finalMark : Mark
                                                                                         finalMark =
                                                                                             nextMark visitMark
                                                                                     in
@@ -276,9 +281,11 @@ solve env rank pools ((State _ sMark sErrors) as state) constraint =
                                                                                                                 |> IO.bind
                                                                                                                     (\_ ->
                                                                                                                         let
+                                                                                                                            newEnv : Env
                                                                                                                             newEnv =
                                                                                                                                 Dict.union compare env (Dict.map (\_ -> A.toValue) locals)
 
+                                                                                                                            tempState : State
                                                                                                                             tempState =
                                                                                                                                 State savedEnv finalMark errors
                                                                                                                         in
@@ -524,6 +531,7 @@ adjustRank youngMark visitMark groupRank var =
 
                 else
                     let
+                        minRank : Int
                         minRank =
                             min groupRank rank
                     in
@@ -536,6 +544,7 @@ adjustRank youngMark visitMark groupRank var =
 adjustRankContent : Mark -> Mark -> Int -> Content -> IO Int
 adjustRankContent youngMark visitMark groupRank content =
     let
+        go : Variable -> IO Int
         go =
             adjustRank youngMark visitMark groupRank
     in
@@ -647,6 +656,7 @@ typeToVariable rank pools tipe =
 typeToVar : Int -> Pools -> Dict Name.Name Variable -> Type -> IO Variable
 typeToVar rank pools aliasDict tipe =
     let
+        go : Type -> IO Variable
         go =
             typeToVar rank pools aliasDict
     in
@@ -746,6 +756,7 @@ unit1 =
 srcTypeToVariable : Int -> Pools -> Dict Name.Name () -> Can.Type -> IO Variable
 srcTypeToVariable rank pools freeVars srcType =
     let
+        nameToContent : Name.Name -> Content
         nameToContent name =
             if Name.isNumberType name then
                 UF.FlexSuper UF.Number (Just name)
@@ -762,6 +773,7 @@ srcTypeToVariable rank pools freeVars srcType =
             else
                 UF.FlexVar (Just name)
 
+        makeVar : Name.Name -> b -> IO Variable
         makeVar name _ =
             UF.fresh (Descriptor (nameToContent name) rank Type.noMark Nothing)
     in
@@ -776,6 +788,7 @@ srcTypeToVariable rank pools freeVars srcType =
 srcTypeToVar : Int -> Pools -> Dict Name.Name Variable -> Can.Type -> IO Variable
 srcTypeToVar rank pools flexVars srcType =
     let
+        go : Can.Type -> IO Variable
         go =
             srcTypeToVar rank pools flexVars
     in
@@ -888,6 +901,7 @@ makeCopyHelp maxRank pools variable =
 
                         else
                             let
+                                makeDescriptor : Content -> Descriptor
                                 makeDescriptor c =
                                     Descriptor c maxRank Type.noMark Nothing
                             in

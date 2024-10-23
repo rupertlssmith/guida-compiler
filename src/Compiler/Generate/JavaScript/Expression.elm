@@ -129,6 +129,7 @@ generate mode expression =
 
         Opt.Destruct (Opt.Destructor name path) body ->
             let
+                pathDef : JS.Stmt
                 pathDef =
                     JS.Var (JsName.fromLocal name) (generatePath mode path)
             in
@@ -184,11 +185,13 @@ generate mode expression =
 
         Opt.Shader src attributes uniforms ->
             let
+                toTranlation : Name.Name -> ( JsName.Name, JS.Expr )
                 toTranlation field =
                     ( JsName.fromLocal field
                     , JS.ExprString (generateField mode field)
                     )
 
+                toTranslationObject : EverySet.EverySet Name.Name -> JS.Expr
                 toTranslationObject fields =
                     JS.ExprObject (List.map toTranlation (EverySet.toList fields))
             in
@@ -267,9 +270,11 @@ toChar =
 generateCtor : Mode.Mode -> Opt.Global -> Index.ZeroBased -> Int -> Code
 generateCtor mode (Opt.Global home name) index arity =
     let
+        argNames : List JsName.Name
         argNames =
             Index.indexedMap (\i _ -> JsName.fromIndex i) (List.range 1 arity)
 
+        ctorTag : JS.Expr
         ctorTag =
             case mode of
                 Mode.Dev _ ->
@@ -300,6 +305,7 @@ ctorToInt home name index =
 generateRecord : Mode.Mode -> Dict Name.Name Opt.Expr -> JS.Expr
 generateRecord mode fields =
     let
+        toPair : ( Name.Name, Opt.Expr ) -> ( JsName.Name, JS.Expr )
         toPair ( field, value ) =
             ( generateField mode field, generateJsExpr mode value )
     in
@@ -373,6 +379,7 @@ generateFunction args body =
 
         Nothing ->
             let
+                addArg : JsName.Name -> Code -> Code
                 addArg arg code =
                     JsExpr <|
                         JS.ExprFunction Nothing [ arg ] <|
@@ -542,6 +549,7 @@ generateBasicsCall mode home name args =
     case args of
         [ elmArg ] ->
             let
+                arg : JS.Expr
                 arg =
                     generateJsExpr mode elmArg
             in
@@ -576,9 +584,11 @@ generateBasicsCall mode home name args =
 
                 _ ->
                     let
+                        left : JS.Expr
                         left =
                             generateJsExpr mode elmLeft
 
+                        right : JS.Expr
                         right =
                             generateJsExpr mode elmRight
                     in
@@ -699,6 +709,7 @@ apply func value =
 append : Mode.Mode -> Opt.Expr -> Opt.Expr -> JS.Expr
 append mode left right =
     let
+        seqs : List JS.Expr
         seqs =
             generateJsExpr mode left :: toSeqs mode right
     in
@@ -809,9 +820,11 @@ strictNEq left right =
 generateTailCall : Mode.Mode -> Name.Name -> List ( Name.Name, Opt.Expr ) -> List JS.Stmt
 generateTailCall mode name args =
     let
+        toTempVars : ( String, Opt.Expr ) -> ( JsName.Name, JS.Expr )
         toTempVars ( argName, arg ) =
             ( JsName.makeTemp argName, generateJsExpr mode arg )
 
+        toRealVars : ( Name.Name, b ) -> JS.Stmt
         toRealVars ( argName, _ ) =
             JS.ExprStmt <| JS.ExprAssign (JS.LRef (JsName.fromLocal argName)) (JS.ExprRef (JsName.makeTemp argName))
     in
@@ -880,14 +893,17 @@ generateIf mode givenBranches givenFinal =
         ( branches, final ) =
             crushIfs givenBranches givenFinal
 
+        convertBranch : ( Opt.Expr, Opt.Expr ) -> ( JS.Expr, Code )
         convertBranch ( condition, expr ) =
             ( generateJsExpr mode condition
             , generate mode expr
             )
 
+        branchExprs : List ( JS.Expr, Code )
         branchExprs =
             List.map convertBranch branches
 
+        finalCode : Code
         finalCode =
             generate mode final
     in
@@ -954,6 +970,7 @@ generateCase mode label root decider jumps =
 goto : Mode.Mode -> Name.Name -> ( Int, Opt.Expr ) -> List JS.Stmt -> List JS.Stmt
 goto mode label ( index, branch ) stmts =
     let
+        labeledDeciderStmt : JS.Stmt
         labeledDeciderStmt =
             JS.Labelled
                 (JsName.makeLabel label index)
@@ -992,12 +1009,14 @@ generateDecider mode label root decisionTree =
 generateIfTest : Mode.Mode -> Name.Name -> ( DT.Path, DT.Test ) -> JS.Expr
 generateIfTest mode root ( path, test ) =
     let
+        value : JS.Expr
         value =
             pathToJsExpr mode root path
     in
     case test of
         DT.IsCtor home name index _ opts ->
             let
+                tag : JS.Expr
                 tag =
                     case mode of
                         Mode.Dev _ ->
@@ -1099,6 +1118,7 @@ generateCaseValue mode test =
 generateCaseTest : Mode.Mode -> Name.Name -> DT.Path -> DT.Test -> JS.Expr
 generateCaseTest mode root path exampleTest =
     let
+        value : JS.Expr
         value =
             pathToJsExpr mode root path
     in

@@ -532,7 +532,7 @@ unifyAlias ((Context _ _ second _) as context) home name args realVar otherConte
             if name == otherName && home == otherHome then
                 Unify
                     (\vars ->
-                        unifyAliasArgs vars context args otherArgs
+                        unifyAliasArgs vars args otherArgs
                             |> IO.bind
                                 (\res ->
                                     case res of
@@ -556,8 +556,8 @@ unifyAlias ((Context _ _ second _) as context) home name args realVar otherConte
             merge context UF.Error
 
 
-unifyAliasArgs : List UF.Variable -> Context -> List ( Name.Name, UF.Variable ) -> List ( Name.Name, UF.Variable ) -> IO (Result UnifyErr (UnifyOk ()))
-unifyAliasArgs vars context args1 args2 =
+unifyAliasArgs : List UF.Variable -> List ( Name.Name, UF.Variable ) -> List ( Name.Name, UF.Variable ) -> IO (Result UnifyErr (UnifyOk ()))
+unifyAliasArgs vars args1 args2 =
     case args1 of
         ( _, arg1 ) :: others1 ->
             case args2 of
@@ -569,10 +569,10 @@ unifyAliasArgs vars context args1 args2 =
                                     (\res1 ->
                                         case res1 of
                                             Ok (UnifyOk vs ()) ->
-                                                unifyAliasArgs vs context others1 others2
+                                                unifyAliasArgs vs others1 others2
 
                                             Err (UnifyErr vs ()) ->
-                                                unifyAliasArgs vs context others1 others2
+                                                unifyAliasArgs vs others1 others2
                                                     |> IO.fmap
                                                         (\res2 ->
                                                             case res2 of
@@ -624,7 +624,7 @@ unifyStructure ((Context first _ second _) as context) flatType content otherCon
                     if home == otherHome && name == otherName then
                         Unify
                             (\vars ->
-                                unifyArgs vars context args otherArgs
+                                unifyArgs vars args otherArgs
                                     |> IO.bind
                                         (\unifiedArgs ->
                                             case unifiedArgs of
@@ -704,8 +704,8 @@ unifyStructure ((Context first _ second _) as context) flatType content otherCon
 -- UNIFY ARGS
 
 
-unifyArgs : List UF.Variable -> Context -> List UF.Variable -> List UF.Variable -> IO (Result UnifyErr (UnifyOk ()))
-unifyArgs vars context args1 args2 =
+unifyArgs : List UF.Variable -> List UF.Variable -> List UF.Variable -> IO (Result UnifyErr (UnifyOk ()))
+unifyArgs vars args1 args2 =
     case args1 of
         arg1 :: others1 ->
             case args2 of
@@ -717,10 +717,10 @@ unifyArgs vars context args1 args2 =
                                     (\result ->
                                         case result of
                                             Ok (UnifyOk vs ()) ->
-                                                unifyArgs vs context others1 others2
+                                                unifyArgs vs others1 others2
 
                                             Err (UnifyErr vs ()) ->
-                                                unifyArgs vs context others1 others2
+                                                unifyArgs vs others1 others2
                                                     |> IO.fmap
                                                         (Result.andThen
                                                             (\(UnifyOk vs_ ()) ->
@@ -748,12 +748,15 @@ unifyArgs vars context args1 args2 =
 unifyRecord : Context -> RecordStructure -> RecordStructure -> Unify ()
 unifyRecord context (RecordStructure fields1 ext1) (RecordStructure fields2 ext2) =
     let
+        sharedFields : Dict Name.Name ( UF.Variable, UF.Variable )
         sharedFields =
             Utils.mapIntersectionWith compare Tuple.pair fields1 fields2
 
+        uniqueFields1 : Dict Name.Name UF.Variable
         uniqueFields1 =
             Dict.diff fields1 fields2
 
+        uniqueFields2 : Dict Name.Name UF.Variable
         uniqueFields2 =
             Dict.diff fields2 fields1
     in
@@ -780,6 +783,7 @@ unifyRecord context (RecordStructure fields1 ext1) (RecordStructure fields2 ext2
 
     else
         let
+            otherFields : Dict Name.Name UF.Variable
             otherFields =
                 Dict.union compare uniqueFields1 uniqueFields2
         in

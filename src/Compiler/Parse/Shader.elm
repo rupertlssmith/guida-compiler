@@ -41,6 +41,7 @@ parseBlock =
     P.Parser <|
         \(P.State src pos end indent row col) ->
             let
+                pos6 : Int
                 pos6 =
                     pos + 6
             in
@@ -60,15 +61,19 @@ parseBlock =
                 case status of
                     Good ->
                         let
+                            off : Int
                             off =
                                 pos6
 
+                            len : Int
                             len =
                                 newPos - pos6
 
+                            block : String
                             block =
                                 String.left len (String.dropLeft off src)
 
+                            newState : P.State
                             newState =
                                 P.State src (newPos + 2) end indent newRow (newCol + 2)
                         in
@@ -93,6 +98,7 @@ eatShader src pos end row col =
 
     else
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
         in
@@ -104,6 +110,7 @@ eatShader src pos end row col =
 
         else
             let
+                newPos : Int
                 newPos =
                     pos + P.getCharWidth word
             in
@@ -123,13 +130,16 @@ parseGlsl startRow startCol src =
         Err { position, messages } ->
             -- FIXME this should be moved into guida-lang/glsl
             let
+                lines : List String
                 lines =
                     String.left position src
                         |> String.lines
 
+                row : Int
                 row =
                     List.length lines
 
+                col : Int
                 col =
                     case List.reverse lines of
                         lastLine :: _ ->
@@ -138,6 +148,7 @@ parseGlsl startRow startCol src =
                         _ ->
                             0
 
+                msg : String
                 msg =
                     showErrorMessages messages
             in

@@ -1,5 +1,6 @@
 module Compiler.Optimize.Expression exposing
-    ( destructArgs
+    ( Cycle
+    , destructArgs
     , optimize
     , optimizePotentialTailCall
     )
@@ -116,6 +117,7 @@ optimize cycle (A.At region expression) =
 
         Can.If branches finally ->
             let
+                optimizeBranch : ( Can.Expr, Can.Expr ) -> Names.Tracker ( Opt.Expr, Opt.Expr )
                 optimizeBranch ( condition, branch ) =
                     optimize cycle condition
                         |> Names.bind
@@ -170,6 +172,7 @@ optimize cycle (A.At region expression) =
 
         Can.Case expr branches ->
             let
+                optimizeBranch : Name.Name -> Can.CaseBranch -> Names.Tracker ( Can.Pattern, Opt.Expr )
                 optimizeBranch root (Can.CaseBranch pattern branch) =
                     destructCase root pattern
                         |> Names.bind
@@ -295,6 +298,7 @@ optimizeDefHelp cycle name args expr body =
                             |> Names.fmap
                                 (\( argNames, destructors ) ->
                                     let
+                                        ofunc : Opt.Expr
                                         ofunc =
                                             Opt.Function argNames (List.foldr Opt.Destruct oexpr destructors)
                                     in
@@ -356,6 +360,7 @@ destructHelp path (A.At region pattern) revDs =
 
         Can.PRecord fields ->
             let
+                toDestruct : Name.Name -> Opt.Destructor
                 toDestruct name =
                     Opt.Destructor name (Opt.Field name path)
             in
@@ -383,6 +388,7 @@ destructHelp path (A.At region pattern) revDs =
                         |> Names.bind
                             (\name ->
                                 let
+                                    newRoot : Opt.Path
                                     newRoot =
                                         Opt.Root name
                                 in
@@ -413,12 +419,12 @@ destructHelp path (A.At region pattern) revDs =
             Names.pure revDs
 
         Can.PCtor { union, args } ->
-            let
-                (Can.Union _ _ _ opts) =
-                    union
-            in
             case args of
                 [ Can.PatternCtorArg _ _ arg ] ->
+                    let
+                        (Can.Union _ _ _ opts) =
+                            union
+                    in
                     case opts of
                         Can.Normal ->
                             destructHelp (Opt.Index Index.first path) arg revDs
@@ -458,6 +464,7 @@ destructTwo path a b revDs =
                 |> Names.bind
                     (\name ->
                         let
+                            newRoot : Opt.Path
                             newRoot =
                                 Opt.Root name
                         in
@@ -503,6 +510,7 @@ optimizeTail cycle rootName argNames ((A.At _ expression) as locExpr) =
                 |> Names.bind
                     (\oargs ->
                         let
+                            isMatchingName : Bool
                             isMatchingName =
                                 case A.toValue func of
                                     Can.VarLocal name ->
@@ -530,6 +538,7 @@ optimizeTail cycle rootName argNames ((A.At _ expression) as locExpr) =
 
         Can.If branches finally ->
             let
+                optimizeBranch : ( Can.Expr, Can.Expr ) -> Names.Tracker ( Opt.Expr, Opt.Expr )
                 optimizeBranch ( condition, branch ) =
                     optimize cycle condition
                         |> Names.bind
@@ -584,6 +593,7 @@ optimizeTail cycle rootName argNames ((A.At _ expression) as locExpr) =
 
         Can.Case expr branches ->
             let
+                optimizeBranch : Name.Name -> Can.CaseBranch -> Names.Tracker ( Can.Pattern, Opt.Expr )
                 optimizeBranch root (Can.CaseBranch pattern branch) =
                     destructCase root pattern
                         |> Names.bind

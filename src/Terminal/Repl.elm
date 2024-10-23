@@ -6,9 +6,7 @@ module Terminal.Repl exposing
     , Output(..)
     , Prefill(..)
     , State(..)
-    , categorize
     , run
-    , toByteString
     )
 
 import Builder.BackgroundWriter as BW
@@ -87,13 +85,16 @@ run () flags =
 printWelcomeMessage : IO ()
 printWelcomeMessage =
     let
+        vsn : String
         vsn =
             V.toChars V.compiler
 
+        title : D.Doc
         title =
             D.fromChars "Elm"
                 |> D.plus (D.fromChars vsn)
 
+        dashes : String
         dashes =
             String.repeat (70 - String.length vsn) "-"
     in
@@ -190,6 +191,7 @@ read =
 
                     Just chars ->
                         let
+                            lines : Lines
                             lines =
                                 Lines (stripLegacyBackslash chars) []
                         in
@@ -213,6 +215,7 @@ readMore previousLines prefill =
 
                     Just chars ->
                         let
+                            lines : Lines
                             lines =
                                 addLine (stripLegacyBackslash chars) previousLines
                         in
@@ -332,9 +335,11 @@ categorize lines =
 attemptImport : Lines -> CategorizedInput
 attemptImport lines =
     let
+        src : String
         src =
             linesToByteString lines
 
+        parser : P.Parser () Src.Import
         parser =
             P.specialize (\_ _ _ -> ()) PM.chompImport
     in
@@ -367,12 +372,11 @@ ifDone lines input =
 attemptDeclOrExpr : Lines -> CategorizedInput
 attemptDeclOrExpr lines =
     let
+        src : String
         src =
             linesToByteString lines
 
-        exprParser =
-            P.specialize (toExprPosition src) PE.expression
-
+        declParser : P.Parser ( Row, Col ) ( PD.Decl, A.Position )
         declParser =
             P.specialize (toDeclPosition src) PD.declaration
     in
@@ -399,6 +403,11 @@ attemptDeclOrExpr lines =
                 Done Port
 
             else
+                let
+                    exprParser : P.Parser ( Row, Col ) ( Src.Expr, A.Position )
+                    exprParser =
+                        P.specialize (toExprPosition src) PE.expression
+                in
                 case P.fromByteString exprParser Tuple.pair src of
                     Ok _ ->
                         ifDone lines (Expr src)
@@ -448,6 +457,7 @@ toCommand lines =
 startsWithKeyword : String -> Lines -> Bool
 startsWithKeyword keyword lines =
     let
+        line : String
         line =
             getFirstLine lines
     in
@@ -464,6 +474,7 @@ startsWithKeyword keyword lines =
 toExprPosition : String -> ES.Expr -> Row -> Col -> ( Row, Col )
 toExprPosition src expr row col =
     let
+        decl : ES.Decl
         decl =
             ES.DeclDef N.replValueToPrint (ES.DeclDefBody expr row col) row col
     in
@@ -473,9 +484,11 @@ toExprPosition src expr row col =
 toDeclPosition : String -> ES.Decl -> Row -> Col -> ( Row, Col )
 toDeclPosition src decl r c =
     let
+        err : ES.Error
         err =
             ES.ParseError (ES.Declarations decl r c)
 
+        report : Report.Report
         report =
             ES.toReport (Code.toSource src) err
 
@@ -488,9 +501,11 @@ toDeclPosition src decl r c =
 annotation : P.Parser () N.Name
 annotation =
     let
+        err : Row -> Col -> ()
         err _ _ =
             ()
 
+        err_ : x -> Row -> Col -> ()
         err_ _ _ _ =
             ()
     in
@@ -501,7 +516,7 @@ annotation =
                     |> P.bind (\_ -> P.word1 ':' err)
                     |> P.bind (\_ -> PS.chompAndCheckIndent err_ err)
                     |> P.bind (\_ -> P.specialize err_ PT.expression)
-                    |> P.bind (\( _, _ ) -> PS.checkFreshLine err)
+                    |> P.bind (\_ -> PS.checkFreshLine err)
                     |> P.fmap (\_ -> name)
             )
 
@@ -543,6 +558,7 @@ eval env ((State imports types decls) as state) input =
 
             Import name src ->
                 let
+                    newState : State
                     newState =
                         State (Dict.insert compare name src imports) types decls
                 in
@@ -550,6 +566,7 @@ eval env ((State imports types decls) as state) input =
 
             Type name src ->
                 let
+                    newState : State
                     newState =
                         State imports (Dict.insert compare name src types) decls
                 in
@@ -561,6 +578,7 @@ eval env ((State imports types decls) as state) input =
 
             Decl name src ->
                 let
+                    newState : State
                     newState =
                         State imports types (Dict.insert compare name src decls)
                 in
@@ -627,6 +645,7 @@ attemptEval (Env root interpreter ansi) oldState newState output =
 interpret : FilePath -> String -> IO IO.ExitCode
 interpret interpreter javascript =
     let
+        createProcess : { cmdspec : IO.CmdSpec, std_out : IO.StdStream, std_err : IO.StdStream, std_in : IO.StdStream }
         createProcess =
             IO.procProc interpreter []
                 |> (\cp -> { cp | std_in = IO.CreatePipe })
@@ -730,6 +749,7 @@ getRoot =
                             |> IO.bind
                                 (\cache ->
                                     let
+                                        root : String
                                         root =
                                             cache ++ "/tmp"
                                     in
@@ -855,6 +875,7 @@ addMatches string isFinished dict completions =
 addMatch : String -> Bool -> N.Name -> v -> List Utils.ReplCompletion -> List Utils.ReplCompletion
 addMatch string isFinished name _ completions =
     let
+        suggestion : String
         suggestion =
             String.fromList (N.toChars name)
     in

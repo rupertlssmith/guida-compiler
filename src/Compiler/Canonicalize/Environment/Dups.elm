@@ -1,5 +1,7 @@
 module Compiler.Canonicalize.Environment.Dups exposing
-    ( Tracker
+    ( Info
+    , ToError
+    , Tracker
     , checkFields
     , checkFields_
     , detect

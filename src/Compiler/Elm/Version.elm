@@ -173,11 +173,13 @@ numberParser =
 
             else
                 let
+                    word : Char
                     word =
                         P.unsafeIndex src pos
                 in
                 if word == '0' then
                     let
+                        newState : P.State
                         newState =
                             P.State src (pos + 1) end indent row (col + 1)
                     in
@@ -188,6 +190,7 @@ numberParser =
                         ( total, newPos ) =
                             chompWord16 src (pos + 1) end (Char.toCode word - 0x30)
 
+                        newState : P.State
                         newState =
                             P.State src newPos end indent row (col + (newPos - pos))
                     in
@@ -204,6 +207,7 @@ chompWord16 src pos end total =
 
     else
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
         in

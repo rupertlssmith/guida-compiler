@@ -85,6 +85,7 @@ bump ((Env root _ _ registry ((Outline.PkgOutline pkg _ _ vsn _ _ _ _) as outlin
     case Registry.getVersions pkg registry of
         Just knownVersions ->
             let
+                bumpableVersions : List V.Version
                 bumpableVersions =
                     List.map (\( old, _, _ ) -> old) (Bump.getPossibilities knownVersions)
             in
@@ -134,18 +135,23 @@ suggestVersion (Env root cache manager _ ((Outline.PkgOutline pkg _ _ vsn _ _ _ 
                     |> Task.bind
                         (\newDocs ->
                             let
+                                changes : Diff.PackageChanges
                                 changes =
                                     Diff.diff oldDocs newDocs
 
+                                newVersion : V.Version
                                 newVersion =
                                     Diff.bump changes vsn
 
+                                old : D.Doc
                                 old =
                                     D.fromVersion vsn
 
+                                new : D.Doc
                                 new =
                                     D.fromVersion newVersion
 
+                                mag : D.Doc
                                 mag =
                                     D.fromChars <| M.toChars (Diff.toMagnitude changes)
                             in

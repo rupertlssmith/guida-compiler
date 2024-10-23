@@ -1,8 +1,11 @@
 module Builder.Elm.Details exposing
     ( BuildID
     , Details(..)
+    , Extras
     , Foreign(..)
+    , Interfaces
     , Local(..)
+    , Status
     , ValidOutline(..)
     , detailsEncoder
     , load
@@ -136,9 +139,11 @@ verifyInstall scope root (Solver.Env cache manager connection registry) outline 
         |> IO.bind
             (\time ->
                 let
+                    key : Reporting.Key msg
                     key =
                         Reporting.ignorer
 
+                    env : Env
                     env =
                         Env key scope root cache manager connection registry
                 in
@@ -254,9 +259,11 @@ verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect elm) 
             |> Task.bind
                 (\solution ->
                     let
+                        exposedList : List ModuleName.Raw
                         exposedList =
                             Outline.flattenExposed exposed
 
+                        exactDeps : Dict Pkg.Name V.Version
                         exactDeps =
                             Dict.map (\_ (Solver.Details v _) -> v) solution
 
@@ -404,15 +411,19 @@ verifyDependencies ((Env key scope root cache _ _ _) as env) time outline soluti
 
                                                             Ok artifacts ->
                                                                 let
+                                                                    objs : Opt.GlobalGraph
                                                                     objs =
                                                                         Dict.foldr (\_ -> addObjects) Opt.empty artifacts
 
+                                                                    ifaces : Interfaces
                                                                     ifaces =
                                                                         Dict.foldr (addInterfaces directDeps) Dict.empty artifacts
 
+                                                                    foreigns : Dict ModuleName.Raw Foreign
                                                                     foreigns =
                                                                         Dict.map (\_ -> OneOrMore.destruct Foreign) (Dict.foldr gatherForeigns Dict.empty (Dict.intersection artifacts directDeps))
 
+                                                                    details : Details
                                                                     details =
                                                                         Details time outline 0 Dict.empty foreigns (ArtifactsFresh ifaces objs)
                                                                 in
@@ -453,6 +464,7 @@ addInterfaces directDeps pkg (Artifacts ifaces _) dependencyInterfaces =
 gatherForeigns : Pkg.Name -> Artifacts -> Dict ModuleName.Raw (OneOrMore.OneOrMore Pkg.Name) -> Dict ModuleName.Raw (OneOrMore.OneOrMore Pkg.Name)
 gatherForeigns pkg (Artifacts ifaces _) foreigns =
     let
+        isPublic : I.DependencyInterface -> Maybe (OneOrMore.OneOrMore Pkg.Name)
         isPublic di =
             case di of
                 I.Public _ ->
@@ -479,6 +491,7 @@ type alias Dep =
 verifyDep : Env -> MVar (Dict Pkg.Name (MVar Dep)) -> Dict Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
 verifyDep (Env key _ _ cache manager _ _) depsMVar solution pkg ((Solver.Details vsn directDeps) as details) =
     let
+        fingerprint : Dict Pkg.Name V.Version
         fingerprint =
             Utils.mapIntersectionWith Pkg.compareName (\(Solver.Details v _) _ -> v) solution directDeps
     in
@@ -569,12 +582,15 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
 
                                                     Ok directArtifacts ->
                                                         let
+                                                            src : String
                                                             src =
                                                                 Stuff.package cache pkg vsn ++ "/src"
 
+                                                            foreignDeps : Dict ModuleName.Raw ForeignInterface
                                                             foreignDeps =
                                                                 gatherForeignInterfaces directArtifacts
 
+                                                            exposedDict : Dict ModuleName.Raw ()
                                                             exposedDict =
                                                                 Utils.mapFromKeys compare (\_ -> ()) (Outline.flattenExposed exposed)
                                                         in
@@ -615,18 +631,23 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
 
                                                                                                                                                         Just results ->
                                                                                                                                                             let
+                                                                                                                                                                path : String
                                                                                                                                                                 path =
                                                                                                                                                                     Stuff.package cache pkg vsn ++ "/artifacts.json"
 
+                                                                                                                                                                ifaces : Dict ModuleName.Raw I.DependencyInterface
                                                                                                                                                                 ifaces =
                                                                                                                                                                     gatherInterfaces exposedDict results
 
+                                                                                                                                                                objects : Opt.GlobalGraph
                                                                                                                                                                 objects =
                                                                                                                                                                     gatherObjects results
 
+                                                                                                                                                                artifacts : Artifacts
                                                                                                                                                                 artifacts =
                                                                                                                                                                     Artifacts ifaces objects
 
+                                                                                                                                                                fingerprints : EverySet Fingerprint
                                                                                                                                                                 fingerprints =
                                                                                                                                                                     EverySet.insert (\_ _ -> EQ) f fs
                                                                                                                                                             in
@@ -674,14 +695,17 @@ addLocalGraph name status graph =
 gatherInterfaces : Dict ModuleName.Raw () -> Dict ModuleName.Raw DResult -> Dict ModuleName.Raw I.DependencyInterface
 gatherInterfaces exposed artifacts =
     let
+        onLeft : a -> b -> c -> d
         onLeft _ _ _ =
             crash "compiler bug manifesting in Elm.Details.gatherInterfaces"
 
+        onBoth : comparable -> () -> DResult -> Dict comparable I.DependencyInterface -> Dict comparable I.DependencyInterface
         onBoth k () iface =
             toLocalInterface I.public iface
                 |> Maybe.map (Dict.insert compare k)
                 |> Maybe.withDefault identity
 
+        onRight : comparable -> DResult -> Dict comparable I.DependencyInterface -> Dict comparable I.DependencyInterface
         onRight k iface =
             toLocalInterface I.private iface
                 |> Maybe.map (Dict.insert compare k)
@@ -762,6 +786,7 @@ type Status
 crawlModule : Dict ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> IO (Maybe Status)
 crawlModule foreignDeps mvar pkg src docsStatus name =
     let
+        path : FilePath
         path =
             Utils.fpForwardSlash src (Utils.fpAddExtension (ModuleName.toFilePath name) "elm")
     in
@@ -816,9 +841,11 @@ crawlImports foreignDeps mvar pkg src imports =
         |> IO.bind
             (\statusDict ->
                 let
+                    deps : Dict Name.Name ()
                     deps =
                         Dict.fromList compare (List.map (\i -> ( Src.getImportName i, () )) imports)
 
+                    news : Dict Name.Name ()
                     news =
                         Dict.diff deps statusDict
                 in
@@ -835,6 +862,7 @@ crawlImports foreignDeps mvar pkg src imports =
 crawlKernel : Dict ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO (Maybe Status)
 crawlKernel foreignDeps mvar pkg src name =
     let
+        path : FilePath
         path =
             Utils.fpForwardSlash src (Utils.fpAddExtension (ModuleName.toFilePath name) "js")
     in
@@ -901,9 +929,11 @@ compile pkg mvar status =
 
                                                             Ok (Compile.Artifacts canonical annotations objects) ->
                                                                 let
+                                                                    ifaces : I.Interface
                                                                     ifaces =
                                                                         I.fromModule pkg canonical annotations
 
+                                                                    docs : Maybe Docs.Module
                                                                     docs =
                                                                         makeDocs docsStatus canonical
                                                                 in
@@ -1012,6 +1042,7 @@ toDocs result =
 downloadPackage : Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Result Exit.PackageProblem ())
 downloadPackage cache manager pkg vsn =
     let
+        url : String
         url =
             Website.metadata pkg vsn "endpoint.json"
     in

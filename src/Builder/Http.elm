@@ -3,6 +3,7 @@ module Builder.Http exposing
     , Header
     , HttpExceptionContent(..)
     , Manager
+    , MultiPart
     , Sha
     , accept
     , errorDecoder
@@ -28,7 +29,6 @@ import Data.IO as IO exposing (IO(..))
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Url.Builder
-import Utils.Crash exposing (todo)
 import Utils.Main as Utils exposing (HTTPResponse(..), SomeException(..))
 
 
@@ -154,25 +154,6 @@ type HttpExceptionContent
     = StatusCodeException (HTTPResponse ()) String
     | TooManyRedirects (List (HTTPResponse ()))
     | ConnectionFailure SomeException
-
-
-type HttpException
-    = HttpException
-
-
-handleHttpException : String -> (Error -> e) -> HttpException -> IO (Result e a)
-handleHttpException url onError httpException =
-    -- case httpException of
-    --     InvalidUrlException _ reason ->
-    --         IO.pure (Err (onError (BadUrl url reason)))
-    --     HttpExceptionRequest _ content ->
-    --         IO.pure (Err (onError (BadHttp url content)))
-    todo "handleHttpException"
-
-
-handleSomeException : String -> (Error -> e) -> SomeException -> IO (Result e a)
-handleSomeException url onError exception =
-    IO.pure (Err (onError (BadMystery url exception)))
 
 
 

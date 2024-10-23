@@ -114,6 +114,7 @@ parser =
             in
             if isGood && (newPos - pos) < 256 then
                 let
+                    newState : P.State
                     newState =
                         P.State src newPos end indent row newCol
                 in
@@ -130,6 +131,7 @@ parser =
 chompStart : String -> Int -> Int -> Int -> ( Bool, Int, Int )
 chompStart src pos end col =
     let
+        width : Int
         width =
             Var.getUpperWidth src pos end
     in
@@ -147,9 +149,11 @@ chompInner src pos end col =
 
     else
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
 
+            width : Int
             width =
                 Var.getInnerWidthHelp src pos end word
         in

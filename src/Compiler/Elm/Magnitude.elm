@@ -35,6 +35,7 @@ toString =
 compare : Magnitude -> Magnitude -> Order
 compare m1 m2 =
     let
+        toInt : Magnitude -> number
         toInt m =
             case m of
                 PATCH ->

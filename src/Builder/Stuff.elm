@@ -129,6 +129,7 @@ findRootHelp dirs =
 withRootLock : String -> IO a -> IO a
 withRootLock root work =
     let
+        dir : String
         dir =
             stuff root
     in
@@ -182,6 +183,7 @@ getCacheDir projectName =
         |> IO.bind
             (\home ->
                 let
+                    root : Utils.FilePath
                     root =
                         Utils.fpForwardSlash home (Utils.fpForwardSlash compilerVersion projectName)
                 in

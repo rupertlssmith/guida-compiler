@@ -1,6 +1,7 @@
 module Compiler.Elm.Docs exposing
     ( Alias(..)
     , Binop(..)
+    , Comment
     , Documentation
     , Error(..)
     , Module(..)
@@ -271,12 +272,15 @@ encodeAssoc assoc =
 assocDecoder : D.Decoder Error Binop.Associativity
 assocDecoder =
     let
+        left : String
         left =
             "left"
 
+        non : String
         non =
             "non"
 
+        right : String
         right =
             "right"
     in
@@ -429,6 +433,7 @@ chompUntilDocs =
                 ( ( isDocs, newPos ), ( newRow, newCol ) ) =
                     untilDocs src pos end row col
 
+                newState : P.State
                 newState =
                     P.State src newPos end indent newRow newCol
             in
@@ -443,6 +448,7 @@ untilDocs src pos end row col =
 
     else
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
         in
@@ -451,6 +457,7 @@ untilDocs src pos end row col =
 
         else
             let
+                pos5 : Int
                 pos5 =
                     pos + 5
             in
@@ -467,6 +474,7 @@ untilDocs src pos end row col =
 
             else
                 let
+                    newPos : Int
                     newPos =
                         pos + P.getCharWidth word
                 in
@@ -548,9 +556,11 @@ onlyInExports name (A.At region _) =
 checkDefs : Dict Name (A.Located Can.Export) -> Src.Comment -> Dict Name Src.Comment -> Can.Module -> Result E.Error Module
 checkDefs exportDict overview comments (Can.Module name _ _ decls unions aliases infixes effects) =
     let
+        types : Types
         types =
             gatherTypes decls Dict.empty
 
+        info : Info
         info =
             Info comments types unions aliases infixes effects
     in
@@ -749,6 +759,7 @@ addDef types def =
 
         Can.TypedDef (A.At _ name) _ typedArgs _ resultType ->
             let
+                tipe : Can.Type
                 tipe =
                     List.foldr Can.TLambda resultType (List.map Tuple.second typedArgs)
             in

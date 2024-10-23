@@ -151,6 +151,7 @@ levelZero =
 makeLevel : Int -> String -> Level
 makeLevel level oldTabs =
     let
+        tabs : String
         tabs =
             if level <= String.length oldTabs then
                 oldTabs
@@ -339,6 +340,7 @@ merge a b =
 linesMap : (a -> ( Lines, b )) -> List a -> ( Bool, List b )
 linesMap func xs =
     let
+        pairs : List ( Lines, b )
         pairs =
             List.map func xs
     in
@@ -461,12 +463,15 @@ fromExpr ((Level indent nextLevel) as level) grouping expression =
 
         ExprIf condExpr thenExpr elseExpr ->
             let
+                condB : String
                 condB =
                     Tuple.second (fromExpr level Atomic condExpr)
 
+                thenB : String
                 thenB =
                     Tuple.second (fromExpr level Atomic thenExpr)
 
+                elseB : String
                 elseB =
                     Tuple.second (fromExpr level Atomic elseExpr)
             in

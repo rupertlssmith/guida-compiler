@@ -1,13 +1,13 @@
 module Utils.Main exposing
     ( AsyncException(..)
+    , ChItem
     , Chan
     , FilePath
     , HTTPResponse(..)
-    , HttpServerConfig
-    , HttpServerSnap
     , LockSharedExclusive(..)
     , MVar(..)
     , ReplCompletion(..)
+    , ReplCompletionFunc
     , ReplInputT
     , ReplSettings(..)
     , SomeException(..)
@@ -17,11 +17,7 @@ module Utils.Main exposing
     , binaryDecodeFileOrFail
     , binaryEncodeFile
     , bracket_
-    , bsHPut
-    , bsReadFile
     , builderHPutBuilder
-    , chItemDecoder
-    , defaultHttpServerConfig
     , dictMapM_
     , dirCanonicalizePath
     , dirCreateDirectoryIfMissing
@@ -30,7 +26,6 @@ module Utils.Main exposing
     , dirFindExecutable
     , dirGetAppUserDataDirectory
     , dirGetCurrentDirectory
-    , dirGetDirectoryContents
     , dirGetModificationTime
     , dirRemoveDirectoryRecursive
     , dirRemoveFile
@@ -44,10 +39,8 @@ module Utils.Main exposing
     , filterM
     , find
     , foldM
-    , foldl1
     , foldl1_
     , foldr1
-    , forMArray
     , forM_
     , forkIO
     , fpAddExtension
@@ -67,7 +60,6 @@ module Utils.Main exposing
     , fromException
     , httpResponseDecoder
     , httpResponseEncoder
-    , httpServe
     , indexedForA
     , indexedTraverse
     , indexedZipWithA
@@ -125,8 +117,6 @@ module Utils.Main exposing
     , replRunInputT
     , replWithInterrupt
     , sequenceADict
-    , sequenceAList
-    , sequenceAListIO
     , sequenceDictMaybe
     , sequenceDictResult
     , sequenceDictResult_
@@ -150,13 +140,12 @@ module Utils.Main exposing
     , zipZEntries
     )
 
-import Array exposing (Array)
 import Basics.Extra exposing (flip)
 import Builder.Reporting.Task as Task exposing (Task)
 import Compiler.Data.Index as Index
 import Compiler.Data.NonEmptyList as NE
 import Compiler.Reporting.Result as R
-import Data.IO as IO exposing (IO(..), IORef(..))
+import Data.IO as IO exposing (IO(..))
 import Data.Map as Dict exposing (Dict)
 import Data.Set as EverySet exposing (EverySet)
 import Json.Decode as Decode
@@ -175,11 +164,6 @@ liftInputT =
 liftIOInputT : IO a -> ReplInputT a
 liftIOInputT =
     identity
-
-
-bsHPut : IO.Handle -> String -> IO ()
-bsHPut handle str =
-    IO.make (Decode.succeed ()) (IO.HPutStr handle str)
 
 
 fpDropFileName : FilePath -> FilePath
@@ -275,7 +259,7 @@ find k items =
             item
 
         Nothing ->
-            crash ("Map.!: given key is not an element in the map (key:`" ++ Debug.toString k ++ "`, keys: `" ++ Debug.toString (Dict.keys items) ++ "`)")
+            crash "Map.!: given key is not an element in the map"
 
 
 mapLookupMin : Dict comparable a -> Maybe ( comparable, a )
@@ -417,6 +401,7 @@ keysSet keyComparison =
 unzip3 : List ( a, b, c ) -> ( List a, List b, List c )
 unzip3 pairs =
     let
+        step : ( a, b, c ) -> ( List a, List b, List c ) -> ( List a, List b, List c )
         step ( x, y, z ) ( xs, ys, zs ) =
             ( x :: xs, y :: ys, z :: zs )
     in
@@ -426,6 +411,7 @@ unzip3 pairs =
 mapM_ : (a -> IO b) -> List a -> IO ()
 mapM_ f =
     let
+        c : a -> IO () -> IO ()
         c x k =
             IO.bind (\_ -> k) (f x)
     in
@@ -435,6 +421,7 @@ mapM_ f =
 dictMapM_ : (a -> IO b) -> Dict k a -> IO ()
 dictMapM_ f =
     let
+        c : k -> a -> IO () -> IO ()
         c _ x k =
             IO.bind (\_ -> k) (f x)
     in
@@ -449,11 +436,6 @@ mapM =
 maybeMapM : (a -> Maybe b) -> List a -> Maybe (List b)
 maybeMapM =
     listMaybeTraverse
-
-
-mapMArray : (a -> IO b) -> Array a -> IO (Array b)
-mapMArray =
-    arrayTraverse
 
 
 mapMinViewWithKey : (k -> k -> Order) -> (( k, a ) -> comparable) -> Dict k a -> Maybe ( ( k, a ), Dict k a )
@@ -471,11 +453,6 @@ mapMapMaybe keyComparison func =
     Dict.toList
         >> List.filterMap (\( k, a ) -> Maybe.map (Tuple.pair k) (func a))
         >> Dict.fromList keyComparison
-
-
-forMArray : Array a -> (a -> IO b) -> IO (Array b)
-forMArray array f =
-    mapMArray f array
 
 
 forM_ : List a -> (a -> IO b) -> IO ()
@@ -545,12 +522,6 @@ listTraverseStateT : (a -> IO.StateT s b) -> List a -> IO.StateT s (List b)
 listTraverseStateT f =
     List.foldr (\a -> IO.bindStateT (\c -> IO.fmapStateT (\va -> va :: c) (f a)))
         (IO.pureStateT [])
-
-
-arrayTraverse : (a -> IO b) -> Array a -> IO (Array b)
-arrayTraverse f =
-    Array.foldl (\a -> IO.bind (\c -> IO.fmap (\va -> Array.push va c) (f a)))
-        (IO.pure Array.empty)
 
 
 tupleTraverse : (b -> IO c) -> ( a, b ) -> IO ( a, c )
@@ -650,6 +621,7 @@ listLookup key list =
 foldl1 : (a -> a -> a) -> List a -> a
 foldl1 f xs =
     let
+        mf : a -> Maybe a -> Maybe a
         mf x m =
             Just
                 (case m of
@@ -676,6 +648,7 @@ foldl1_ f =
 foldr1 : (a -> a -> a) -> List a -> a
 foldr1 f xs =
     let
+        mf : a -> Maybe a -> Maybe a
         mf x m =
             Just
                 (case m of
@@ -825,16 +798,12 @@ fpTakeDirectory filename =
 
 
 type LockSharedExclusive
-    = LockShared
-    | LockExclusive
+    = LockExclusive
 
 
 lockWithFileLock : String -> LockSharedExclusive -> (() -> IO a) -> IO a
 lockWithFileLock path mode ioFunc =
     case mode of
-        LockShared ->
-            crash "lockWithFileLock for `LockShared` is not implemeted!"
-
         LockExclusive ->
             lockFile path
                 |> IO.bind ioFunc
@@ -907,11 +876,6 @@ dirDoesDirectoryExist path =
 dirCanonicalizePath : FilePath -> IO FilePath
 dirCanonicalizePath path =
     IO.make Decode.string (IO.DirCanonicalizePath path)
-
-
-dirGetDirectoryContents : FilePath -> IO (List FilePath)
-dirGetDirectoryContents _ =
-    todo "dirGetDirectoryContents"
 
 
 dirWithCurrentDirectory : FilePath -> IO a -> IO a
@@ -1186,15 +1150,6 @@ exitSuccess =
 
 
 
--- Data.ByteString
-
-
-bsReadFile : String -> IO String
-bsReadFile _ =
-    todo "bsReadFile"
-
-
-
 -- Data.ByteString.Builder
 
 
@@ -1285,6 +1240,7 @@ replGetInputLineWithInitial prompt ( left, right ) =
 stateGet : Decode.Decoder s -> IO.StateT s s
 stateGet decoder =
     let
+        io : IO s
         io =
             IO.make decoder IO.StateGet
     in
@@ -1293,7 +1249,7 @@ stateGet decoder =
 
 statePut : (s -> Encode.Value) -> s -> IO ()
 statePut encoder s =
-    IO.pure ()
+    IO.make (Decode.succeed ()) (IO.StatePut (encoder s))
 
 
 
@@ -1342,76 +1298,3 @@ httpResponseEncoder _ =
 httpResponseDecoder : Decode.Decoder (HTTPResponse a)
 httpResponseDecoder =
     Decode.succeed HTTPResponse
-
-
-
--- Snap.Http.Server
-
-
-type HttpServerProxyType
-    = HttpServerNoProxy
-    | HttpServerHaProxy
-    | HttpServerX_Forwarded_For
-
-
-type HttpServerConfigLog
-    = HttpServerConfigNoLog
-    | HttpServerConfigFileLog FilePath
-    | HttpServerConfigIoLog (String -> IO ())
-
-
-type alias HttpServerConfig =
-    { hostname : Maybe String
-    , accessLog : Maybe HttpServerConfigLog
-    , errorLog : Maybe HttpServerConfigLog
-    , locale : Maybe String
-    , port_ : Maybe Int
-    , bind : Maybe String
-
-    -- , sslport : Maybe Int
-    , sslbind : Maybe String
-    , sslcert : Maybe FilePath
-    , sslchaincert : Maybe Bool
-    , sslkey : Maybe FilePath
-
-    -- , unixsocket : Maybe FilePath
-    -- , unixaccessmode : Maybe Int
-    , compression : Maybe Bool
-    , verbose : Maybe Bool
-
-    -- , errorHandler : Maybe (SomeException -> HttpServerSnap ())
-    , defaultTimeout : Maybe Int
-
-    -- , other : Maybe a
-    -- , proxyType : Maybe HttpServerProxyType
-    -- , startupHook : Maybe (StartupInfo a -> IO ())
-    }
-
-
-defaultHttpServerConfig : HttpServerConfig
-defaultHttpServerConfig =
-    { hostname = Just "localhost"
-    , accessLog = Just <| HttpServerConfigFileLog "log/access.log"
-    , errorLog = Just <| HttpServerConfigFileLog "log/error.log"
-    , locale = Just "en_US"
-    , port_ = Nothing
-    , compression = Just True
-    , verbose = Just True
-
-    -- , errorHandler = Just defaultErrorHandler
-    , bind = Just "0.0.0.0"
-    , sslbind = Nothing
-    , sslcert = Nothing
-    , sslkey = Nothing
-    , sslchaincert = Nothing
-    , defaultTimeout = Just 60
-    }
-
-
-type HttpServerSnap a
-    = HttpServerSnap
-
-
-httpServe : HttpServerConfig -> HttpServerSnap () -> IO ()
-httpServe _ _ =
-    IO.pure ()

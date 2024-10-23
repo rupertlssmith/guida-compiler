@@ -119,9 +119,11 @@ chompDefArgsAndBody maybeDocs start name tipe revArgs =
             |> P.fmap
                 (\( body, end ) ->
                     let
+                        value : Src.Value
                         value =
                             Src.Value name (List.reverse revArgs) body tipe
 
+                        avalue : A.Located Src.Value
                         avalue =
                             A.at start end value
                     in
@@ -169,6 +171,7 @@ typeDecl maybeDocs start =
                                             |> P.fmap
                                                 (\( tipe, end ) ->
                                                     let
+                                                        alias : A.Located Src.Alias
                                                         alias =
                                                             A.at start end (Src.Alias name args tipe)
                                                     in
@@ -187,6 +190,7 @@ typeDecl maybeDocs start =
                                                         |> P.fmap
                                                             (\( variants, end ) ->
                                                                 let
+                                                                    union : A.Located Src.Union
                                                                     union =
                                                                         A.at start end (Src.Union name args variants)
                                                                 in
@@ -307,9 +311,11 @@ portDecl maybeDocs =
 infix_ : P.Parser E.Module (A.Located Src.Infix)
 infix_ =
     let
+        err : P.Row -> P.Col -> E.Module
         err =
             E.Infix
 
+        err_ : a -> P.Row -> P.Col -> E.Module
         err_ =
             \_ -> E.Infix
     in

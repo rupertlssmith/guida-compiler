@@ -63,6 +63,7 @@ foldl1 step (Nonempty x xs) =
 sortBy : (a -> comparable) -> Nonempty a -> Nonempty a
 sortBy toRank (Nonempty x xs) =
     let
+        comparison : a -> a -> Order
         comparison a b =
             compare (toRank a) (toRank b)
     in

@@ -16,7 +16,6 @@ import Compiler.Parse.Variable exposing (reservedWords)
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Doc as D exposing (Doc)
 import Data.Set as EverySet
-import List.Extra as List
 import Prelude
 
 
@@ -77,14 +76,17 @@ toPair source r1 r2 ( oneStart, oneEnd ) ( twoStart, twoMiddle, twoEnd ) =
 render : Source -> A.Region -> Maybe A.Region -> Doc
 render sourceLines ((A.Region (A.Position startLine _) (A.Position endLine _)) as region) maybeSubRegion =
     let
+        relevantLines : List ( Int, String )
         relevantLines =
             sourceLines
                 |> List.drop (startLine - 1)
                 |> List.take (1 + endLine - startLine)
 
+        width : Int
         width =
             String.length (String.fromInt (Tuple.first (Prelude.last relevantLines)))
 
+        smallerRegion : A.Region
         smallerRegion =
             Maybe.withDefault region maybeSubRegion
     in
@@ -103,9 +105,11 @@ makeUnderline width realEndLine (A.Region (A.Position start c1) (A.Position end 
 
     else
         let
+            spaces : String
             spaces =
                 String.repeat (c1 + width + 1) " "
 
+            zigzag : String
             zigzag =
                 String.repeat (max 1 (c2 - c1)) "^"
         in
@@ -130,12 +134,15 @@ drawLine addZigZag width startLine endLine ( n, line ) =
 addLineNumber : Bool -> Int -> Int -> Int -> Int -> Doc -> Doc
 addLineNumber addZigZag width start end n line =
     let
+        number : String
         number =
             String.fromInt n
 
+        lineNumber : String
         lineNumber =
             String.repeat (width - String.length number) " " ++ number ++ "|"
 
+        spacer : Doc
         spacer =
             if addZigZag && start <= n && n <= end then
                 D.red (D.fromChars ">")
@@ -166,21 +173,27 @@ renderPair source region1 region2 =
     in
     if startRow1 == endRow1 && endRow1 == startRow2 && startRow2 == endRow2 then
         let
+            lineNumber : String
             lineNumber =
                 String.fromInt startRow1
 
+            spaces1 : String
             spaces1 =
                 String.repeat (startCol1 + String.length lineNumber + 1) " "
 
+            zigzag1 : String
             zigzag1 =
                 String.repeat (endCol1 - startCol1) "^"
 
+            spaces2 : String
             spaces2 =
                 String.repeat (startCol2 - endCol1) " "
 
+            zigzag2 : String
             zigzag2 =
                 String.repeat (endCol2 - startCol2) "^"
 
+            line : String
             line =
                 List.head (List.filter (\( row, _ ) -> row == startRow1) source) |> Maybe.map Tuple.second |> Maybe.withDefault ""
         in
@@ -250,9 +263,11 @@ whatIsNext sourceLines row col =
 detectKeywords : Char -> String -> Next
 detectKeywords c rest =
     let
+        cs : String
         cs =
             List.filter isInner (String.toList rest) |> String.fromList
 
+        name : String
         name =
             String.fromChar c ++ cs
     in

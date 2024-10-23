@@ -49,6 +49,7 @@ writeBinary encoder (Scope workList) path value =
                                 |> IO.bind
                                     (\oldWork ->
                                         let
+                                            newWork : List (Utils.MVar ())
                                             newWork =
                                                 mvar :: oldWork
                                         in

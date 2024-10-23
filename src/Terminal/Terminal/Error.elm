@@ -131,9 +131,6 @@ argsToDoc command args =
         Multiple required (Parser { plural }) ->
             argsToDocHelp command required [ "zero or more " ++ plural ]
 
-        Optional required (Parser { singular }) ->
-            argsToDocHelp command required [ "optional " ++ singular ]
-
 
 argsToDocHelp : String -> RequiredArgs -> List String -> P.Doc
 argsToDocHelp command args names =
@@ -171,6 +168,7 @@ flagsToDocs flags docs =
 
         FMore more flag ->
             let
+                flagDoc : P.Doc
                 flagDoc =
                     P.vcat <|
                         case flag of
@@ -225,12 +223,15 @@ toSummary exeName (Command name summary _ _ (Args args) _ _) =
 toCommandList : String -> List Command -> P.Doc
 toCommandList exeName commands =
     let
+        names : List String
         names =
             List.map toName commands
 
+        width : Int
         width =
             Utils.listMaximum compare (List.map String.length names)
 
+        toExample : String -> P.Doc
         toExample name =
             P.text
                 (exeName
@@ -250,9 +251,11 @@ toCommandList exeName commands =
 exitWithUnknown : String -> List String -> IO a
 exitWithUnknown unknown knowns =
     let
+        nearbyKnowns : List ( Int, String )
         nearbyKnowns =
             List.takeWhile (\( r, _ ) -> r <= 3) (Suggest.rank unknown identity knowns)
 
+        suggestions : List P.Doc
         suggestions =
             case List.map toGreen (List.map Tuple.second nearbyKnowns) of
                 [] ->
@@ -508,6 +511,7 @@ flagErrorToDocs flagError =
             flagErrorHelp "I do not recognize this flag:"
                 unknown
                 (let
+                    unknownName : String
                     unknownName =
                         List.takeWhile ((/=) '=') (List.dropWhile ((==) '-') (String.toList unknown))
                             |> String.fromList

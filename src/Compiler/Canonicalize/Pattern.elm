@@ -1,6 +1,7 @@
 module Compiler.Canonicalize.Pattern exposing
     ( Bindings
     , DupsDict
+    , PResult
     , canonicalize
     , verify
     )
@@ -119,6 +120,7 @@ canonicalizeCtor env region name patterns ctor =
     case ctor of
         Env.Ctor home tipe union index args ->
             let
+                toCanonicalArg : Index.ZeroBased -> Src.Pattern -> Can.Type -> R.RResult DupsDict w Error.Error Can.PatternCtorArg
                 toCanonicalArg argIndex argPattern argTipe =
                     R.fmap (Can.PatternCtorArg argIndex argTipe)
                         (canonicalize env argPattern)
@@ -181,6 +183,7 @@ logVar name region value =
 logFields : List (A.Located Name.Name) -> a -> PResult DupsDict w a
 logFields fields value =
     let
+        addField : A.Located Name.Name -> Dups.Tracker A.Region -> Dups.Tracker A.Region
         addField (A.At region name) dict =
             Dups.insert name region region dict
     in

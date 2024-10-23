@@ -229,9 +229,11 @@ fromTypeVariableScheme scheme =
         --     writeDigitsAtEnd mba size extra
         --     freeze mba
         let
+            letter : Int
             letter =
                 remainderBy 26 scheme
 
+            extra : Int
             extra =
                 max 0 (scheme - letter)
         in

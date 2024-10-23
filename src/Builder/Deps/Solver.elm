@@ -6,6 +6,7 @@ module Builder.Deps.Solver exposing
     , InnerSolver(..)
     , Solver
     , SolverResult(..)
+    , State
     , addToApp
     , envDecoder
     , envEncoder
@@ -134,15 +135,19 @@ addToApp : Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> 
 addToApp cache connection registry pkg ((Outline.AppOutline _ _ direct indirect testDirect testIndirect) as outline) =
     Stuff.withRegistryLock cache <|
         let
+            allIndirects : Dict Pkg.Name V.Version
             allIndirects =
                 Dict.union Pkg.compareName indirect testIndirect
 
+            allDirects : Dict Pkg.Name V.Version
             allDirects =
                 Dict.union Pkg.compareName direct testDirect
 
+            allDeps : Dict Pkg.Name V.Version
             allDeps =
                 Dict.union Pkg.compareName allDirects allIndirects
 
+            attempt : (a -> C.Constraint) -> Dict Pkg.Name a -> Solver (Dict Pkg.Name V.Version)
             attempt toConstraint deps =
                 try (Dict.insert Pkg.compareName pkg C.anything (Dict.map (\_ -> toConstraint) deps))
         in
@@ -174,15 +179,19 @@ addToApp cache connection registry pkg ((Outline.AppOutline _ _ direct indirect 
 toApp : State -> Pkg.Name -> Outline.AppOutline -> Dict Pkg.Name V.Version -> Dict Pkg.Name V.Version -> AppSolution
 toApp (State _ _ _ constraints) pkg (Outline.AppOutline elm srcDirs direct _ testDirect _) old new =
     let
+        d : Dict Pkg.Name V.Version
         d =
             Dict.intersection new (Dict.insert Pkg.compareName pkg V.one direct)
 
+        i : Dict Pkg.Name V.Version
         i =
             Dict.diff (getTransitive constraints new (Dict.toList d) Dict.empty) d
 
+        td : Dict Pkg.Name V.Version
         td =
             Dict.intersection new (Dict.remove pkg testDirect)
 
+        ti : Dict Pkg.Name V.Version
         ti =
             Dict.diff new (Utils.mapUnions Pkg.compareName [ d, i, td ])
     in
@@ -204,9 +213,11 @@ getTransitive constraints solution unvisited visited =
                     (Constraints _ newDeps) =
                         Utils.find info constraints
 
+                    newUnvisited : List ( Pkg.Name, V.Version )
                     newUnvisited =
                         Dict.toList (Dict.intersection solution (Dict.diff newDeps visited))
 
+                    newVisited : Dict Pkg.Name V.Version
                     newVisited =
                         Dict.insert Pkg.compareName pkg vsn visited
                 in
@@ -234,6 +245,7 @@ type Goals
 exploreGoals : Goals -> Solver (Dict Pkg.Name V.Version)
 exploreGoals (Goals pending solved) =
     let
+        compare : ( Pkg.Name, b ) -> String
         compare ( name, _ ) =
             Pkg.toString name
     in
@@ -243,9 +255,11 @@ exploreGoals (Goals pending solved) =
 
         Just ( ( name, constraint ), otherPending ) ->
             let
+                goals1 : Goals
                 goals1 =
                     Goals otherPending solved
 
+                addVsn : V.Version -> Solver Goals
                 addVsn =
                     addVersion goals1 name
             in
@@ -329,9 +343,11 @@ getConstraints pkg vsn =
     Solver <|
         \((State cache connection registry cDict) as state) ->
             let
+                key : ( Pkg.Name, V.Version )
                 key =
                     ( pkg, vsn )
 
+                compare : ( Pkg.Name, V.Version ) -> ( Pkg.Name, V.Version ) -> Order
                 compare ( pkg1, vsn1 ) ( pkg2, vsn2 ) =
                     case Pkg.compareName pkg1 pkg2 of
                         EQ ->
@@ -346,12 +362,15 @@ getConstraints pkg vsn =
 
                 Nothing ->
                     let
+                        toNewState : Constraints -> State
                         toNewState cs =
                             State cache connection registry (Dict.insert compare key cs cDict)
 
+                        home : String
                         home =
                             Stuff.package cache pkg vsn
 
+                        path : String
                         path =
                             home ++ "/elm.json"
                     in
@@ -391,6 +410,7 @@ getConstraints pkg vsn =
 
                                         Online manager ->
                                             let
+                                                url : String
                                                 url =
                                                     Website.metadata pkg vsn "elm.json"
                                             in
@@ -512,37 +532,6 @@ fmap func (Solver solver) =
 pure : a -> Solver a
 pure a =
     Solver (\state -> IO.pure (ISOk state a (InnerBackNoOp state)))
-
-
-apply : Solver a -> Solver (a -> b) -> Solver b
-apply (Solver solverArg) (Solver solverFunc) =
-    Solver <|
-        \state ->
-            solverFunc state
-                |> IO.bind
-                    (\res1 ->
-                        case res1 of
-                            ISOk stateF func backF ->
-                                solverArg stateF
-                                    |> IO.fmap
-                                        (\res2 ->
-                                            case res2 of
-                                                ISOk stateA arg backA ->
-                                                    ISOk stateA (func arg) backA
-
-                                                ISBack stateA ->
-                                                    ISBack stateA
-
-                                                ISErr e ->
-                                                    ISErr e
-                                        )
-
-                            ISBack stateA ->
-                                IO.pure (ISBack stateA)
-
-                            ISErr e ->
-                                IO.pure (ISErr e)
-                    )
 
 
 bind : (a -> Solver b) -> Solver a -> Solver b

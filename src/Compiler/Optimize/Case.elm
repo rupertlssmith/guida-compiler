@@ -21,9 +21,11 @@ optimize temp root optBranches =
         ( patterns, indexedBranches ) =
             List.unzip (List.indexedMap indexify optBranches)
 
+        decider : Opt.Decider Int
         decider =
             treeToDecider (DT.compile patterns)
 
+        targetCounts : Dict Int Int
         targetCounts =
             countTargets decider
 
@@ -92,6 +94,7 @@ treeToDecider tree =
 toChain : DT.Path -> DT.Test -> DT.DecisionTree -> DT.DecisionTree -> Opt.Decider Int
 toChain path test successTree failureTree =
     let
+        failure : Opt.Decider Int
         failure =
             treeToDecider failureTree
     in
@@ -143,6 +146,7 @@ createChoices targetCounts ( target, branch ) =
 insertChoices : Dict Int Opt.Choice -> Opt.Decider Int -> Opt.Decider Opt.Choice
 insertChoices choiceDict decider =
     let
+        go : Opt.Decider Int -> Opt.Decider Opt.Choice
         go =
             insertChoices choiceDict
     in

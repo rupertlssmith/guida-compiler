@@ -1,4 +1,4 @@
-module Compiler.Canonicalize.Environment.Local exposing (add)
+module Compiler.Canonicalize.Environment.Local exposing (LResult, add)
 
 import Compiler.AST.Canonical as Can
 import Compiler.AST.Source as Src
@@ -49,6 +49,7 @@ addVars module_ env =
         |> R.fmap
             (\topLevelVars ->
                 let
+                    vs2 : Dict Name Env.Var
                     vs2 =
                         Dict.union compare topLevelVars env.vars
                 in
@@ -60,6 +61,7 @@ addVars module_ env =
 collectVars : Src.Module -> LResult i w (Dict Name.Name Env.Var)
 collectVars (Src.Module _ _ _ _ values _ _ _ effects) =
     let
+        addDecl : A.Located Src.Value -> Dups.Tracker Env.Var -> Dups.Tracker Env.Var
         addDecl (A.At _ (Src.Value (A.At region name) _ _ _)) =
             Dups.insert name region (Env.TopLevel region)
     in
@@ -75,6 +77,7 @@ toEffectDups effects =
 
         Src.Ports ports ->
             let
+                addPort : Src.Port -> Dups.Tracker Env.Var -> Dups.Tracker Env.Var
                 addPort (Src.Port (A.At region name) _) =
                     Dups.insert name region (Env.TopLevel region)
             in
@@ -101,12 +104,15 @@ toEffectDups effects =
 addTypes : Src.Module -> Env.Env -> LResult i w Env.Env
 addTypes (Src.Module _ _ _ _ _ unions aliases _ _) env =
     let
+        addAliasDups : A.Located Src.Alias -> Dups.Tracker () -> Dups.Tracker ()
         addAliasDups (A.At _ (Src.Alias (A.At region name) _ _)) =
             Dups.insert name region ()
 
+        addUnionDups : A.Located Src.Union -> Dups.Tracker () -> Dups.Tracker ()
         addUnionDups (A.At _ (Src.Union (A.At region name) _ _)) =
             Dups.insert name region ()
 
+        typeNameDups : Dups.Tracker ()
         typeNameDups =
             List.foldl addUnionDups (List.foldl addAliasDups Dups.none aliases) unions
     in
@@ -123,6 +129,7 @@ addUnion home types ((A.At _ (Src.Union (A.At _ name) _ _)) as union) =
     R.fmap
         (\arity ->
             let
+                one : Env.Info Env.Type
                 one =
                     Env.Specific home (Env.Union arity home)
             in
@@ -138,9 +145,11 @@ addUnion home types ((A.At _ (Src.Union (A.At _ name) _ _)) as union) =
 addAliases : List (A.Located Src.Alias) -> Env.Env -> LResult i w Env.Env
 addAliases aliases env =
     let
+        nodes : List ( A.Located Src.Alias, Name, List Name )
         nodes =
             List.map toNode aliases
 
+        sccs : List (Graph.SCC (A.Located Src.Alias))
         sccs =
             Graph.stronglyConnComp nodes
     in
@@ -158,9 +167,11 @@ addAlias ({ home, vars, types, ctors, binops, q_vars, q_types, q_ctors } as env)
                             |> R.bind
                                 (\ctype ->
                                     let
+                                        one : Env.Info Env.Type
                                         one =
                                             Env.Specific home (Env.Alias (List.length args) home args ctype)
 
+                                        ts1 : Dict Name (Env.Info Env.Type)
                                         ts1 =
                                             Dict.insert compare name one types
                                     in
@@ -176,6 +187,7 @@ addAlias ({ home, vars, types, ctors, binops, q_vars, q_types, q_ctors } as env)
                 |> R.bind
                     (\args ->
                         let
+                            toName : A.Located Src.Alias -> Name
                             toName (A.At _ (Src.Alias (A.At _ name) _ _)) =
                                 name
                         in
@@ -224,9 +236,11 @@ getEdges (A.At _ tipe) edges =
 checkUnionFreeVars : A.Located Src.Union -> LResult i w Int
 checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
     let
+        addArg : A.Located Name -> Dups.Tracker A.Region -> Dups.Tracker A.Region
         addArg (A.At region arg) dict =
             Dups.insert arg region region dict
 
+        addCtorFreeVars : ( a, List Src.Type ) -> Dict Name A.Region -> Dict Name A.Region
         addCtorFreeVars ( _, tipes ) freeVars =
             List.foldl addFreeVars freeVars tipes
     in
@@ -234,6 +248,7 @@ checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
         |> R.bind
             (\boundVars ->
                 let
+                    freeVars : Dict Name A.Region
                     freeVars =
                         List.foldr addCtorFreeVars Dict.empty ctors
                 in
@@ -250,6 +265,7 @@ checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
 checkAliasFreeVars : A.Located Src.Alias -> LResult i w (List Name.Name)
 checkAliasFreeVars (A.At aliasRegion (Src.Alias (A.At _ name) args tipe)) =
     let
+        addArg : A.Located Name -> Dups.Tracker A.Region -> Dups.Tracker A.Region
         addArg (A.At region arg) dict =
             Dups.insert arg region region dict
     in
@@ -257,9 +273,11 @@ checkAliasFreeVars (A.At aliasRegion (Src.Alias (A.At _ name) args tipe)) =
         |> R.bind
             (\boundVars ->
                 let
+                    freeVars : Dict Name A.Region
                     freeVars =
                         addFreeVars tipe Dict.empty
 
+                    overlap : Int
                     overlap =
                         Dict.size (Dict.intersection boundVars freeVars)
                 in
@@ -293,6 +311,7 @@ addFreeVars (A.At region tipe) freeVars =
 
         Src.TRecord fields maybeExt ->
             let
+                extFreeVars : Dict Name A.Region
                 extFreeVars =
                     case maybeExt of
                         Nothing ->
@@ -330,6 +349,7 @@ addCtors (Src.Module _ _ _ _ _ unions aliases _ _) env =
                                 |> R.bind
                                     (\ctors ->
                                         let
+                                            cs2 : Dict Name (Env.Info Env.Ctor)
                                             cs2 =
                                                 Dict.union compare ctors env.ctors
                                         in
@@ -354,6 +374,7 @@ type alias CtorDups =
 canonicalizeAlias : Env.Env -> A.Located Src.Alias -> LResult i w ( ( Name.Name, Can.Alias ), CtorDups )
 canonicalizeAlias ({ home } as env) (A.At _ (Src.Alias (A.At region name) args tipe)) =
     let
+        vars : List Name
         vars =
             List.map A.toValue args
     in
@@ -375,9 +396,11 @@ canonicalizeAlias ({ home } as env) (A.At _ (Src.Alias (A.At region name) args t
 toRecordCtor : ModuleName.Canonical -> Name.Name -> List Name.Name -> Dict Name.Name Can.FieldType -> Env.Ctor
 toRecordCtor home name vars fields =
     let
+        avars : List ( Name, Can.Type )
         avars =
             List.map (\var -> ( var, Can.TVar var )) vars
 
+        alias : Can.Type
         alias =
             List.foldr
                 (\( _, t1 ) t2 -> Can.TLambda t1 t2)
@@ -397,12 +420,15 @@ canonicalizeUnion ({ home } as env) (A.At _ (Src.Union (A.At _ name) avars ctors
         |> R.bind
             (\cctors ->
                 let
+                    vars : List Name
                     vars =
                         List.map A.toValue avars
 
+                    alts : List Can.Ctor
                     alts =
                         List.map A.toValue cctors
 
+                    union : Can.Union
                     union =
                         Can.Union vars alts (List.length alts) (toOpts ctors)
                 in

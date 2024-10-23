@@ -140,9 +140,11 @@ fieldsToDocs localizer fields =
 addField : L.Localizer -> Name -> Type -> List ( D.Doc, D.Doc ) -> List ( D.Doc, D.Doc )
 addField localizer fieldName fieldType docs =
     let
+        f : D.Doc
         f =
             D.fromName fieldName
 
+        t : D.Doc
         t =
             toDoc localizer RT.None fieldType
     in
@@ -184,7 +186,7 @@ type Problem
     | AnythingToBool
     | AnythingFromMaybe
     | ArityMismatch Int Int
-    | BadFlexSuper Direction Super Name Type
+    | BadFlexSuper Direction Super Type
     | BadRigidVar Name Type
     | BadRigidSuper Super Name Type
     | FieldTypo Name (List Name)
@@ -317,6 +319,7 @@ toDiff localizer ctx tipe1 tipe2 =
 
             else
                 let
+                    f : Type -> D.Doc
                     f =
                         toDoc localizer RT.Func
                 in
@@ -445,9 +448,11 @@ toDiff localizer ctx tipe1 tipe2 =
 toDiffOtherwise : L.Localizer -> RT.Context -> ( Type, Type ) -> Diff D.Doc
 toDiffOtherwise localizer ctx (( tipe1, tipe2 ) as pair) =
     let
+        doc1 : D.Doc
         doc1 =
             D.dullyellow (toDoc localizer ctx tipe1)
 
+        doc2 : D.Doc
         doc2 =
             D.dullyellow (toDoc localizer ctx tipe2)
     in
@@ -456,8 +461,8 @@ toDiffOtherwise localizer ctx (( tipe1, tipe2 ) as pair) =
             ( RigidVar x, other ) ->
                 Bag.one <| BadRigidVar x other
 
-            ( FlexSuper s x, other ) ->
-                Bag.one <| BadFlexSuper Have s x other
+            ( FlexSuper s _, other ) ->
+                Bag.one <| BadFlexSuper Have s other
 
             ( RigidSuper s x, other ) ->
                 Bag.one <| BadRigidSuper s x other
@@ -465,8 +470,8 @@ toDiffOtherwise localizer ctx (( tipe1, tipe2 ) as pair) =
             ( other, RigidVar x ) ->
                 Bag.one <| BadRigidVar x other
 
-            ( other, FlexSuper s x ) ->
-                Bag.one <| BadFlexSuper Need s x other
+            ( other, FlexSuper s _ ) ->
+                Bag.one <| BadFlexSuper Need s other
 
             ( other, RigidSuper s x ) ->
                 Bag.one <| BadRigidSuper s x other
@@ -496,7 +501,7 @@ toDiffOtherwise localizer ctx (( tipe1, tipe2 ) as pair) =
                 else
                     Bag.empty
 
-            ( _, _ ) ->
+            _ ->
                 Bag.empty
 
 
@@ -507,6 +512,7 @@ toDiffOtherwise localizer ctx (( tipe1, tipe2 ) as pair) =
 same : L.Localizer -> RT.Context -> Type -> Diff D.Doc
 same localizer ctx tipe =
     let
+        doc : D.Doc
         doc =
             toDoc localizer ctx tipe
     in
@@ -643,6 +649,7 @@ diffAliasedRecord localizer t1 t2 =
 diffRecord : L.Localizer -> Dict Name Type -> Extension -> Dict Name Type -> Extension -> Diff D.Doc
 diffRecord localizer fields1 ext1 fields2 ext2 =
     let
+        toUnknownDocs : Name -> Type -> ( D.Doc, D.Doc )
         toUnknownDocs field tipe =
             ( D.dullyellow (D.fromName field), toDoc localizer RT.None tipe )
 
@@ -650,18 +657,11 @@ diffRecord localizer fields1 ext1 fields2 ext2 =
         toOverlapDocs field t1 t2 =
             fmapDiff (Tuple.pair (D.fromName field)) <| toDiff localizer RT.None t1 t2
 
+        left : Dict Name ( D.Doc, D.Doc )
         left =
             Dict.map toUnknownDocs (Dict.diff fields1 fields2)
 
-        both : Dict Name (Diff ( D.Doc, D.Doc ))
-        both =
-            Dict.merge (\_ _ acc -> acc)
-                (\field t1 t2 acc -> Dict.insert compare field (toOverlapDocs field t1 t2) acc)
-                (\_ _ acc -> acc)
-                fields1
-                fields2
-                Dict.empty
-
+        right : Dict Name ( D.Doc, D.Doc )
         right =
             Dict.map toUnknownDocs (Dict.diff fields2 fields1)
 
@@ -671,6 +671,15 @@ diffRecord localizer fields1 ext1 fields2 ext2 =
                 fieldsDiffDict : Diff (Dict Name ( D.Doc, D.Doc ))
                 fieldsDiffDict =
                     let
+                        both : Dict Name (Diff ( D.Doc, D.Doc ))
+                        both =
+                            Dict.merge (\_ _ acc -> acc)
+                                (\field t1 t2 acc -> Dict.insert compare field (toOverlapDocs field t1 t2) acc)
+                                (\_ _ acc -> acc)
+                                fields1
+                                fields2
+                                Dict.empty
+
                         sequenceA : Dict Name (Diff ( D.Doc, D.Doc )) -> Diff (Dict Name ( D.Doc, D.Doc ))
                         sequenceA =
                             Dict.foldr (\k x acc -> applyDiff acc (fmapDiff (Dict.insert compare k) x)) (pureDiff Dict.empty)
@@ -679,9 +688,6 @@ diffRecord localizer fields1 ext1 fields2 ext2 =
                         sequenceA both
 
                     else
-                        -- Map.union
-                        --     <$> sequenceA both
-                        --     <*> Diff left right (Different Bag.empty)
                         liftA2 (Dict.union compare)
                             (sequenceA both)
                             (Diff left right (Different Bag.empty))
@@ -698,6 +704,7 @@ diffRecord localizer fields1 ext1 fields2 ext2 =
             case ( hasFixedFields ext1, hasFixedFields ext2 ) of
                 ( True, True ) ->
                     let
+                        minView : Maybe ( Name, ( D.Doc, D.Doc ) )
                         minView =
                             Dict.toList left
                                 |> List.sortBy Tuple.first
@@ -716,6 +723,7 @@ diffRecord localizer fields1 ext1 fields2 ext2 =
 
                 ( False, True ) ->
                     let
+                        minView : Maybe ( Name, ( D.Doc, D.Doc ) )
                         minView =
                             Dict.toList left
                                 |> List.sortBy Tuple.first
@@ -730,6 +738,7 @@ diffRecord localizer fields1 ext1 fields2 ext2 =
 
                 ( True, False ) ->
                     let
+                        minView : Maybe ( Name, ( D.Doc, D.Doc ) )
                         minView =
                             Dict.toList right
                                 |> List.sortBy Tuple.first
@@ -766,12 +775,15 @@ hasFixedFields ext =
 extToDiff : Extension -> Extension -> Diff (Maybe D.Doc)
 extToDiff ext1 ext2 =
     let
+        status : Status
         status =
             extToStatus ext1 ext2
 
+        extDoc1 : Maybe D.Doc
         extDoc1 =
             extToDoc ext1
 
+        extDoc2 : Maybe D.Doc
         extDoc2 =
             extToDoc ext2
     in

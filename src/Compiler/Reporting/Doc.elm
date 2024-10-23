@@ -30,7 +30,6 @@ import List.Extra as List
 import Prelude
 import System.Console.Ansi as Ansi
 import Text.PrettyPrint.ANSI.Leijen as P
-import Utils.Crash exposing (crash)
 
 
 
@@ -79,6 +78,7 @@ toString doc =
 toLine : Doc -> String
 toLine doc =
     let
+        maxBound : number
         maxBound =
             2147483647
     in
@@ -218,27 +218,32 @@ ordinal index =
 intToOrdinal : Int -> String
 intToOrdinal number =
     let
-        remainder10 =
-            modBy 10 number
-
+        remainder100 : Int
         remainder100 =
             modBy 100 number
 
+        ending : String
         ending =
             if List.member remainder100 [ 11, 12, 13 ] then
                 "th"
 
-            else if remainder10 == 1 then
-                "st"
-
-            else if remainder10 == 2 then
-                "nd"
-
-            else if remainder10 == 3 then
-                "rd"
-
             else
-                "th"
+                let
+                    remainder10 : Int
+                    remainder10 =
+                        modBy 10 number
+                in
+                if remainder10 == 1 then
+                    "st"
+
+                else if remainder10 == 2 then
+                    "nd"
+
+                else if remainder10 == 3 then
+                    "rd"
+
+                else
+                    "th"
     in
     String.fromInt number ++ ending
 
@@ -246,6 +251,7 @@ intToOrdinal number =
 cycle : Int -> Name -> List Name -> Doc
 cycle indent_ name names =
     let
+        toLn : Name -> P.Doc
         toLn n =
             P.append cycleLn (P.dullyellow (fromName n))
     in
@@ -338,17 +344,10 @@ type Color
 toJsonHelp : Style -> List String -> P.SimpleDoc -> List E.Value
 toJsonHelp style revChunks simpleDoc =
     case simpleDoc of
-        P.SFail ->
-            crash <|
-                "according to the main implementation, @SFail@ can not appear uncaught in a rendered @SimpleDoc@"
-
         P.SEmpty ->
             [ encodeChunks style revChunks ]
 
-        P.SChar char rest ->
-            toJsonHelp style (String.fromChar char :: revChunks) rest
-
-        P.SText _ string rest ->
+        P.SText string rest ->
             toJsonHelp style (string :: revChunks) rest
 
         P.SLine indent_ rest ->
@@ -426,6 +425,7 @@ toColor layer intensity color =
 
         Ansi.Foreground ->
             let
+                pick : b -> b -> b
                 pick dull vivid =
                     case intensity of
                         Ansi.Dull ->
@@ -464,6 +464,7 @@ toColor layer intensity color =
 encodeChunks : Style -> List String -> E.Value
 encodeChunks (Style bold underline color) revChunks =
     let
+        chars : String
         chars =
             String.concat (List.reverse revChunks)
     in

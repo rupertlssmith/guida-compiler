@@ -33,6 +33,7 @@ type Context
 lambda : Context -> D.Doc -> D.Doc -> List D.Doc -> D.Doc
 lambda context arg1 arg2 args =
     let
+        lambdaDoc : D.Doc
         lambdaDoc =
             D.align <| D.sep (arg1 :: List.map (\a -> D.plus a (D.fromChars "->")) (arg2 :: args))
     in
@@ -55,6 +56,7 @@ apply context name args =
 
         _ ->
             let
+                applyDoc : D.Doc
                 applyDoc =
                     D.hang 4 <| D.sep (name :: args)
             in
@@ -72,6 +74,7 @@ apply context name args =
 tuple : D.Doc -> D.Doc -> List D.Doc -> D.Doc
 tuple a b cs =
     let
+        entries : List D.Doc
         entries =
             List.interweave (D.fromChars "( " :: List.repeat (List.length (b :: cs)) (D.fromChars ", ")) (a :: b :: cs)
     in
@@ -113,9 +116,11 @@ entryToDoc ( fieldName, fieldType ) =
 vrecordSnippet : ( D.Doc, D.Doc ) -> List ( D.Doc, D.Doc ) -> D.Doc
 vrecordSnippet entry entries =
     let
+        field : D.Doc
         field =
             D.fromChars "{" |> D.plus (entryToDoc entry)
 
+        fields : List D.Doc
         fields =
             List.intersperse (D.fromChars ",") (List.map entryToDoc entries ++ [ D.fromChars "..." ])
                 |> List.intersperse (D.fromChars " ")

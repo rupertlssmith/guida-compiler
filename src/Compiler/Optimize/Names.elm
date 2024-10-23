@@ -71,6 +71,7 @@ registerGlobal home name =
     Tracker <|
         \uid deps fields ->
             let
+                global : Opt.Global
                 global =
                     Opt.Global home name
             in
@@ -82,6 +83,7 @@ registerDebug name home region =
     Tracker <|
         \uid deps fields ->
             let
+                global : Opt.Global
                 global =
                     Opt.Global ModuleName.debug name
             in
@@ -93,9 +95,11 @@ registerCtor home name index opts =
     Tracker <|
         \uid deps fields ->
             let
+                global : Opt.Global
                 global =
                     Opt.Global home name
 
+                newDeps : EverySet Opt.Global
                 newDeps =
                     EverySet.insert Opt.compareGlobal global deps
             in

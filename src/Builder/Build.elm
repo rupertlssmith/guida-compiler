@@ -1,6 +1,8 @@
 module Builder.Build exposing
     ( Artifacts(..)
+    , BResult
     , CachedInterface(..)
+    , Dependencies
     , DocsGoal(..)
     , Module(..)
     , ReplArtifacts(..)
@@ -142,6 +144,7 @@ fromExposed docsDecoder docsEncoder style root details docsGoal ((NE.Nonempty e 
                                         |> IO.bind
                                             (\mvar ->
                                                 let
+                                                    docsNeed : DocsNeed
                                                     docsNeed =
                                                         toDocsNeed docsGoal
                                                 in
@@ -328,6 +331,7 @@ type Status
 crawlDeps : Env -> MVar StatusDict -> List ModuleName.Raw -> a -> IO a
 crawlDeps env mvar deps blockedValue =
     let
+        crawlNew : ModuleName.Raw -> () -> IO (MVar Status)
         crawlNew name () =
             fork statusEncoder (crawlModule env mvar (DocsNeed False) name)
     in
@@ -335,9 +339,11 @@ crawlDeps env mvar deps blockedValue =
         |> IO.bind
             (\statusDict ->
                 let
+                    depsDict : Dict ModuleName.Raw ()
                     depsDict =
                         Map.fromKeys (\_ -> ()) deps
 
+                    newsDict : Dict ModuleName.Raw ()
                     newsDict =
                         Dict.diff depsDict statusDict
                 in
@@ -357,6 +363,7 @@ crawlDeps env mvar deps blockedValue =
 crawlModule : Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> IO Status
 crawlModule ((Env _ root projectType srcDirs buildID locals foreigns) as env) mvar ((DocsNeed needsDocs) as docsNeed) name =
     let
+        fileName : String
         fileName =
             ModuleName.toFilePath name ++ ".elm"
     in
@@ -432,9 +439,11 @@ crawlFile ((Env _ root projectType _ buildID _ _) as env) mvar docsNeed expected
                             Just ((A.At _ actualName) as name) ->
                                 if expectedName == actualName then
                                     let
+                                        deps : List Name.Name
                                         deps =
                                             List.map Src.getImportName imports
 
+                                        local : Details.Local
                                         local =
                                             Details.Local path time deps (List.any isMain values) lastChange buildID
                                     in
@@ -671,6 +680,7 @@ checkDepsHelp root results deps new same cached importProblems isBlocked lastDep
 toImportErrors : Env -> ResultDict -> List Src.Import -> NE.Nonempty ( ModuleName.Raw, Import.Problem ) -> NE.Nonempty Import.Error
 toImportErrors (Env _ _ _ _ _ locals foreigns) results imports problems =
     let
+        knownModules : EverySet.EverySet ModuleName.Raw
         knownModules =
             EverySet.fromList compare
                 (List.concat
@@ -680,12 +690,15 @@ toImportErrors (Env _ _ _ _ _ locals foreigns) results imports problems =
                     ]
                 )
 
+        unimportedModules : EverySet.EverySet ModuleName.Raw
         unimportedModules =
             EverySet.diff knownModules (EverySet.fromList compare (List.map Src.getImportName imports))
 
+        regionDict : Dict Name.Name A.Region
         regionDict =
             Dict.fromList compare (List.map (\(Src.Import (A.At region name) _ _) -> ( name, region )) imports)
 
+        toError : ( Name.Name, Import.Problem ) -> Import.Error
         toError ( name, problem ) =
             Import.Error (Utils.find name regionDict) name unimportedModules problem
     in
@@ -801,9 +814,11 @@ checkMidpointAndRoots dmvar statuses sroots =
 checkForCycles : Dict ModuleName.Raw Status -> Maybe (NE.Nonempty ModuleName.Raw)
 checkForCycles modules =
     let
+        graph : List Node
         graph =
             Dict.foldr addToGraph [] modules
 
+        sccs : List (Graph.SCC ModuleName.Raw)
         sccs =
             Graph.stronglyConnComp graph
     in
@@ -835,6 +850,7 @@ type alias Node =
 addToGraph : ModuleName.Raw -> Status -> List Node -> List Node
 addToGraph name status graph =
     let
+        dependencies : List ModuleName.Raw
         dependencies =
             case status of
                 SCached (Details.Local _ _ deps _ _ _) ->
@@ -865,6 +881,7 @@ addToGraph name status graph =
 checkUniqueRoots : Dict ModuleName.Raw Status -> NE.Nonempty RootStatus -> Maybe Exit.BuildProjectProblem
 checkUniqueRoots insides sroots =
     let
+        outsidesDict : Dict ModuleName.Raw (OneOrMore.OneOrMore FilePath)
         outsidesDict =
             Utils.mapFromListWith compare OneOrMore.more (List.filterMap rootStatusToNamePathPair (NE.toList sroots))
     in
@@ -933,6 +950,7 @@ checkInside name p1 status =
 compile : Env -> DocsNeed -> Details.Local -> String -> Dict ModuleName.Raw I.Interface -> Src.Module -> IO BResult
 compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path time deps main lastChange _) source ifaces modul =
     let
+        pkg : Pkg.Name
         pkg =
             projectTypeToPkg projectType
     in
@@ -949,12 +967,15 @@ compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path ti
 
                             Ok docs ->
                                 let
+                                    name : Name.Name
                                     name =
                                         Src.getName modul
 
+                                    iface : I.Interface
                                     iface =
                                         I.fromModule pkg canonical annotations
 
+                                    elmi : String
                                     elmi =
                                         Stuff.elmi root name
                                 in
@@ -972,6 +993,7 @@ compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path ti
                                                                         |> IO.fmap
                                                                             (\_ ->
                                                                                 let
+                                                                                    local : Details.Local
                                                                                     local =
                                                                                         Details.Local path time deps main lastChange buildID
                                                                                 in
@@ -986,6 +1008,7 @@ compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path ti
                                                                                     |> IO.fmap
                                                                                         (\_ ->
                                                                                             let
+                                                                                                local : Details.Local
                                                                                                 local =
                                                                                                     Details.Local path time deps main buildID buildID
                                                                                             in
@@ -1002,6 +1025,7 @@ compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path ti
                                                                                 |> IO.fmap
                                                                                     (\_ ->
                                                                                         let
+                                                                                            local : Details.Local
                                                                                             local =
                                                                                                 Details.Local path time deps main buildID buildID
                                                                                         in
@@ -1263,6 +1287,7 @@ fromRepl root details source =
                             |> IO.bind
                                 (\dmvar ->
                                     let
+                                        deps : List Name.Name
                                         deps =
                                             List.map Src.getImportName imports
                                     in
@@ -1319,9 +1344,11 @@ fromRepl root details source =
 finalizeReplArtifacts : Env -> String -> Src.Module -> DepsStatus -> ResultDict -> Dict ModuleName.Raw BResult -> IO (Result Exit.Repl ReplArtifacts)
 finalizeReplArtifacts ((Env _ root projectType _ _ _ _) as env) source ((Src.Module _ _ _ imports _ _ _ _ _) as modul) depsStatus resultMVars results =
     let
+        pkg : Pkg.Name
         pkg =
             projectTypeToPkg projectType
 
+        compileInput : Dict ModuleName.Raw I.Interface -> IO (Result Exit.Repl ReplArtifacts)
         compileInput ifaces =
             Compile.compile pkg ifaces modul
                 |> IO.fmap
@@ -1329,12 +1356,15 @@ finalizeReplArtifacts ((Env _ root projectType _ _ _ _) as env) source ((Src.Mod
                         case result of
                             Ok (Compile.Artifacts ((Can.Module name _ _ _ _ _ _ _) as canonical) annotations objects) ->
                                 let
+                                    h : ModuleName.Canonical
                                     h =
                                         name
 
+                                    m : Module
                                     m =
                                         Fresh (Src.getName modul) (I.fromModule pkg canonical annotations) objects
 
+                                    ms : List Module
                                     ms =
                                         Dict.foldr addInside [] results
                                 in
@@ -1406,9 +1436,11 @@ findRoots env paths =
 checkRoots : NE.Nonempty RootInfo -> Result Exit.BuildProjectProblem (NE.Nonempty RootLocation)
 checkRoots infos =
     let
+        toOneOrMore : RootInfo -> ( FilePath, OneOrMore.OneOrMore RootInfo )
         toOneOrMore ((RootInfo absolute _ _) as loc) =
             ( absolute, OneOrMore.one loc )
 
+        fromOneOrMore : RootInfo -> List RootInfo -> Result Exit.BuildProjectProblem ()
         fromOneOrMore (RootInfo _ relative _) locs =
             case locs of
                 [] ->
@@ -1458,6 +1490,7 @@ getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
 
     else
         let
+            absoluteSegments : List String
             absoluteSegments =
                 Utils.fpSplitDirectories dirs ++ [ final ]
         in
@@ -1467,6 +1500,7 @@ getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
 
             [ ( _, Ok names ) ] ->
                 let
+                    name : String
                     name =
                         String.join "." names
                 in
@@ -1476,9 +1510,11 @@ getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
                             case matchingDirs of
                                 d1 :: d2 :: _ ->
                                     let
+                                        p1 : FilePath
                                         p1 =
                                             addRelative d1 (Utils.fpJoinPath names ++ ".elm")
 
+                                        p2 : FilePath
                                         p2 =
                                             addRelative d2 (Utils.fpJoinPath names ++ ".elm")
                                     in
@@ -1585,9 +1621,11 @@ crawlRoot ((Env _ _ projectType _ buildID _ _) as env) mvar root =
                                     case Parse.fromByteString projectType source of
                                         Ok ((Src.Module _ _ _ imports values _ _ _ _) as modul) ->
                                             let
+                                                deps : List Name.Name
                                                 deps =
                                                     List.map Src.getImportName imports
 
+                                                local : Details.Local
                                                 local =
                                                     Details.Local path time deps (List.any isMain values) buildID buildID
                                             in
@@ -1655,9 +1693,11 @@ checkRoot ((Env _ root _ _ _ _ _) as env) results rootStatus =
 compileOutside : Env -> Details.Local -> String -> Dict ModuleName.Raw I.Interface -> Src.Module -> IO RootResult
 compileOutside (Env key _ projectType _ _ _ _) (Details.Local path time _ _ _ _) source ifaces modul =
     let
+        pkg : Pkg.Name
         pkg =
             projectTypeToPkg projectType
 
+        name : Name.Name
         name =
             Src.getName modul
     in
@@ -1698,6 +1738,7 @@ toArtifacts (Env _ root projectType _ _ _ _) foreigns results rootResults =
 gatherProblemsOrMains : Dict ModuleName.Raw BResult -> NE.Nonempty RootResult -> Result (NE.Nonempty Error.Module) (NE.Nonempty Root)
 gatherProblemsOrMains results (NE.Nonempty rootResult rootResults) =
     let
+        addResult : RootResult -> ( List Error.Module, List Root ) -> ( List Error.Module, List Root )
         addResult result ( es, roots ) =
             case result of
                 RInside n ->
@@ -1712,6 +1753,7 @@ gatherProblemsOrMains results (NE.Nonempty rootResult rootResults) =
                 ROutsideBlocked ->
                     ( es, roots )
 
+        errors : List Error.Module
         errors =
             Dict.foldr (\_ -> addErrors) [] results
     in

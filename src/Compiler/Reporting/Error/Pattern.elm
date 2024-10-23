@@ -133,6 +133,7 @@ patternToDoc context pattern =
 
         NonList (P.Ctor _ name args) ->
             let
+                ctorDoc : D.Doc
                 ctorDoc =
                     D.hsep (D.fromChars name :: List.map (patternToDoc Arg) args)
             in
@@ -149,6 +150,7 @@ patternToDoc context pattern =
 
         FiniteList entries ->
             let
+                entryDocs : List D.Doc
                 entryDocs =
                     List.map (patternToDoc Unambiguous) entries
             in
@@ -158,6 +160,7 @@ patternToDoc context pattern =
 
         Conses conses finalPattern ->
             let
+                consDoc : D.Doc
                 consDoc =
                     List.foldr
                         (\hd tl ->

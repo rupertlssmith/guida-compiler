@@ -189,12 +189,15 @@ elm_explorations =
 suggestions : Dict String Name
 suggestions =
     let
+        random : Name
         random =
             toName elm "random"
 
+        time : Name
         time =
             toName elm "time"
 
+        file : Name
         file =
             toName elm "file"
     in
@@ -223,12 +226,15 @@ suggestions =
 nearbyNames : Name -> List Name -> List Name
 nearbyNames (Name author1 project1) possibleNames =
     let
+        authorDist : Author -> Int
         authorDist =
             authorDistance author1
 
+        projectDist : Project -> Int
         projectDist =
             projectDistance project1
 
+        nameDistance : Name -> Int
         nameDistance (Name author2 project2) =
             authorDist author2 + projectDist project2
     in
@@ -266,6 +272,7 @@ encode name =
 keyDecoder : (Row -> Col -> x) -> D.KeyDecoder x Name
 keyDecoder toError =
     let
+        keyParser : P.Parser x Name
         keyParser =
             P.specialize (\( r, c ) _ _ -> toError r c) parser
     in
@@ -297,6 +304,7 @@ parseName isGoodStart isGoodInner =
 
             else
                 let
+                    word : Char
                     word =
                         P.unsafeIndex src pos
                 in
@@ -308,14 +316,17 @@ parseName isGoodStart isGoodInner =
                         ( isGood, newPos ) =
                             chompName isGoodInner src (pos + 1) end False
 
+                        len : Int
                         len =
                             newPos - pos
 
+                        newCol : Col
                         newCol =
                             col + len
                     in
                     if isGood && len < 256 then
                         let
+                            newState : P.State
                             newState =
                                 P.State src newPos end indent row newCol
                         in
@@ -347,6 +358,7 @@ chompName isGoodChar src pos end prevWasDash =
 
     else
         let
+            word : Char
             word =
                 P.unsafeIndex src pos
         in
