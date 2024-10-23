@@ -5,7 +5,6 @@ import Compiler.AST.Optimized as Opt
 import Compiler.Data.Name as Name
 import Compiler.Optimize.DecisionTree as DT
 import Data.Map as Dict exposing (Dict)
-import List.Extra as List
 import Prelude
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils

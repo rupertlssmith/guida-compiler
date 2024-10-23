@@ -23,7 +23,7 @@ import Compiler.Elm.Version as V
 import Compiler.Json.Decode as D
 import Compiler.Json.Encode as E
 import Compiler.Parse.Primitives as P
-import Data.IO as IO exposing (IO(..))
+import Data.IO as IO exposing (IO)
 import Data.Map as Dict exposing (Dict)
 import Json.Decode as Decode
 import Json.Encode as Encode

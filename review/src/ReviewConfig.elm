@@ -35,11 +35,11 @@ import Simplify
 
 config : List Rule
 config =
-    [ --Docs.ReviewAtDocs.rule
+    [ -- Docs.ReviewAtDocs.rule
       NoConfusingPrefixOperator.rule
     , NoDebug.Log.rule
 
-    --, NoDebug.TodoOrToString.rule
+    -- , NoDebug.TodoOrToString.rule
     --    |> Rule.ignoreErrorsForDirectories [ "tests/" ]
     , NoExposingEverything.rule
     , NoImportingEverything.rule []
@@ -49,12 +49,13 @@ config =
     , NoSimpleLetBody.rule
     , NoPrematureLetComputation.rule
 
-    --, NoUnused.CustomTypeConstructors.rule []
-    --, NoUnused.CustomTypeConstructorArgs.rule
-    --, NoUnused.Dependencies.rule
-    --, NoUnused.Exports.rule
-    --, NoUnused.Parameters.rule
-    --, NoUnused.Patterns.rule
-    --, NoUnused.Variables.rule
+    -- , NoUnused.CustomTypeConstructors.rule []
+    -- , NoUnused.CustomTypeConstructorArgs.rule
+    , NoUnused.Dependencies.rule
+
+    -- , NoUnused.Exports.rule
+    -- , NoUnused.Parameters.rule
+    -- , NoUnused.Patterns.rule
+    -- , NoUnused.Variables.rule
     , Simplify.rule Simplify.defaults
     ]

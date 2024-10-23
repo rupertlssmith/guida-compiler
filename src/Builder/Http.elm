@@ -24,12 +24,11 @@ module Builder.Http exposing
 
 import Basics.Extra exposing (uncurry)
 import Compiler.Elm.Version as V
-import Compiler.Parse.Keyword exposing (type_)
-import Data.IO as IO exposing (IO(..))
+import Data.IO as IO exposing (IO)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Url.Builder
-import Utils.Main as Utils exposing (HTTPResponse(..), SomeException(..))
+import Utils.Main as Utils exposing (HTTPResponse, SomeException)
 
 
 

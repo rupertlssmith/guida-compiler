@@ -941,7 +941,7 @@ toReport source err =
                 ( [], unbound :: unbounds ) ->
                     unboundTypeVars source aliasRegion [ D.fromChars "type", D.fromChars "alias" ] typeName allVars unbound unbounds
 
-                ( _, _ ) ->
+                _ ->
                     let
                         unused : List Name
                         unused =

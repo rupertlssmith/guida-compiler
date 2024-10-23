@@ -10,11 +10,10 @@ module Compiler.Reporting.Error.Docs exposing
 
 import Compiler.Data.Name as Name
 import Compiler.Data.NonEmptyList as NE
-import Compiler.Elm.Kernel exposing (Chunk(..))
 import Compiler.Json.Decode as DecodeX
 import Compiler.Json.Encode as EncodeX
 import Compiler.Parse.Primitives exposing (Col, Row)
-import Compiler.Parse.Symbol exposing (BadOperator(..))
+import Compiler.Parse.Symbol exposing (BadOperator)
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Doc as D
 import Compiler.Reporting.Error.Syntax as E

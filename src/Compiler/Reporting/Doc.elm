@@ -26,7 +26,6 @@ import Compiler.Elm.Version as V
 import Compiler.Json.Encode as E
 import Data.IO exposing (Handle, IO)
 import Data.Maybe as Maybe
-import List.Extra as List
 import Prelude
 import System.Console.Ansi as Ansi
 import Text.PrettyPrint.ANSI.Leijen as P

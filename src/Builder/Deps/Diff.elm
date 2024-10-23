@@ -182,7 +182,7 @@ diffType oldType newType =
                     (diffType b y)
                     (Maybe.map List.concat (Utils.zipWithM diffType cs zs))
 
-        ( _, _ ) ->
+        _ ->
             Nothing
 
 
@@ -296,7 +296,7 @@ compatibleVars ( old, new ) =
         ( _, Var ) ->
             True
 
-        ( _, _ ) ->
+        _ ->
             False
 
 

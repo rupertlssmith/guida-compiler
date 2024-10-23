@@ -66,7 +66,6 @@ import Compiler.Data.Name exposing (Name)
 import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Json.Decode as D
 import Compiler.Json.Encode as E
-import Compiler.Parse.Keyword exposing (type_)
 import Compiler.Reporting.Annotation as A
 import Data.Map as Dict exposing (Dict)
 import Json.Decode as Decode

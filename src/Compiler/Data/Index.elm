@@ -95,7 +95,7 @@ indexedZipWithHelp func index listX listY revListZ =
         ( x :: xs, y :: ys ) ->
             indexedZipWithHelp func (index + 1) xs ys (func (ZeroBased index) x y :: revListZ)
 
-        ( _, _ ) ->
+        _ ->
             LengthMismatch (index + List.length listX) (index + List.length listY)
 
 

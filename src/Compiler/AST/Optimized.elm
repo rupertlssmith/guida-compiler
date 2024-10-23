@@ -33,7 +33,6 @@ import Compiler.Elm.Package as Pkg
 import Compiler.Json.Decode as D
 import Compiler.Json.Encode as E
 import Compiler.Optimize.DecisionTree as DT
-import Compiler.Parse.Keyword exposing (type_)
 import Compiler.Reporting.Annotation as A
 import Data.Map as Dict exposing (Dict)
 import Data.Set as EverySet exposing (EverySet)

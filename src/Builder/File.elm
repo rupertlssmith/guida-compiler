@@ -15,7 +15,7 @@ module Builder.File exposing
     , zeroTime
     )
 
-import Data.IO as IO exposing (IO(..))
+import Data.IO as IO exposing (IO)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Time

@@ -46,7 +46,7 @@ import Compiler.Reporting.Error.Import as Import
 import Compiler.Reporting.Error.Syntax as Syntax
 import Compiler.Reporting.Render.Type.Localizer as L
 import Data.Graph as Graph
-import Data.IO as IO exposing (IO, IORef(..))
+import Data.IO as IO exposing (IO)
 import Data.Map as Dict exposing (Dict)
 import Data.Set as EverySet
 import Json.Decode as Decode

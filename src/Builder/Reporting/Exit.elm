@@ -52,7 +52,6 @@ import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
 import Compiler.Json.Decode as Decode
 import Compiler.Json.Encode as Encode
-import Compiler.Json.String as Json
 import Compiler.Parse.Primitives exposing (Col, Row)
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Doc as D

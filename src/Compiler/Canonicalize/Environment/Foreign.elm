@@ -5,7 +5,6 @@ import Compiler.AST.Source as Src
 import Compiler.Canonicalize.Environment as Env
 import Compiler.Data.Name as Name exposing (Name)
 import Compiler.Elm.Interface as I
-import Compiler.Elm.Kernel exposing (Chunk(..))
 import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Elm.Package as Pkg
 import Compiler.Reporting.Annotation as A

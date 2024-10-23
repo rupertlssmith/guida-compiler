@@ -22,7 +22,6 @@ import Compiler.Data.NonEmptyList as NE
 import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Reporting.Annotation as A
 import Data.Map as Dict exposing (Dict)
-import Html.Attributes exposing (pattern)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra as List

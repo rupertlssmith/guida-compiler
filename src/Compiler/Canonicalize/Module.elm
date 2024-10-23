@@ -13,12 +13,10 @@ import Compiler.Canonicalize.Type as Type
 import Compiler.Data.Index as Index
 import Compiler.Data.Name as Name exposing (Name)
 import Compiler.Elm.Interface as I
-import Compiler.Elm.Kernel exposing (Chunk(..))
 import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Elm.Package as Pkg
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Error.Canonicalize as Error
-import Compiler.Reporting.Error.Syntax exposing (Let(..))
 import Compiler.Reporting.Result as R
 import Compiler.Reporting.Warning as W
 import Data.Graph as Graph

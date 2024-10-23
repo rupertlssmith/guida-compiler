@@ -40,7 +40,7 @@ append left right =
         ( Empty, other ) ->
             other
 
-        ( _, _ ) ->
+        _ ->
             Two left right
 
 

@@ -18,7 +18,6 @@ import Compiler.Canonicalize.Pattern as Pattern
 import Compiler.Canonicalize.Type as Type
 import Compiler.Data.Index as Index
 import Compiler.Data.Name as Name exposing (Name)
-import Compiler.Elm.Kernel exposing (Chunk(..))
 import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Elm.Package as Pkg
 import Compiler.Reporting.Annotation as A
@@ -27,7 +26,6 @@ import Compiler.Reporting.Result as R
 import Compiler.Reporting.Warning as W
 import Data.Graph as Graph
 import Data.Map as Dict exposing (Dict)
-import List.Extra as List
 import Prelude
 import Utils.Main as Utils
 
@@ -297,7 +295,7 @@ toBinopStep makeBinop ((Env.Binop _ _ _ _ rootAssociativity rootPrecedence) as r
                     ( Binop.Right, Binop.Right ) ->
                         toBinopStep (makeBinop << toBinop op expr) op rest final
 
-                    ( _, _ ) ->
+                    _ ->
                         Error rootOp op
 
 
