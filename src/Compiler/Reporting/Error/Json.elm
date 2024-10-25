@@ -441,13 +441,6 @@ expectationToReport path source context (A.Region start end) expectation reason 
                     |> D.a (D.fromChars ".")
                 ]
 
-        TBool ->
-            toSnippet "EXPECTING BOOL"
-                [ D.fromChars "a"
-                , D.green (D.fromChars "BOOLEAN")
-                    |> D.a (D.fromChars ".")
-                ]
-
         TInt ->
             toSnippet "EXPECTING INT"
                 [ D.fromChars "an"

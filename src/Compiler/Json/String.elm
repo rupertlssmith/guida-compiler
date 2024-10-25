@@ -1,10 +1,8 @@
 module Compiler.Json.String exposing
-    ( fromChars
-    , fromComment
+    ( fromComment
     , fromName
     , fromSnippet
     , isEmpty
-    , toChars
     )
 
 import Compiler.Data.Name as Name
@@ -24,11 +22,6 @@ isEmpty =
 -- FROM
 
 
-fromChars : List Char -> String
-fromChars =
-    String.fromList
-
-
 fromSnippet : P.Snippet -> String
 fromSnippet (P.Snippet { fptr, offset, length }) =
     String.slice offset (offset + length) fptr
@@ -37,15 +30,6 @@ fromSnippet (P.Snippet { fptr, offset, length }) =
 fromName : Name.Name -> String
 fromName =
     identity
-
-
-
--- TO
-
-
-toChars : String -> List Char
-toChars =
-    String.toList
 
 
 

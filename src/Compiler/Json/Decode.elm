@@ -9,7 +9,6 @@ module Compiler.Json.Decode exposing
     , apply
     , assocListDict
     , bind
-    , bool
     , customString
     , dict
     , everySet
@@ -156,7 +155,6 @@ type DecodeExpectation
     = TObject
     | TArray
     | TString
-    | TBool
     | TInt
     | TObjectWith String
     | TArrayPair Int
@@ -228,25 +226,6 @@ customString parser toBadEnd =
 
                 _ ->
                     Err (Expecting region TString)
-
-
-
--- BOOL
-
-
-bool : Decoder x Bool
-bool =
-    Decoder <|
-        \(A.At region ast) ->
-            case ast of
-                TRUE ->
-                    Ok True
-
-                FALSE ->
-                    Ok False
-
-                _ ->
-                    Err (Expecting region TBool)
 
 
 
@@ -665,7 +644,7 @@ pArray =
                         |> P.bind
                             (\entry ->
                                 spaces
-                                    |> P.bind (\_ -> pArrayHelp 1 [ entry ])
+                                    |> P.bind (\_ -> pArrayHelp [ entry ])
                             )
                     , P.word1 ']' ArrayEnd
                         |> P.fmap (\_ -> Array [])
@@ -673,8 +652,8 @@ pArray =
             )
 
 
-pArrayHelp : Int -> List AST -> Parser AST_
-pArrayHelp len revEntries =
+pArrayHelp : List AST -> Parser AST_
+pArrayHelp revEntries =
     P.oneOf ArrayEnd
         [ P.word1 ',' ArrayEnd
             |> P.bind (\_ -> spaces)
@@ -682,7 +661,7 @@ pArrayHelp len revEntries =
             |> P.bind
                 (\entry ->
                     spaces
-                        |> P.bind (\_ -> pArrayHelp (len + 1) (entry :: revEntries))
+                        |> P.bind (\_ -> pArrayHelp (entry :: revEntries))
                 )
         , P.word1 ']' ArrayEnd
             |> P.fmap (\_ -> Array (List.reverse revEntries))

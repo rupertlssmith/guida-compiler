@@ -14,7 +14,6 @@ module Builder.Stuff exposing
     , packageCacheEncoder
     , prepublishDir
     , registry
-    , temp
     , withRegistryLock
     , withRootLock
     )
@@ -80,15 +79,6 @@ elmo root name =
 toArtifactPath : String -> ModuleName.Raw -> String -> String
 toArtifactPath root name ext =
     Utils.fpForwardSlash (stuff root) (Utils.fpAddExtension (ModuleName.toHyphenPath name) ext)
-
-
-
--- TEMP
-
-
-temp : String -> String -> String
-temp root ext =
-    stuff root ++ "/temp." ++ ext
 
 
 

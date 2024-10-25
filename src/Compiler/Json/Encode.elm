@@ -5,7 +5,6 @@ module Compiler.Json.Encode exposing
     , bool
     , chars
     , dict
-    , encode
     , encodeUgly
     , everySet
     , int

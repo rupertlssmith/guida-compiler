@@ -1,7 +1,6 @@
 module Builder.Http exposing
     ( Error(..)
     , Header
-    , HttpExceptionContent(..)
     , Manager
     , MultiPart
     , Sha
@@ -28,7 +27,7 @@ import Data.IO as IO exposing (IO)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Url.Builder
-import Utils.Main as Utils exposing (HTTPResponse, SomeException)
+import Utils.Main as Utils exposing (SomeException)
 
 
 
@@ -145,14 +144,8 @@ accept mime =
 
 type Error
     = BadUrl String String
-    | BadHttp String HttpExceptionContent
+    | BadHttp String Utils.HttpExceptionContent
     | BadMystery String SomeException
-
-
-type HttpExceptionContent
-    = StatusCodeException (HTTPResponse ()) String
-    | TooManyRedirects (List (HTTPResponse ()))
-    | ConnectionFailure SomeException
 
 
 
@@ -173,13 +166,9 @@ shaToChars =
 
 
 getArchive : Manager -> String -> (Error -> e) -> e -> (( Sha, Utils.ZipArchive ) -> IO (Result e a)) -> IO (Result e a)
-getArchive manager url onError err onSuccess =
-    IO.make Utils.zipArchiveDecoder (IO.GetArchive "GET" url)
-        |> IO.bind
-            (\archive ->
-                -- TODO review the need to use `readArchive...`
-                onSuccess ( "SHA-TODO", archive )
-            )
+getArchive _ url _ _ onSuccess =
+    IO.make Utils.shaAndArchiveDecoder (IO.GetArchive "GET" url)
+        |> IO.bind (\shaAndArchive -> onSuccess shaAndArchive)
 
 
 
@@ -260,7 +249,7 @@ errorEncoder error =
             Encode.object
                 [ ( "type", Encode.string "BadHttp" )
                 , ( "url", Encode.string url )
-                , ( "httpExceptionContent", httpExceptionContentEncoder httpExceptionContent )
+                , ( "httpExceptionContent", Utils.httpExceptionContentEncoder httpExceptionContent )
                 ]
 
         BadMystery url someException ->
@@ -285,7 +274,7 @@ errorDecoder =
                     "BadHttp" ->
                         Decode.map2 BadHttp
                             (Decode.field "url" Decode.string)
-                            (Decode.field "httpExceptionContent" httpExceptionContentDecoder)
+                            (Decode.field "httpExceptionContent" Utils.httpExceptionContentDecoder)
 
                     "BadMystery" ->
                         Decode.map2 BadMystery
@@ -294,49 +283,4 @@ errorDecoder =
 
                     _ ->
                         Decode.fail ("Failed to decode Error's type: " ++ type_)
-            )
-
-
-httpExceptionContentEncoder : HttpExceptionContent -> Encode.Value
-httpExceptionContentEncoder httpExceptionContent =
-    case httpExceptionContent of
-        StatusCodeException response body ->
-            Encode.object
-                [ ( "type", Encode.string "StatusCodeException" )
-                , ( "response", Utils.httpResponseEncoder response )
-                , ( "body", Encode.string body )
-                ]
-
-        TooManyRedirects responses ->
-            Encode.object
-                [ ( "type", Encode.string "TooManyRedirects" )
-                , ( "responses", Encode.list Utils.httpResponseEncoder responses )
-                ]
-
-        ConnectionFailure someException ->
-            Encode.object
-                [ ( "type", Encode.string "ConnectionFailure" )
-                , ( "someException", Utils.someExceptionEncoder someException )
-                ]
-
-
-httpExceptionContentDecoder : Decode.Decoder HttpExceptionContent
-httpExceptionContentDecoder =
-    Decode.field "type" Decode.string
-        |> Decode.andThen
-            (\type_ ->
-                case type_ of
-                    "StatusCodeException" ->
-                        Decode.map2 StatusCodeException
-                            (Decode.field "response" Utils.httpResponseDecoder)
-                            (Decode.field "body" Decode.string)
-
-                    "TooManyRedirects" ->
-                        Decode.map TooManyRedirects (Decode.field "responses" (Decode.list Utils.httpResponseDecoder))
-
-                    "ConnectionFailure" ->
-                        Decode.map ConnectionFailure (Decode.field "someException" Utils.someExceptionDecoder)
-
-                    _ ->
-                        Decode.fail ("Failed to decode HttpExceptionContent's type: " ++ type_)
             )

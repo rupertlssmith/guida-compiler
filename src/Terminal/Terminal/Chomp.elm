@@ -17,7 +17,7 @@ module Terminal.Terminal.Chomp exposing
 
 import Basics.Extra exposing (flip)
 import Data.IO as IO exposing (IO)
-import Data.Maybe as Maybe
+import Maybe.Extra as Maybe
 import Terminal.Terminal.Internal exposing (ArgError(..), Error(..), Expectation(..), Flag(..), FlagError(..), Flags(..), Parser(..))
 
 
@@ -92,7 +92,7 @@ makeSuggestion suggest maybeUpdate =
             suggest
 
         Suggest index ->
-            Maybe.maybe suggest Suggestions (maybeUpdate index)
+            Maybe.unwrap suggest Suggestions (maybeUpdate index)
 
 
 

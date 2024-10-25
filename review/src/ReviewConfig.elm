@@ -35,8 +35,8 @@ import Simplify
 
 config : List Rule
 config =
-    [ -- Docs.ReviewAtDocs.rule
-      NoConfusingPrefixOperator.rule
+    [ Docs.ReviewAtDocs.rule
+    , NoConfusingPrefixOperator.rule
     , NoDebug.Log.rule
 
     -- , NoDebug.TodoOrToString.rule

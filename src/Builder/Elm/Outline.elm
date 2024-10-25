@@ -7,7 +7,6 @@ module Builder.Elm.Outline exposing
     , SrcDir(..)
     , decoder
     , defaultSummary
-    , encode
     , flattenExposed
     , read
     , srcDirDecoder

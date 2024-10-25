@@ -16,7 +16,6 @@ module Compiler.Elm.Interface exposing
     , public
     , toPublicAlias
     , toPublicUnion
-    , unionDecoder
     )
 
 import Compiler.AST.Canonical as Can

@@ -1,7 +1,6 @@
 module Compiler.Elm.Compiler.Type.Extract exposing
     ( Types(..)
     , Types_
-    , fromAnnotation
     , fromDependencyInterface
     , fromInterface
     , fromMsg
@@ -31,11 +30,6 @@ import Utils.Main as Utils
 
 
 -- EXTRACTION
-
-
-fromAnnotation : Can.Annotation -> T.Type
-fromAnnotation (Can.Forall _ astType) =
-    fromType astType
 
 
 fromType : Can.Type -> T.Type

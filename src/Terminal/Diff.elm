@@ -149,7 +149,7 @@ getDocs (Env _ cache manager _) name (Registry.KnownVersions latest previous) ve
         Task.eio (Exit.DiffDocsProblem version) <| DD.getDocs cache manager name version
 
     else
-        Task.throw <| Exit.DiffUnknownVersion name version (latest :: previous)
+        Task.throw <| Exit.DiffUnknownVersion version (latest :: previous)
 
 
 getLatestDocs : Env -> Pkg.Name -> Registry.KnownVersions -> Task Docs.Documentation

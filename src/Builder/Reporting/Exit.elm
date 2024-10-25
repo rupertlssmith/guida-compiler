@@ -14,7 +14,6 @@ module Builder.Reporting.Exit exposing
     , OutlineProblem(..)
     , PackageProblem(..)
     , Publish(..)
-    , Reactor(..)
     , RegistryProblem(..)
     , Repl(..)
     , Solver(..)
@@ -31,13 +30,11 @@ module Builder.Reporting.Exit exposing
     , makeToReport
     , newPackageOverview
     , publishToReport
-    , reactorToReport
     , registryProblemDecoder
     , registryProblemEncoder
     , replToReport
     , toJson
     , toStderr
-    , toString
     )
 
 import Builder.File as File
@@ -63,17 +60,11 @@ import Data.IO exposing (IO)
 import Data.Map as Dict exposing (Dict)
 import Json.Decode as CoreDecode
 import Json.Encode as CoreEncode
-import Utils.Crash exposing (todo)
-import Utils.Main as Utils exposing (FilePath, HTTPResponse)
+import Utils.Main as Utils exposing (FilePath)
 
 
 
 -- RENDERERS
-
-
-toString : Help.Report -> String
-toString report =
-    Help.toString (Help.reportToDoc report)
 
 
 toStderr : Help.Report -> IO ()
@@ -159,7 +150,7 @@ type Diff
     | DiffNoExposed
     | DiffUnpublished
     | DiffUnknownPackage Pkg.Name (List Pkg.Name)
-    | DiffUnknownVersion Pkg.Name V.Version (List V.Version)
+    | DiffUnknownVersion V.Version (List V.Version)
     | DiffDocsProblem V.Version DocsProblem
     | DiffMustHaveLatestRegistry RegistryProblem
     | DiffBadDetails Details
@@ -212,7 +203,7 @@ diffToReport diff =
                 , D.fromChars "But check <https://package.elm-lang.org> to see all possibilities!"
                 ]
 
-        DiffUnknownVersion _ vsn realVersions ->
+        DiffUnknownVersion vsn realVersions ->
             Help.docReport "UNKNOWN VERSION"
                 Nothing
                 (D.fillSep <|
@@ -274,7 +265,7 @@ type Bump
     | BumpApplication
     | BumpUnexpectedVersion V.Version (List V.Version)
     | BumpMustHaveLatestRegistry RegistryProblem
-    | BumpCannotFindDocs Pkg.Name V.Version DocsProblem
+    | BumpCannotFindDocs V.Version DocsProblem
     | BumpBadDetails Details
     | BumpNoExposed
     | BumpBadBuild BuildProblem
@@ -375,7 +366,7 @@ bumpToReport bump =
             toRegistryProblemReport "PROBLEM UPDATING PACKAGE LIST" problem <|
                 "I need the latest list of published packages before I can bump any versions"
 
-        BumpCannotFindDocs _ version problem ->
+        BumpCannotFindDocs version problem ->
             toDocsProblemReport problem <|
                 "I need the docs for "
                     ++ V.toChars version
@@ -792,35 +783,37 @@ publishToReport publish =
                 ]
 
         PublishCannotGetTag version httpError ->
-            -- case httpError of
-            --     Http.BadHttp _ (HTTP.StatusCodeException response _) ->
-            --         if HTTP.statusCode (HTTP.responseStatus response) == 404 then
-            --             let
-            --                 vsn =
-            --                     V.toChars version
-            --             in
-            --             Help.report "NO TAG ON GITHUB"
-            --                 Nothing
-            --                 ("You have version " ++ vsn ++ " tagged locally, but not on GitHub.")
-            --                 [ D.reflow
-            --                     "Run the following command to make this tag available on GitHub:"
-            --                 , D.indent 4 <|
-            --                     D.dullyellow <|
-            --                         D.fromChars <|
-            --                             "git push origin "
-            --                                 ++ vsn
-            --                 , D.reflow
-            --                     "This will make it possible to find your code online based on the version number."
-            --                 ]
-            --         else
-            --             toHttpErrorReport "PROBLEM VERIFYING TAG"
-            --                 httpError
-            --                 "I need to check that the version tag is registered on GitHub"
-            --     _ ->
-            --         toHttpErrorReport "PROBLEM VERIFYING TAG"
-            --             httpError
-            --             "I need to check that the version tag is registered on GitHub"
-            todo "PublishCannotGetTag"
+            case httpError of
+                Http.BadHttp _ (Utils.StatusCodeException response _) ->
+                    if Utils.httpStatusCode (Utils.httpResponseStatus response) == 404 then
+                        let
+                            vsn : String
+                            vsn =
+                                V.toChars version
+                        in
+                        Help.report "NO TAG ON GITHUB"
+                            Nothing
+                            ("You have version " ++ vsn ++ " tagged locally, but not on GitHub.")
+                            [ D.reflow
+                                "Run the following command to make this tag available on GitHub:"
+                            , D.indent 4 <|
+                                D.dullyellow <|
+                                    D.fromChars <|
+                                        "git push origin "
+                                            ++ vsn
+                            , D.reflow
+                                "This will make it possible to find your code online based on the version number."
+                            ]
+
+                    else
+                        toHttpErrorReport "PROBLEM VERIFYING TAG"
+                            httpError
+                            "I need to check that the version tag is registered on GitHub"
+
+                _ ->
+                    toHttpErrorReport "PROBLEM VERIFYING TAG"
+                        httpError
+                        "I need to check that the version tag is registered on GitHub"
 
         PublishCannotGetTagData version url body ->
             Help.report "PROBLEM VERIFYING TAG"
@@ -1313,7 +1306,7 @@ type OutlineProblem
     | OP_BadModuleName Row Col
     | OP_BadModuleHeaderTooLong
     | OP_BadDependencyName Row Col
-    | OP_BadLicense String (List String)
+    | OP_BadLicense (List String)
     | OP_BadSummaryTooLong
     | OP_NoSrcDirs
 
@@ -1741,7 +1734,7 @@ toOutlineProblemReport path source _ region problem =
                     ]
                 )
 
-        OP_BadLicense _ suggestions ->
+        OP_BadLicense suggestions ->
             toSnippet "UNKNOWN LICENSE"
                 Nothing
                 ( D.reflow <|
@@ -2176,11 +2169,11 @@ toHttpErrorReport title err context =
 
         Http.BadHttp url httpExceptionContent ->
             case httpExceptionContent of
-                Http.StatusCodeException response body ->
-                    -- let
-                    --     (HTTP.Status code message) =
-                    --         HTTP.responseStatus response
-                    -- in
+                Utils.StatusCodeException response body ->
+                    let
+                        (Utils.HttpStatus code message) =
+                            Utils.httpResponseStatus response
+                    in
                     toHttpReport (context ++ ", so I tried to fetch:")
                         url
                         [ D.fillSep <|
@@ -2189,35 +2182,31 @@ toHttpErrorReport title err context =
                             , D.fromChars "came"
                             , D.fromChars "back"
                             , D.fromChars "as"
-
-                            -- , D.red (D.fromInt code)
-                            , D.fromChars "(TODO)"
+                            , D.red (D.fromInt code)
                             ]
-
-                        -- ++ map D.fromChars (String.words message)
+                                ++ List.map D.fromChars (String.words message)
                         , D.indent 4 <| D.reflow <| body
                         , D.reflow <|
                             "This may mean some online endpoint changed in an unexpected way, so if does not seem like something on your side is causing this (e.g. firewall) please report this to https://github.com/elm/compiler/issues with your operating system, Elm version, the command you ran, the terminal output, and any additional information that can help others reproduce the error!"
                         ]
 
-                Http.TooManyRedirects responses ->
+                Utils.TooManyRedirects responses ->
                     toHttpReport (context ++ ", so I tried to fetch:")
                         url
                         [ D.reflow <|
                             "But I gave up after following these "
-                                -- ++ show (length responses)
-                                ++ "(TODO)"
+                                ++ String.fromInt (List.length responses)
                                 ++ " redirects:"
                         , D.indent 4 <| D.vcat <| List.map toRedirectDoc responses
                         , D.reflow <|
                             "Is it possible that your internet connection intercepts certain requests? That sometimes causes problems for folks in schools, businesses, airports, hotels, and certain countries. Try asking for help locally or in a community forum!"
                         ]
 
-                otherException ->
+                _ ->
                     toHttpReport (context ++ ", so I tried to fetch:")
                         url
                         [ D.reflow <| "But my HTTP library is giving me the following error message:"
-                        , D.indent 4 <| D.fromChars (Debug.toString otherException)
+                        , D.indent 4 <| D.fromChars "TODO"
                         , D.reflow <|
                             "Are you somewhere with a slow internet connection? Or no internet? Does the link I am trying to fetch work in your browser? Maybe the site is down? Does your internet connection have a firewall that blocks certain domains? It is usually something like that!"
                         ]
@@ -2232,18 +2221,18 @@ toHttpErrorReport title err context =
                 ]
 
 
-toRedirectDoc : HTTPResponse body -> D.Doc
+toRedirectDoc : Utils.HttpResponse body -> D.Doc
 toRedirectDoc response =
-    -- let
-    --     (HTTP.Status code message) =
-    --         HTTP.responseStatus response
-    -- in
-    -- case List.lookup HTTP.hLocation (HTTP.responseHeaders response) of
-    --     Just loc ->
-    --         D.red (D.fromInt code) |> D.a (D.fromChars " - ") |> D.a (D.fromChars (BS_UTF8.toString loc))
-    --     Nothing ->
-    --         D.red (D.fromInt code) |> D.a (D.fromChars " - ") |> D.a (D.fromChars (BS_UTF8.toString message))
-    todo "toRedirectDoc"
+    let
+        (Utils.HttpStatus code message) =
+            Utils.httpResponseStatus response
+    in
+    case Utils.listLookup Utils.httpHLocation (Utils.httpResponseHeaders response) of
+        Just loc ->
+            D.red (D.fromInt code) |> D.a (D.fromChars " - ") |> D.a (D.fromChars loc)
+
+        Nothing ->
+            D.red (D.fromInt code) |> D.a (D.fromChars " - ") |> D.a (D.fromChars message)
 
 
 
@@ -2790,38 +2779,6 @@ corruptCacheReport =
         , D.toSimpleNote <|
             "This almost certainly means that a 3rd party tool (or editor plugin) is causing problems your the guida-stuff/ directory. Try disabling 3rd party tools one by one until you figure out which it is!"
         ]
-
-
-
--- REACTOR
-
-
-type Reactor
-    = ReactorNoOutline
-    | ReactorBadDetails Details
-    | ReactorBadBuild BuildProblem
-    | ReactorBadGenerate Generate
-
-
-reactorToReport : Reactor -> Help.Report
-reactorToReport problem =
-    case problem of
-        ReactorNoOutline ->
-            Help.report "NEW PROJECT?"
-                Nothing
-                "Are you trying to start a new project? Try this command in the terminal:"
-                [ D.indent 4 <| D.green (D.fromChars "elm init")
-                , D.reflow "It will help you get started!"
-                ]
-
-        ReactorBadDetails details ->
-            toDetailsReport details
-
-        ReactorBadBuild buildProblem ->
-            toBuildProblemReport buildProblem
-
-        ReactorBadGenerate generate ->
-            toGenerateReport generate
 
 
 

@@ -2,7 +2,6 @@ module Compiler.Elm.Magnitude exposing
     ( Magnitude(..)
     , compare
     , toChars
-    , toString
     )
 
 -- MAGNITUDE
@@ -25,11 +24,6 @@ toChars magnitude =
 
         MAJOR ->
             "MAJOR"
-
-
-toString : Magnitude -> String
-toString =
-    toChars
 
 
 compare : Magnitude -> Magnitude -> Order

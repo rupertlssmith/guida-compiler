@@ -1,6 +1,7 @@
 module Compiler.Nitpick.Debug exposing (hasDebugUses)
 
 import Compiler.AST.Optimized as Opt
+import Compiler.Data.Map.Utils as Map
 import Data.Map as Dict
 
 
@@ -10,8 +11,7 @@ import Data.Map as Dict
 
 hasDebugUses : Opt.LocalGraph -> Bool
 hasDebugUses (Opt.LocalGraph _ graph _) =
-    Dict.values graph
-        |> List.any nodeHasDebug
+    Map.any nodeHasDebug graph
 
 
 nodeHasDebug : Opt.Node -> Bool

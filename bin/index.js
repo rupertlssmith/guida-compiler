@@ -8,6 +8,7 @@ const http = require("node:http");
 const https = require("node:https");
 const resolve = require("node:path").resolve;
 const zlib = require("node:zlib");
+const crypto = require("node:crypto");
 const AdmZip = require("adm-zip");
 const which = require("which");
 const tmp = require("tmp");
@@ -27,24 +28,28 @@ const processes = {};
 let state = null;
 
 const download = function (index, method, url) {
-  const req = https.request(url, { method: method }, (res) => {
+  const req = https.request(url, { method }, (res) => {
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      let data = [];
+      let chunks = [];
+
       res.on("data", (chunk) => {
-        data.push(chunk);
+        chunks.push(chunk);
       });
 
       res.on("end", () => {
-        const zip = new AdmZip(Buffer.concat(data));
+        const buffer = Buffer.concat(chunks);
+        const zip = new AdmZip(buffer);
 
-        const jsonData = zip.getEntries().map(function (entry) {
+        const sha = crypto.createHash("sha1").update(buffer).digest("hex");
+
+        const archive = zip.getEntries().map(function (entry) {
           return {
             eRelativePath: entry.entryName,
             eData: zip.readAsText(entry),
           };
         });
 
-        this.send({ index, value: jsonData });
+        this.send({ index, value: { sha, archive } });
       });
     } else if (res.headers.location) {
       download.apply(this, [index, method, res.headers.location]);

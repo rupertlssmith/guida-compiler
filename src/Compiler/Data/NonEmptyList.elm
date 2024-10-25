@@ -1,8 +1,6 @@
 module Compiler.Data.NonEmptyList exposing
     ( Nonempty(..)
     , cons
-    , foldl
-    , foldl1
     , foldr
     , map
     , singleton
@@ -44,16 +42,6 @@ map func (Nonempty x xs) =
 foldr : (a -> b -> b) -> b -> Nonempty a -> b
 foldr step state (Nonempty x xs) =
     List.foldr step state (x :: xs)
-
-
-foldl : (a -> b -> b) -> b -> Nonempty a -> b
-foldl step state (Nonempty x xs) =
-    List.foldl step state (x :: xs)
-
-
-foldl1 : (a -> a -> a) -> Nonempty a -> a
-foldl1 step (Nonempty x xs) =
-    List.foldl step x xs
 
 
 

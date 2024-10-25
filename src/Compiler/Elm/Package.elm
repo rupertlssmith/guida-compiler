@@ -1,6 +1,5 @@
 module Compiler.Elm.Package exposing
     ( Author
-    , Canonical(..)
     , Name(..)
     , Project
     , browser
@@ -10,7 +9,6 @@ module Compiler.Elm.Package exposing
     , dummyName
     , encode
     , html
-    , http
     , isKernel
     , json
     , kernel
@@ -22,16 +20,13 @@ module Compiler.Elm.Package exposing
     , parser
     , suggestions
     , toChars
-    , toFilePath
     , toJsonString
     , toString
     , toUrl
-    , url
     , virtualDom
     , webgl
     )
 
-import Compiler.Elm.Version as V
 import Compiler.Json.Decode as D
 import Compiler.Json.Encode as E
 import Compiler.Parse.Primitives as P exposing (Col, Row)
@@ -75,10 +70,6 @@ type alias Project =
     String
 
 
-type Canonical
-    = Canonical Name V.Version
-
-
 
 -- HELPERS
 
@@ -95,11 +86,6 @@ toChars (Name author project) =
 
 toUrl : Name -> String
 toUrl (Name author project) =
-    author ++ "/" ++ project
-
-
-toFilePath : Name -> String
-toFilePath (Name author project) =
     author ++ "/" ++ project
 
 

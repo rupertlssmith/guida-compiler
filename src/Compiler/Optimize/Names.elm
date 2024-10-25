@@ -1,6 +1,5 @@
 module Compiler.Optimize.Names exposing
     ( Tracker
-    , apply
     , bind
     , fmap
     , generate
@@ -186,17 +185,6 @@ fmap func (Tracker kv) =
 pure : a -> Tracker a
 pure value =
     Tracker (\n d f -> TResult n d f value)
-
-
-apply : Tracker a -> Tracker (a -> b) -> Tracker b
-apply (Tracker kv) (Tracker kf) =
-    Tracker <|
-        \n d f ->
-            case kf n d f of
-                TResult n1 d1 f1 func ->
-                    case kv n1 d1 f1 of
-                        TResult n2 d2 f2 value ->
-                            TResult n2 d2 f2 (func value)
 
 
 bind : (a -> Tracker b) -> Tracker a -> Tracker b

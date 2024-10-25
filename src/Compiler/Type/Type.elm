@@ -38,7 +38,7 @@ import Compiler.Type.Error as ET
 import Compiler.Type.UnionFind as UF
 import Data.IO as IO exposing (IO)
 import Data.Map as Dict exposing (Dict)
-import Data.Maybe as Maybe
+import Maybe.Extra as Maybe
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils
 
@@ -244,14 +244,14 @@ nameToFlex : Name -> IO UF.Variable
 nameToFlex name =
     UF.fresh <|
         makeDescriptor <|
-            Maybe.maybe UF.FlexVar UF.FlexSuper (toSuper name) (Just name)
+            Maybe.unwrap UF.FlexVar UF.FlexSuper (toSuper name) (Just name)
 
 
 nameToRigid : Name -> IO UF.Variable
 nameToRigid name =
     UF.fresh <|
         makeDescriptor <|
-            Maybe.maybe UF.RigidVar UF.RigidSuper (toSuper name) name
+            Maybe.unwrap UF.RigidVar UF.RigidSuper (toSuper name) name
 
 
 toSuper : Name -> Maybe UF.SuperType

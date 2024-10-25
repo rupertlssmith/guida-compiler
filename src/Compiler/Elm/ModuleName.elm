@@ -17,7 +17,6 @@ module Compiler.Elm.ModuleName exposing
     , list
     , matrix4
     , maybe
-    , parser
     , platform
     , rawDecoder
     , rawEncoder

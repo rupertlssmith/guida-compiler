@@ -29,7 +29,7 @@ encode (License code) =
     E.string code
 
 
-decoder : (String -> List String -> x) -> D.Decoder x License
+decoder : (List String -> x) -> D.Decoder x License
 decoder toError =
     D.string
         |> D.bind
@@ -39,7 +39,7 @@ decoder toError =
                         D.pure license
 
                     Err suggestions ->
-                        D.failure (toError str suggestions)
+                        D.failure (toError suggestions)
             )
 
 

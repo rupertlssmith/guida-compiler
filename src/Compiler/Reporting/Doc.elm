@@ -1,21 +1,36 @@
 module Compiler.Reporting.Doc exposing
     ( Doc
-    , plus, append
+    , plus, append, a
     , align, cat, empty, fill, fillSep, hang
     , hcat, hsep, indent, sep, vcat
-    , red, cyan, magenta, green, blue, black, yellow
+    , Color(..)
+    , red, cyan, green, blue, black, yellow
     , dullred, dullcyan, dullyellow
-    , Color(..), a, args, commaSep, cycle, encode, fancyLink, fromChars, fromInt, fromName, fromPackage, fromVersion, intToOrdinal, link, makeLink, makeNakedLink, moreArgs, ordinal, reflow, reflowLink, stack, toAnsi, toFancyHint, toFancyNote, toLine, toSimpleHint, toSimpleNote, toString
+    , fromChars, fromName, fromVersion, fromPackage, fromInt
+    , toAnsi, toString, toLine
+    , encode
+    , stack, reflow, commaSep
+    , toSimpleNote, toFancyNote, toSimpleHint, toFancyHint
+    , link, fancyLink, reflowLink, makeLink, makeNakedLink
+    , args, moreArgs, ordinal, intToOrdinal, cycle
     )
 
 {-|
 
 @docs Doc
-@docs plus, append
+@docs plus, append, a
 @docs align, cat, empty, fill, fillSep, hang
 @docs hcat, hsep, indent, sep, vcat
-@docs red, cyan, magenta, green, blue, black, yellow
+@docs Color
+@docs red, cyan, green, blue, black, yellow
 @docs dullred, dullcyan, dullyellow
+@docs fromChars, fromName, fromVersion, fromPackage, fromInt
+@docs toAnsi, toString, toLine
+@docs encode
+@docs stack, reflow, commaSep
+@docs toSimpleNote, toFancyNote, toSimpleHint, toFancyHint
+@docs link, fancyLink, reflowLink, makeLink, makeNakedLink
+@docs args, moreArgs, ordinal, intToOrdinal, cycle
 
 -}
 
@@ -25,7 +40,7 @@ import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
 import Compiler.Json.Encode as E
 import Data.IO exposing (Handle, IO)
-import Data.Maybe as Maybe
+import Maybe.Extra as Maybe
 import Prelude
 import System.Console.Ansi as Ansi
 import Text.PrettyPrint.ANSI.Leijen as P
@@ -475,7 +490,7 @@ encodeChunks (Style bold underline color) revChunks =
             E.object
                 [ ( "bold", E.bool bold )
                 , ( "underline", E.bool underline )
-                , ( "color", Maybe.maybe E.null encodeColor color )
+                , ( "color", Maybe.unwrap E.null encodeColor color )
                 , ( "string", E.chars chars )
                 ]
 
@@ -619,11 +634,6 @@ red =
 cyan : Doc -> Doc
 cyan =
     P.cyan
-
-
-magenta : Doc -> Doc
-magenta =
-    P.magenta
 
 
 green : Doc -> Doc

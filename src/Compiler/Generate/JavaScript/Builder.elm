@@ -16,7 +16,7 @@ module Compiler.Generate.JavaScript.Builder exposing
 
 import Compiler.Generate.JavaScript.Name as Name
 import Compiler.Json.Encode as Json
-import Data.Maybe as Maybe
+import Maybe.Extra as Maybe
 
 
 
@@ -41,7 +41,6 @@ type Expr
     | ExprFloat String
     | ExprInt Int
     | ExprBool Bool
-    | ExprNull
     | ExprJson Json.Value
     | ExprArray (List Expr)
     | ExprObject (List ( Name.Name, Expr ))
@@ -58,7 +57,6 @@ type Expr
 
 type LValue
     = LRef Name.Name
-    | LDot Expr Name.Name
     | LBracket Expr Expr
 
 
@@ -389,9 +387,6 @@ fromExpr ((Level indent nextLevel) as level) grouping expression =
                 "false"
             )
 
-        ExprNull ->
-            ( One, "null" )
-
         ExprJson json ->
             ( One, Json.encodeUgly json )
 
@@ -510,7 +505,7 @@ fromExpr ((Level indent nextLevel) as level) grouping expression =
         ExprFunction maybeName args stmts ->
             ( Many
             , "function "
-                ++ Maybe.maybe "" identity maybeName
+                ++ Maybe.unwrap "" identity maybeName
                 ++ "("
                 ++ commaSep args
                 ++ ") {\n"
@@ -544,9 +539,6 @@ fromLValue level lValue =
     case lValue of
         LRef name ->
             ( One, name )
-
-        LDot expr field ->
-            makeDot level expr field
 
         LBracket expr bracketedExpr ->
             makeBracketed level expr bracketedExpr

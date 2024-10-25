@@ -1,6 +1,5 @@
 module Builder.Deps.Website exposing
-    ( domain
-    , metadata
+    ( metadata
     , route
     )
 

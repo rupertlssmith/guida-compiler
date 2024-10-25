@@ -2,7 +2,6 @@ module Compiler.Optimize.DecisionTree exposing
     ( DecisionTree(..)
     , Path(..)
     , Test(..)
-    , compareTest
     , compile
     , pathDecoder
     , pathEncoder

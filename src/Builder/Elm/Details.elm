@@ -13,7 +13,6 @@ module Builder.Elm.Details exposing
     , loadObjects
     , localDecoder
     , localEncoder
-    , statusDecoder
     , verifyInstall
     )
 
@@ -1061,10 +1060,11 @@ downloadPackage cache manager pkg vsn =
                             Ok ( endpoint, expectedHash ) ->
                                 Http.getArchive manager endpoint Exit.PP_BadArchiveRequest (Exit.PP_BadArchiveContent endpoint) <|
                                     \( sha, archive ) ->
-                                        -- TODO (IMPORTANT) if expectedHash == Http.shaToChars sha then
-                                        IO.fmap Ok (File.writePackage (Stuff.package cache pkg vsn) archive)
-             -- else
-             --     IO.pure (Err (Exit.PP_BadArchiveHash endpoint expectedHash (Http.shaToChars sha)))
+                                        if expectedHash == Http.shaToChars sha then
+                                            IO.fmap Ok (File.writePackage (Stuff.package cache pkg vsn) archive)
+
+                                        else
+                                            IO.pure (Err (Exit.PP_BadArchiveHash endpoint expectedHash (Http.shaToChars sha)))
             )
 
 

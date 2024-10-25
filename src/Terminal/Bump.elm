@@ -128,7 +128,7 @@ checkNewPackage root ((Outline.PkgOutline _ _ _ version _ _ _ _) as outline) =
 
 suggestVersion : Env -> Task.Task Exit.Bump ()
 suggestVersion (Env root cache manager _ ((Outline.PkgOutline pkg _ _ vsn _ _ _ _) as outline)) =
-    Task.eio (Exit.BumpCannotFindDocs pkg vsn) (Diff.getDocs cache manager pkg vsn)
+    Task.eio (Exit.BumpCannotFindDocs vsn) (Diff.getDocs cache manager pkg vsn)
         |> Task.bind
             (\oldDocs ->
                 generateDocs root outline

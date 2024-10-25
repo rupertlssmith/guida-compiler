@@ -5,8 +5,6 @@ module Data.IO exposing
     , ExitCode(..)
     , Handle(..)
     , IO(..)
-    , IOError
-    , IOException(..)
     , IOMode(..)
     , IORef(..)
     , Process(..)
@@ -591,22 +589,6 @@ type IOMode
     | WriteMode
     | AppendMode
     | ReadWriteMode
-
-
-
--- IOError
-
-
-type alias IOError =
-    IOException
-
-
-
--- IOException
-
-
-type IOException
-    = IOException
 
 
 

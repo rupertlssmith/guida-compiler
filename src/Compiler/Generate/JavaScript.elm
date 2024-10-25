@@ -21,9 +21,9 @@ import Compiler.Reporting.Doc as D
 import Compiler.Reporting.Render.Type as RT
 import Compiler.Reporting.Render.Type.Localizer as L
 import Data.Map as Dict exposing (Dict)
-import Data.Maybe as Maybe
 import Data.Set as EverySet exposing (EverySet)
 import Json.Encode as Encode
+import Maybe.Extra as Maybe
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils
 
@@ -143,7 +143,7 @@ generateForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName (Can.
     let
         name : Name.Name
         name =
-            Maybe.maybe Name.replValueToPrint identity maybeName
+            Maybe.unwrap Name.replValueToPrint identity maybeName
 
         mode : Mode.Mode
         mode =
@@ -167,7 +167,7 @@ postMessage localizer home maybeName tipe =
     let
         name : Name.Name
         name =
-            Maybe.maybe Name.replValueToPrint identity maybeName
+            Maybe.unwrap Name.replValueToPrint identity maybeName
 
         value : JsName.Name
         value =
@@ -186,7 +186,7 @@ postMessage localizer home maybeName tipe =
             "\"" ++ n ++ "\""
     in
     "self.postMessage({\n  name: "
-        ++ Maybe.maybe "null" toName maybeName
+        ++ Maybe.unwrap "null" toName maybeName
         ++ ",\n  value: "
         ++ toString
         ++ "(true, "

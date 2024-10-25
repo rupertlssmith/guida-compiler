@@ -3,7 +3,10 @@ module Utils.Main exposing
     , ChItem
     , Chan
     , FilePath
-    , HTTPResponse(..)
+    , HttpExceptionContent(..)
+    , HttpResponse(..)
+    , HttpResponseHeaders
+    , HttpStatus(..)
     , LockSharedExclusive(..)
     , MVar(..)
     , ReplCompletion(..)
@@ -58,8 +61,12 @@ module Utils.Main exposing
     , fpTakeExtension
     , fpTakeFileName
     , fromException
-    , httpResponseDecoder
-    , httpResponseEncoder
+    , httpExceptionContentDecoder
+    , httpExceptionContentEncoder
+    , httpHLocation
+    , httpResponseHeaders
+    , httpResponseStatus
+    , httpStatusCode
     , indexedForA
     , indexedTraverse
     , indexedZipWithA
@@ -122,6 +129,7 @@ module Utils.Main exposing
     , sequenceDictResult_
     , sequenceListMaybe
     , sequenceNonemptyListResult
+    , shaAndArchiveDecoder
     , someExceptionDecoder
     , someExceptionEncoder
     , stateGet
@@ -133,7 +141,6 @@ module Utils.Main exposing
     , unlines
     , unzip3
     , writeChan
-    , zipArchiveDecoder
     , zipERelativePath
     , zipFromEntry
     , zipWithM
@@ -144,6 +151,8 @@ import Basics.Extra exposing (flip)
 import Builder.Reporting.Task as Task exposing (Task)
 import Compiler.Data.Index as Index
 import Compiler.Data.NonEmptyList as NE
+import Compiler.Json.Decode as D
+import Compiler.Json.Encode as E
 import Compiler.Reporting.Result as R
 import Data.IO as IO exposing (IO(..))
 import Data.Map as Dict exposing (Dict)
@@ -944,6 +953,13 @@ zipArchiveDecoder =
     Decode.map ZipArchive (Decode.list zipEntryDecoder)
 
 
+shaAndArchiveDecoder : Decode.Decoder ( String, ZipArchive )
+shaAndArchiveDecoder =
+    Decode.map2 Tuple.pair
+        (Decode.field "sha" Decode.string)
+        (Decode.field "archive" zipArchiveDecoder)
+
+
 zipEntryDecoder : Decode.Decoder ZipEntry
 zipEntryDecoder =
     Decode.map2
@@ -958,11 +974,48 @@ zipEntryDecoder =
 
 
 
--- Network.HTTP.Client.Types
+-- Network.HTTP.Client
 
 
-type HTTPResponse body
-    = HTTPResponse
+type HttpExceptionContent
+    = StatusCodeException (HttpResponse ()) String
+    | TooManyRedirects (List (HttpResponse ()))
+    | ConnectionFailure SomeException
+
+
+type HttpResponse body
+    = HttpResponse
+        { responseStatus : HttpStatus
+        , responseHeaders : HttpResponseHeaders
+        }
+
+
+type alias HttpResponseHeaders =
+    List ( String, String )
+
+
+httpResponseStatus : HttpResponse body -> HttpStatus
+httpResponseStatus (HttpResponse { responseStatus }) =
+    responseStatus
+
+
+httpStatusCode : HttpStatus -> Int
+httpStatusCode (HttpStatus statusCode _) =
+    statusCode
+
+
+httpResponseHeaders : HttpResponse body -> HttpResponseHeaders
+httpResponseHeaders (HttpResponse { responseHeaders }) =
+    responseHeaders
+
+
+httpHLocation : String
+httpHLocation =
+    "Location"
+
+
+type HttpStatus
+    = HttpStatus Int String
 
 
 
@@ -1290,11 +1343,94 @@ someExceptionDecoder =
     Decode.succeed SomeException
 
 
-httpResponseEncoder : HTTPResponse a -> Encode.Value
-httpResponseEncoder _ =
-    Encode.object [ ( "type", Encode.string "HTTPResponse" ) ]
+httpResponseEncoder : HttpResponse body -> Encode.Value
+httpResponseEncoder (HttpResponse httpResponse) =
+    Encode.object
+        [ ( "type", Encode.string "HttpResponse" )
+        , ( "responseStatus", httpStatusEncoder httpResponse.responseStatus )
+        , ( "responseHeaders", httpResponseHeadersEncoder httpResponse.responseHeaders )
+        ]
 
 
-httpResponseDecoder : Decode.Decoder (HTTPResponse a)
+httpResponseDecoder : Decode.Decoder (HttpResponse body)
 httpResponseDecoder =
-    Decode.succeed HTTPResponse
+    Decode.map2
+        (\responseStatus responseHeaders ->
+            HttpResponse
+                { responseStatus = responseStatus
+                , responseHeaders = responseHeaders
+                }
+        )
+        (Decode.field "responseStatus" httpStatusDecoder)
+        (Decode.field "responseHeaders" httpResponseHeadersDecoder)
+
+
+httpStatusEncoder : HttpStatus -> Encode.Value
+httpStatusEncoder (HttpStatus statusCode statusMessage) =
+    Encode.object
+        [ ( "type", Encode.string "HttpStatus" )
+        , ( "statusCode", Encode.int statusCode )
+        , ( "statusMessage", Encode.string statusMessage )
+        ]
+
+
+httpStatusDecoder : Decode.Decoder HttpStatus
+httpStatusDecoder =
+    Decode.map2 HttpStatus
+        (Decode.field "statusCode" Decode.int)
+        (Decode.field "statusMessage" Decode.string)
+
+
+httpResponseHeadersEncoder : HttpResponseHeaders -> Encode.Value
+httpResponseHeadersEncoder =
+    Encode.list (E.jsonPair Encode.string Encode.string)
+
+
+httpResponseHeadersDecoder : Decode.Decoder HttpResponseHeaders
+httpResponseHeadersDecoder =
+    Decode.list (D.jsonPair Decode.string Decode.string)
+
+
+httpExceptionContentEncoder : HttpExceptionContent -> Encode.Value
+httpExceptionContentEncoder httpExceptionContent =
+    case httpExceptionContent of
+        StatusCodeException response body ->
+            Encode.object
+                [ ( "type", Encode.string "StatusCodeException" )
+                , ( "response", httpResponseEncoder response )
+                , ( "body", Encode.string body )
+                ]
+
+        TooManyRedirects responses ->
+            Encode.object
+                [ ( "type", Encode.string "TooManyRedirects" )
+                , ( "responses", Encode.list httpResponseEncoder responses )
+                ]
+
+        ConnectionFailure someException ->
+            Encode.object
+                [ ( "type", Encode.string "ConnectionFailure" )
+                , ( "someException", someExceptionEncoder someException )
+                ]
+
+
+httpExceptionContentDecoder : Decode.Decoder HttpExceptionContent
+httpExceptionContentDecoder =
+    Decode.field "type" Decode.string
+        |> Decode.andThen
+            (\type_ ->
+                case type_ of
+                    "StatusCodeException" ->
+                        Decode.map2 StatusCodeException
+                            (Decode.field "response" httpResponseDecoder)
+                            (Decode.field "body" Decode.string)
+
+                    "TooManyRedirects" ->
+                        Decode.map TooManyRedirects (Decode.field "responses" (Decode.list httpResponseDecoder))
+
+                    "ConnectionFailure" ->
+                        Decode.map ConnectionFailure (Decode.field "someException" someExceptionDecoder)
+
+                    _ ->
+                        Decode.fail ("Failed to decode HttpExceptionContent's type: " ++ type_)
+            )

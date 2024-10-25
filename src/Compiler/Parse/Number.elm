@@ -2,7 +2,6 @@ module Compiler.Parse.Number exposing
     ( Number(..)
     , Outcome(..)
     , chompHex
-    , chompInt
     , number
     , precedence
     )

@@ -1,6 +1,5 @@
 module Builder.Reporting.Task exposing
     ( Task
-    , apply
     , bind
     , eio
     , fmap
@@ -86,22 +85,6 @@ void =
 pure : a -> Task x a
 pure a =
     Task (IO.pure (Ok a))
-
-
-apply : Task x a -> Task x (a -> b) -> Task x b
-apply (Task taskArg) (Task taskFunc) =
-    Task
-        (IO.bind
-            (\funcRes ->
-                case funcRes of
-                    Ok func ->
-                        IO.fmap (Result.map func) taskArg
-
-                    Err err ->
-                        IO.pure (Err err)
-            )
-            taskFunc
-        )
 
 
 bind : (a -> Task x b) -> Task x a -> Task x b

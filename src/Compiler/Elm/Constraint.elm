@@ -2,12 +2,10 @@ module Compiler.Elm.Constraint exposing
     ( Constraint
     , Error(..)
     , anything
-    , check
     , decoder
     , defaultElm
     , encode
     , exactly
-    , expand
     , goodElm
     , intersect
     , satisfies
@@ -94,20 +92,6 @@ isLess op =
                 V.compare lower upper /= GT
 
 
-check : Constraint -> V.Version -> Order
-check constraint version =
-    case constraint of
-        Range lower lowerOp upperOp upper ->
-            if not (isLess lowerOp lower version) then
-                LT
-
-            else if not (isLess upperOp version upper) then
-                GT
-
-            else
-                EQ
-
-
 
 -- INTERSECT
 
@@ -190,18 +174,6 @@ untilNextMajor version =
 untilNextMinor : V.Version -> Constraint
 untilNextMinor version =
     Range version LessOrEqual Less (V.bumpMinor version)
-
-
-expand : Constraint -> V.Version -> Constraint
-expand ((Range lower lowerOp upperOp upper) as constraint) version =
-    if V.compare version lower == LT then
-        Range version LessOrEqual upperOp upper
-
-    else if V.compare version upper == GT then
-        Range lower lowerOp Less (V.bumpMajor version)
-
-    else
-        constraint
 
 
 

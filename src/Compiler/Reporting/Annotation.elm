@@ -5,7 +5,6 @@ module Compiler.Reporting.Annotation exposing
     , at
     , locatedDecoder
     , locatedEncoder
-    , map
     , merge
     , mergeRegions
     , one
@@ -28,11 +27,6 @@ import Json.Encode as Encode
 
 type Located a
     = At Region a -- PERF see if unpacking region is helpful
-
-
-map : (a -> b) -> Located a -> Located b
-map f (At region a) =
-    At region (f a)
 
 
 traverse : (a -> IO b) -> Located a -> IO (Located b)

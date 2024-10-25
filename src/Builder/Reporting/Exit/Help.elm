@@ -15,7 +15,7 @@ import Compiler.Json.Encode as E
 import Compiler.Reporting.Doc as D
 import Compiler.Reporting.Error as Error
 import Data.IO as IO exposing (IO)
-import Data.Maybe as Maybe
+import Maybe.Extra as Maybe
 
 
 
@@ -101,7 +101,7 @@ reportToJson report_ =
         Report title maybePath message ->
             E.object
                 [ ( "type", E.string "error" )
-                , ( "path", Maybe.maybe E.null E.string maybePath )
+                , ( "path", Maybe.unwrap E.null E.string maybePath )
                 , ( "title", E.string title )
                 , ( "message", D.encode message )
                 ]

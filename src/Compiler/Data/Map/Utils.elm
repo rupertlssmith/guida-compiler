@@ -2,7 +2,6 @@ module Compiler.Data.Map.Utils exposing
     ( any
     , fromKeys
     , fromKeysA
-    , fromValues
     )
 
 import Data.IO as IO exposing (IO)
@@ -24,15 +23,10 @@ fromKeysA keyComparison toValue keys =
     IO.fmap (Dict.fromList keyComparison) (Utils.listTraverse (\k -> IO.fmap (Tuple.pair k) (toValue k)) keys)
 
 
-fromValues : (v -> comparable) -> List v -> Dict comparable v
-fromValues toKey values =
-    Dict.fromList compare (List.map (\v -> ( toKey v, v )) values)
-
-
 
 -- ANY
 
 
-any : (v -> Bool) -> Dict comparable v -> Bool
+any : (v -> Bool) -> Dict k v -> Bool
 any isGood dict =
     Dict.foldl (\_ v acc -> isGood v || acc) False dict

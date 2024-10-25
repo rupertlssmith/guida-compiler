@@ -9,21 +9,17 @@ module Compiler.Parse.Primitives exposing
     , Status(..)
     , addEnd
     , addLocation
-    , apply
     , bind
     , fmap
     , fromByteString
     , fromSnippet
     , getCharWidth
-    , getCol
-    , getIndent
     , getPosition
     , inContext
     , isWord
     , oneOf
     , oneOfWithFallback
     , pure
-    , setIndent
     , snippetDecoder
     , snippetEncoder
     , specialize
@@ -87,26 +83,6 @@ fmap f (Parser parser) =
                     POk status (f a) state
                 )
         )
-
-
-
--- APPLICATIVE
-
-
-apply : Parser x a -> Parser x (a -> b) -> Parser x b
-apply (Parser parserArg) (Parser parserFunc) =
-    Parser <|
-        \state ->
-            Result.andThen
-                (\(POk _ func s1) ->
-                    case parserArg s1 of
-                        Ok (POk status arg s2) ->
-                            Ok (POk status (func arg) s2)
-
-                        Err err ->
-                            Err err
-                )
-                (parserFunc state)
 
 
 
@@ -251,13 +227,6 @@ fromSnippet (Parser parser) toBadEnd (Snippet { fptr, offset, length, offRow, of
 -- POSITION
 
 
-getCol : Parser x Int
-getCol =
-    Parser <|
-        \((State _ _ _ _ _ col) as state) ->
-            Ok (POk Empty col state)
-
-
 getPosition : Parser x A.Position
 getPosition =
     Parser <|
@@ -286,25 +255,6 @@ addEnd start value =
 
 
 -- INDENT
-
-
-getIndent : Parser x Int
-getIndent =
-    Parser <|
-        \((State _ _ _ indent _ _) as state) ->
-            Ok (POk Empty indent state)
-
-
-setIndent : Int -> Parser x ()
-setIndent indent =
-    Parser <|
-        \(State src pos end _ row col) ->
-            let
-                newState : State
-                newState =
-                    State src pos end indent row col
-            in
-            Ok (POk Empty () newState)
 
 
 withIndent : Parser x a -> Parser x a

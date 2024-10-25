@@ -5,7 +5,6 @@ module Builder.File exposing
     , readBinary
     , readUtf8
     , remove
-    , removeDir
     , timeDecoder
     , timeEncoder
     , writeBinary
@@ -178,19 +177,6 @@ remove path =
             (\exists_ ->
                 if exists_ then
                     Utils.dirRemoveFile path
-
-                else
-                    IO.pure ()
-            )
-
-
-removeDir : FilePath -> IO ()
-removeDir path =
-    Utils.dirDoesFileExist path
-        |> IO.bind
-            (\exists_ ->
-                if exists_ then
-                    Utils.dirRemoveDirectoryRecursive path
 
                 else
                     IO.pure ()

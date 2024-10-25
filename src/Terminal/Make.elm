@@ -25,7 +25,6 @@ import Compiler.Data.NonEmptyList as NE
 import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Generate.Html as Html
 import Data.IO as IO exposing (IO)
-import Data.Maybe as Maybe
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Maybe.Extra as Maybe
@@ -205,7 +204,7 @@ buildExposed style root details maybeDocs exposed =
     let
         docsGoal : Build.DocsGoal ()
         docsGoal =
-            Maybe.maybe Build.ignoreDocs Build.writeDocs maybeDocs
+            Maybe.unwrap Build.ignoreDocs Build.writeDocs maybeDocs
     in
     Task.eio Exit.MakeCannotBuild <|
         Build.fromExposed (Decode.succeed ()) (\_ -> Encode.object []) style root details docsGoal exposed
