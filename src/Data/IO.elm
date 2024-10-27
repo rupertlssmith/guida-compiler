@@ -90,6 +90,7 @@ type Effect
     = Exit String Int
     | NewIORef Encode.Value
     | ReadIORef Int
+    | MVectorRead Int Encode.Value
     | WriteIORef Int Encode.Value
     | GetLine
     | HPutStr Handle String
@@ -355,17 +356,25 @@ mVectorWrite decoder encoder ioRef i x =
         (Array.set i (Just x))
 
 
-mVectorRead : Decode.Decoder a -> IORef (Array (Maybe a)) -> Int -> IO a
-mVectorRead decoder ioRef i =
+mVectorRead : Decode.Decoder a -> (a -> Encode.Value) -> IORef (Array (Maybe a)) -> Int -> IO a
+mVectorRead decoder encoder ioRef i =
     readIORef (Decode.array (Decode.maybe decoder)) ioRef
-        |> fmap
+        |> bind
             (\vector ->
-                case Maybe.join (Array.get i vector) of
-                    Just a ->
-                        a
+                make decoder
+                    (MVectorRead i
+                        (Encode.array
+                            (\maybeValue ->
+                                case maybeValue of
+                                    Just value ->
+                                        encoder value
 
-                    Nothing ->
-                        todo "Failed to find index on vector"
+                                    Nothing ->
+                                        Encode.null
+                            )
+                            vector
+                        )
+                    )
             )
 
 

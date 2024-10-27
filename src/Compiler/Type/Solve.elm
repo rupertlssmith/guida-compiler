@@ -406,7 +406,7 @@ This sorts variables into the young and old pools accordingly.
 -}
 generalize : Mark -> Mark -> Int -> Pools -> IO ()
 generalize youngMark visitMark youngRank pools =
-    IO.mVectorRead (Decode.list UF.variableDecoder) pools youngRank
+    IO.mVectorRead (Decode.list UF.variableDecoder) (Encode.list UF.variableEncoder) pools youngRank
         |> IO.bind
             (\youngVars ->
                 poolToRankTable youngMark youngRank youngVars

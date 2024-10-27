@@ -752,8 +752,12 @@ fpMakeRelative root path =
 
 
 fpAddTrailingPathSeparator : FilePath -> FilePath
-fpAddTrailingPathSeparator _ =
-    todo "fpAddTrailingPathSeparator"
+fpAddTrailingPathSeparator path =
+    if String.endsWith "/" path then
+        path
+
+    else
+        path ++ "/"
 
 
 fpPathSeparator : Char

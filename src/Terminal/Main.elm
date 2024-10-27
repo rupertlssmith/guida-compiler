@@ -126,6 +126,16 @@ effectToCmd index portOut effect =
                         ]
                 }
 
+        IO.MVectorRead i array ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "mVectorRead" )
+                        , ( "args", Encode.list identity [ Encode.int i, array ] )
+                        ]
+                }
+
         IO.WriteIORef id value ->
             portOut
                 { index = index

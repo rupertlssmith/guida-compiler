@@ -131,6 +131,9 @@ const io = {
       this.send({ index, value: ioRefs[id].value });
     }
   },
+  mVectorRead: function (index, i, array) {
+    this.send({ index, value: array[i] });
+  },
   dirCreateDirectoryIfMissing: function (index, createParents, filename) {
     fs.mkdir(filename, { recursive: createParents }, (err) => {
       this.send({ index, value: null });
