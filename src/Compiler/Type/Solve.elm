@@ -449,7 +449,7 @@ generalize youngMark visitMark youngRank pools =
                                                     -- For variables with rank youngRank
                                                     --   If rank < youngRank: register in oldPool
                                                     --   otherwise generalize
-                                                    IO.vectorUnsafeLast (Decode.list UF.variableDecoder) rankTable
+                                                    IO.vectorUnsafeLast (Decode.list UF.variableDecoder) (Encode.list UF.variableEncoder) rankTable
                                                         |> IO.bind
                                                             (\lastRankTable ->
                                                                 Utils.forM_ lastRankTable <|

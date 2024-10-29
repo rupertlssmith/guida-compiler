@@ -42,13 +42,9 @@ type Solver a
 
 
 type InnerSolver a
-    = ISOk State a InnerBack
+    = ISOk State a
     | ISBack State
     | ISErr Exit.Solver
-
-
-type InnerBack
-    = InnerBackNoOp State
 
 
 type State
@@ -92,7 +88,7 @@ verify cache connection registry constraints =
                     |> IO.fmap
                         (\result ->
                             case result of
-                                ISOk s a _ ->
+                                ISOk s a ->
                                     SolverOk (Dict.map (addDeps s) a)
 
                                 ISBack _ ->
@@ -165,7 +161,7 @@ addToApp cache connection registry pkg ((Outline.AppOutline _ _ direct indirect 
                     |> IO.fmap
                         (\result ->
                             case result of
-                                ISOk s a _ ->
+                                ISOk s a ->
                                     SolverOk (toApp s pkg outline allDeps a)
 
                                 ISBack _ ->
@@ -328,7 +324,7 @@ getRelevantVersions name constraint =
                             IO.pure (ISBack state)
 
                         v :: vs ->
-                            IO.pure (ISOk state ( v, vs ) (InnerBackNoOp state))
+                            IO.pure (ISOk state ( v, vs ))
 
                 Nothing ->
                     IO.pure (ISBack state)
@@ -358,7 +354,7 @@ getConstraints pkg vsn =
             in
             case Dict.get key cDict of
                 Just cs ->
-                    IO.pure (ISOk state cs (InnerBackNoOp state))
+                    IO.pure (ISOk state cs)
 
                 Nothing ->
                     let
@@ -385,14 +381,14 @@ getConstraints pkg vsn =
                                                     Ok cs ->
                                                         case connection of
                                                             Online _ ->
-                                                                IO.pure (ISOk (toNewState cs) cs (InnerBackNoOp state))
+                                                                IO.pure (ISOk (toNewState cs) cs)
 
                                                             Offline ->
                                                                 Utils.dirDoesDirectoryExist (Stuff.package cache pkg vsn ++ "/src")
                                                                     |> IO.fmap
                                                                         (\srcExists ->
                                                                             if srcExists then
-                                                                                ISOk (toNewState cs) cs (InnerBackNoOp state)
+                                                                                ISOk (toNewState cs) cs
 
                                                                             else
                                                                                 ISBack state
@@ -426,7 +422,7 @@ getConstraints pkg vsn =
                                                                     Ok cs ->
                                                                         Utils.dirCreateDirectoryIfMissing True home
                                                                             |> IO.bind (\_ -> File.writeUtf8 path body)
-                                                                            |> IO.fmap (\_ -> ISOk (toNewState cs) cs (InnerBackNoOp state))
+                                                                            |> IO.fmap (\_ -> ISOk (toNewState cs) cs)
 
                                                                     Err _ ->
                                                                         IO.pure (ISErr (Exit.SolverBadHttpData pkg vsn url))
@@ -518,8 +514,8 @@ fmap func (Solver solver) =
                 |> IO.fmap
                     (\result ->
                         case result of
-                            ISOk stateA arg backA ->
-                                ISOk stateA (func arg) backA
+                            ISOk stateA arg ->
+                                ISOk stateA (func arg)
 
                             ISBack stateA ->
                                 ISBack stateA
@@ -531,7 +527,7 @@ fmap func (Solver solver) =
 
 pure : a -> Solver a
 pure a =
-    Solver (\state -> IO.pure (ISOk state a (InnerBackNoOp state)))
+    Solver (\state -> IO.pure (ISOk state a))
 
 
 bind : (a -> Solver b) -> Solver a -> Solver b
@@ -542,7 +538,7 @@ bind callback (Solver solverA) =
                 |> IO.bind
                     (\resA ->
                         case resA of
-                            ISOk stateA a backA ->
+                            ISOk stateA a ->
                                 case callback a of
                                     Solver solverB ->
                                         solverB stateA
@@ -568,8 +564,8 @@ oneOf ((Solver solverHead) as solver) solvers =
                         |> IO.bind
                             (\result ->
                                 case result of
-                                    ISOk stateA arg backA ->
-                                        IO.pure (ISOk stateA arg backA)
+                                    ISOk stateA arg ->
+                                        IO.pure (ISOk stateA arg)
 
                                     ISBack stateA ->
                                         let

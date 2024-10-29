@@ -31,7 +31,7 @@ import Data.IO as IO exposing (IO)
 import Json.Decode as Decode
 import Json.Encode as CoreEncode
 import Prelude
-import Utils.Main as Utils exposing (AsyncException(..), Chan, MVar, SomeException)
+import Utils.Main as Utils exposing (AsyncException(..), Chan, MVar)
 
 
 
@@ -564,52 +564,6 @@ putStrFlush : String -> IO ()
 putStrFlush str =
     IO.hPutStr IO.stdout str
         |> IO.bind (\_ -> IO.hFlush IO.stdout)
-
-
-
--- REPORT EXCEPTIONS NICELY
-
-
-reportExceptionsNicely : SomeException -> IO a
-reportExceptionsNicely e =
-    case Utils.fromException e of
-        Just UserInterrupt ->
-            Utils.throw e
-
-        _ ->
-            putException e
-                |> IO.bind (\_ -> Utils.throw e)
-
-
-putException : SomeException -> IO ()
-putException e =
-    IO.hPutStrLn IO.stderr ""
-        |> IO.bind
-            (\_ ->
-                Help.toStderr <|
-                    D.stack <|
-                        [ D.dullyellow (D.fromChars "-- ERROR -----------------------------------------------------------------------")
-                        , D.reflow <|
-                            "I ran into something that bypassed the normal error reporting process! I extracted whatever information I could from the internal error:"
-                        , D.vcat <|
-                            List.map
-                                (\line ->
-                                    D.red (D.fromChars ">")
-                                        |> D.a (D.fromChars "   ")
-                                        |> D.a (D.fromChars line)
-                                )
-                                (Utils.lines (Debug.toString e))
-                        , D.reflow <|
-                            "These errors are usually pretty confusing, so start by asking around on one of forums listed at https://elm-lang.org/community to see if anyone can get you unstuck quickly."
-                        , D.dullyellow (D.fromChars "-- REQUEST ---------------------------------------------------------------------")
-                        , D.reflow <|
-                            "If you are feeling up to it, please try to get your code down to the smallest version that still triggers this message. Ideally in a single Main.elm and elm.json file."
-                        , D.reflow <|
-                            "From there open a NEW issue at https://github.com/elm/compiler/issues with your reduced example pasted in directly. (Not a link to a repo or gist!) Do not worry about if someone else saw something similar. More examples is better!"
-                        , D.reflow <|
-                            "This kind of error is usually tied up in larger architectural choices that are hard to change, so even when we have a couple good examples, it can take some time to resolve in a solid way."
-                        ]
-            )
 
 
 

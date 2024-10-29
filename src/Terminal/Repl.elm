@@ -146,7 +146,8 @@ type alias M a =
 
 loop : Env -> State -> Utils.ReplInputT IO.ExitCode
 loop env state =
-    Utils.replHandleInterrupt (IO.pure Skip) read
+    -- Utils.replHandleInterrupt (IO.pure Skip)
+    read
         |> IO.bind
             (\input ->
                 Utils.liftIOInputT (eval env state input)
@@ -540,52 +541,52 @@ initialState =
 
 eval : Env -> State -> Input -> IO Outcome
 eval env ((State imports types decls) as state) input =
-    Utils.replHandleInterrupt (Prelude.putStrLn "<cancelled>" |> IO.fmap (\_ -> Loop state)) <|
-        case input of
-            Skip ->
-                IO.pure (Loop state)
+    -- Utils.replHandleInterrupt (Prelude.putStrLn "<cancelled>" |> IO.fmap (\_ -> Loop state)) <|
+    case input of
+        Skip ->
+            IO.pure (Loop state)
 
-            Exit ->
-                IO.pure (End IO.ExitSuccess)
+        Exit ->
+            IO.pure (End IO.ExitSuccess)
 
-            Reset ->
-                Prelude.putStrLn "<reset>"
-                    |> IO.fmap (\_ -> Loop initialState)
+        Reset ->
+            Prelude.putStrLn "<reset>"
+                |> IO.fmap (\_ -> Loop initialState)
 
-            Help maybeUnknownCommand ->
-                Prelude.putStrLn (toHelpMessage maybeUnknownCommand)
-                    |> IO.fmap (\_ -> Loop state)
+        Help maybeUnknownCommand ->
+            Prelude.putStrLn (toHelpMessage maybeUnknownCommand)
+                |> IO.fmap (\_ -> Loop state)
 
-            Import name src ->
-                let
-                    newState : State
-                    newState =
-                        State (Dict.insert compare name src imports) types decls
-                in
-                IO.fmap Loop (attemptEval env state newState OutputNothing)
+        Import name src ->
+            let
+                newState : State
+                newState =
+                    State (Dict.insert compare name src imports) types decls
+            in
+            IO.fmap Loop (attemptEval env state newState OutputNothing)
 
-            Type name src ->
-                let
-                    newState : State
-                    newState =
-                        State imports (Dict.insert compare name src types) decls
-                in
-                IO.fmap Loop (attemptEval env state newState OutputNothing)
+        Type name src ->
+            let
+                newState : State
+                newState =
+                    State imports (Dict.insert compare name src types) decls
+            in
+            IO.fmap Loop (attemptEval env state newState OutputNothing)
 
-            Port ->
-                Prelude.putStrLn "I cannot handle port declarations."
-                    |> IO.fmap (\_ -> Loop state)
+        Port ->
+            Prelude.putStrLn "I cannot handle port declarations."
+                |> IO.fmap (\_ -> Loop state)
 
-            Decl name src ->
-                let
-                    newState : State
-                    newState =
-                        State imports types (Dict.insert compare name src decls)
-                in
-                IO.fmap Loop (attemptEval env state newState (OutputDecl name))
+        Decl name src ->
+            let
+                newState : State
+                newState =
+                    State imports types (Dict.insert compare name src decls)
+            in
+            IO.fmap Loop (attemptEval env state newState (OutputDecl name))
 
-            Expr src ->
-                IO.fmap Loop (attemptEval env state state (OutputExpr src))
+        Expr src ->
+            IO.fmap Loop (attemptEval env state state (OutputExpr src))
 
 
 

@@ -15,7 +15,6 @@ module Data.IO exposing
     , applyStateT
     , bind
     , bindStateT
-    , catch
     , evalStateT
     , exitFailure
     , exitWith
@@ -66,8 +65,6 @@ import Array exposing (Array)
 import Array.Extra as Array
 import Json.Decode as Decode
 import Json.Encode as Encode
-import Maybe.Extra as Maybe
-import Utils.Crash exposing (todo)
 
 
 make : Decode.Decoder a -> Effect -> IO a
@@ -90,6 +87,7 @@ type Effect
     = Exit String Int
     | NewIORef Encode.Value
     | ReadIORef Int
+    | VectorUnsafeLast Encode.Value
     | MVectorRead Int Encode.Value
     | WriteIORef Int Encode.Value
     | GetLine
@@ -213,21 +211,6 @@ type Process
 
 type IORef a
     = IORef Int
-
-
-catch : (e -> IO a) -> IO (Result e a) -> IO a
-catch handler (IO io) =
-    -- IO
-    --     (\ioState ->
-    --         case io ioState of
-    --             ( newIoState, Ok a ) ->
-    --                 ( newIoState, a )
-    --             ( newIoState, Err e ) ->
-    --                 case handler e of
-    --                     IO newIo ->
-    --                         newIo newIoState
-    --     )
-    todo "catch"
 
 
 ioRefEncoder : IORef a -> Encode.Value
@@ -430,17 +413,20 @@ mVectorModify decoder encoder ioRef func index =
         (Array.update index (Maybe.map func))
 
 
-vectorUnsafeLast : Decode.Decoder a -> IORef (Array (Maybe a)) -> IO a
-vectorUnsafeLast decoder ioRef =
+vectorUnsafeLast : Decode.Decoder a -> (a -> Encode.Value) -> IORef (Array (Maybe a)) -> IO a
+vectorUnsafeLast decoder encoder ioRef =
     readIORef (Decode.array (Decode.maybe decoder)) ioRef
-        |> fmap
+        |> bind
             (\value ->
-                case Maybe.join (Array.get (Array.length value - 1) value) of
-                    Nothing ->
-                        todo ("Failed to return last element of array (lenght: " ++ String.fromInt (Array.length value) ++ ")")
-
-                    Just a ->
-                        a
+                make decoder
+                    (VectorUnsafeLast
+                        (Encode.array
+                            (Maybe.map encoder
+                                >> Maybe.withDefault Encode.null
+                            )
+                            value
+                        )
+                    )
             )
 
 

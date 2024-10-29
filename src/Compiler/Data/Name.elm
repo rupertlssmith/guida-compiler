@@ -55,7 +55,7 @@ module Compiler.Data.Name exposing
     , virtualDom
     )
 
-import Utils.Crash exposing (todo)
+import Utils.Crash exposing (crash)
 
 
 
@@ -113,7 +113,7 @@ getKernel name =
         String.dropLeft (String.length prefixKernel) name
 
     else
-        todo "AssertionFailed"
+        crash "AssertionFailed"
 
 
 

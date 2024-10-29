@@ -126,6 +126,16 @@ effectToCmd index portOut effect =
                         ]
                 }
 
+        IO.VectorUnsafeLast array ->
+            portOut
+                { index = index
+                , value =
+                    Encode.object
+                        [ ( "fn", Encode.string "vectorUnsafeLast" )
+                        , ( "args", Encode.list identity [ array ] )
+                        ]
+                }
+
         IO.MVectorRead i array ->
             portOut
                 { index = index

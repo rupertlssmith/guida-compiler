@@ -131,6 +131,9 @@ const io = {
       this.send({ index, value: ioRefs[id].value });
     }
   },
+  vectorUnsafeLast: function (index, array) {
+    this.send({ index, value: array[array.length - 1] });
+  },
   mVectorRead: function (index, i, array) {
     this.send({ index, value: array[i] });
   },

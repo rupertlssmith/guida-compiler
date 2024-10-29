@@ -60,7 +60,6 @@ module Utils.Main exposing
     , fpTakeDirectory
     , fpTakeExtension
     , fpTakeFileName
-    , fromException
     , httpExceptionContentDecoder
     , httpExceptionContentEncoder
     , httpHLocation
@@ -120,7 +119,6 @@ module Utils.Main exposing
     , replCompleteWord
     , replGetInputLine
     , replGetInputLineWithInitial
-    , replHandleInterrupt
     , replRunInputT
     , replWithInterrupt
     , sequenceADict
@@ -135,7 +133,6 @@ module Utils.Main exposing
     , stateGet
     , statePut
     , takeMVar
-    , throw
     , tupleTraverse
     , tupleTraverseStateT
     , unlines
@@ -162,7 +159,7 @@ import Json.Encode as Encode
 import Maybe.Extra as Maybe
 import Prelude
 import Time
-import Utils.Crash exposing (crash, todo)
+import Utils.Crash exposing (crash)
 
 
 liftInputT : IO () -> ReplInputT ()
@@ -1034,16 +1031,6 @@ type AsyncException
     = UserInterrupt
 
 
-fromException : SomeException -> Maybe e
-fromException _ =
-    todo "fromException"
-
-
-throw : e -> a
-throw _ =
-    todo "throw"
-
-
 bracket : IO a -> (a -> IO b) -> (a -> IO c) -> IO c
 bracket before after thing =
     before
@@ -1266,11 +1253,6 @@ replRunInputT _ io =
 
 replWithInterrupt : ReplInputT a -> ReplInputT a
 replWithInterrupt =
-    identity
-
-
-replHandleInterrupt : IO a -> IO a -> IO a
-replHandleInterrupt f =
     identity
 
 
