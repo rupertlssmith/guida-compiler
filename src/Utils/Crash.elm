@@ -1,11 +1,6 @@
-module Utils.Crash exposing (crash, todo)
+module Utils.Crash exposing (crash)
 
 
 crash : String -> a
-crash =
-    todo
-
-
-todo : String -> a
-todo =
-    Debug.todo
+crash str =
+    crash str

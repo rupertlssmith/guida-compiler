@@ -2211,11 +2211,11 @@ toHttpErrorReport title err context =
                             "Are you somewhere with a slow internet connection? Or no internet? Does the link I am trying to fetch work in your browser? Maybe the site is down? Does your internet connection have a firewall that blocks certain domains? It is usually something like that!"
                         ]
 
-        Http.BadMystery url someException ->
+        Http.BadMystery url Utils.SomeException ->
             toHttpReport (context ++ ", so I tried to fetch:")
                 url
                 [ D.reflow <| "But I ran into something weird! I was able to extract this error message:"
-                , D.indent 4 <| D.fromChars (Debug.toString someException)
+                , D.indent 4 <| D.fromChars "SomeException"
                 , D.reflow <|
                     "Is it possible that your internet connection intercepts certain requests? That sometimes causes problems for folks in schools, businesses, airports, hotels, and certain countries. Try asking for help locally or in a community forum!"
                 ]

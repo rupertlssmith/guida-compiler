@@ -125,11 +125,7 @@ const io = {
     this.send({ index, value: nextCounter });
   },
   readIORef: function (index, id) {
-    if (ioRefs[id].value === null) {
-      ioRefs[id].subscribers.push(index);
-    } else {
-      this.send({ index, value: ioRefs[id].value });
-    }
+    this.send({ index, value: ioRefs[id].value });
   },
   vectorUnsafeLast: function (index, array) {
     this.send({ index, value: array[array.length - 1] });
@@ -338,22 +334,22 @@ const io = {
   },
   newEmptyMVar: function (index) {
     nextCounter += 1;
-    mVars[nextCounter] = { subscribers: [], value: null };
+    mVars[nextCounter] = { subscribers: [], value: undefined };
     this.send({ index, value: nextCounter });
   },
   readMVar: function (index, id) {
-    if (mVars[id].value === null) {
+    if (typeof mVars[id].value === "undefined") {
       mVars[id].subscribers.push({ index, action: "read" });
     } else {
       this.send({ index, value: mVars[id].value });
     }
   },
   takeMVar: function (index, id) {
-    if (mVars[id].value === null) {
+    if (typeof mVars[id].value === "undefined") {
       mVars[id].subscribers.push({ index, action: "take" });
     } else {
       const value = mVars[id].value;
-      mVars[id].value = null;
+      mVars[id].value = undefined;
 
       if (
         mVars[id].subscribers.length > 0 &&
@@ -368,7 +364,7 @@ const io = {
     }
   },
   putMVar: function (index, id, value) {
-    if (mVars[id].value === null) {
+    if (typeof mVars[id].value === "undefined") {
       mVars[id].value = value;
 
       mVars[id].subscribers = mVars[id].subscribers.filter((subscriber) => {
@@ -385,7 +381,7 @@ const io = {
         this.send({ index: subscriber.index, value });
 
         if (subscriber.action === "take") {
-          mVars[id].value = null;
+          mVars[id].value = undefined;
         }
       }
 

@@ -5,6 +5,7 @@ import Compiler.AST.Canonical as Can
 import Compiler.Data.Name as Name
 import Compiler.Data.NonEmptyList as NE
 import Compiler.Reporting.Annotation as A
+import Compiler.Reporting.Doc as Doc
 import Compiler.Reporting.Error.Type as Error
 import Compiler.Reporting.Render.Type as RT
 import Compiler.Reporting.Render.Type.Localizer as L
@@ -324,7 +325,7 @@ isGeneric var =
                                 crash <|
                                     "You ran into a compiler bug. Here are some details for the developers:\n\n"
                                         ++ "    "
-                                        ++ Debug.toString (ET.toDoc L.empty RT.None tipe)
+                                        ++ Doc.toString (ET.toDoc L.empty RT.None tipe)
                                         ++ " [rank = "
                                         ++ String.fromInt rank
                                         ++ "]\n\n"
