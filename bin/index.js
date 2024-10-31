@@ -65,47 +65,61 @@ const download = function (index, method, url) {
 
 const io = {
   fwrite: function (index, fd, content) {
-    this.send({ index, value: fs.writeSync(fd, content) });
+    fs.write(fd, content, (err) => {
+      if (err) throw err;
+      this.send({ index, value: null });
+    });
   },
   fread: function (index, fd) {
-    this.send({ index, value: fs.readFileSync(fd).toString() });
+    fs.readFile(fd, (err, data) => {
+      if (err) throw err;
+      this.send({ index, value: data.toString() });
+    });
   },
   fopen: function (index, filename, flags) {
-    try {
-      this.send({ index, value: fs.openSync(filename, flags) });
-    } catch (e) {
-      this.send({ index, value: e.toString() });
-    }
+    fs.open(filename, flags, (err, fd) => {
+      if (err) {
+        this.send({ index, value: err.toString() });
+      } else {
+        this.send({ index, value: fd });
+      }
+    });
   },
   mkdir: function (index, name, recursive) {
-    fs.mkdirSync(name, { recursive: recursive, mode: 0o777 });
-    this.send({ index, value: null });
+    fs.mkdir(name, { recursive: recursive, mode: 0o777 }, (err, _path) => {
+      if (err) throw err;
+      this.send({ index, value: null });
+    });
   },
   fstat: function (index, filename) {
-    try {
-      this.send({ index, value: fs.statSync(filename) });
-    } catch (e) {
-      this.send({ index, value: e.toString() });
-    }
+    fs.stat(filename, (err, stats) => {
+      if (err) {
+        this.send({ index, value: err.toString() });
+      } else {
+        this.send({ index, value: stats });
+      }
+    });
   },
   readdir: function (index, dirname) {
-    try {
-      var r = fs
-        .readdirSync(dirname, { withFileTypes: true })
-        .map((dirent) => ({
-          name: dirent.name,
-          isDir: dirent.isDirectory(),
-          isFile: dirent.isFile(),
-          isSocket: dirent.isSocket(),
-          isFifo: dirent.isFIFO(),
-          isSymlink: dirent.isSymbolicLink(),
-          isBlockDevice: dirent.isBlockDevice(),
-          isCharacterDevice: dirent.isCharacterDevice(),
-        }));
-      this.send({ index, value: r });
-    } catch (e) {
-      this.send({ index, value: e.toString() });
-    }
+    fs.readdir(dirname, { withFileTypes: true }, (err, files) => {
+      if (err) {
+        this.send({ index, value: err.toString() });
+      } else {
+        this.send({
+          index,
+          value: files.map((dirent) => ({
+            name: dirent.name,
+            isDir: dirent.isDirectory(),
+            isFile: dirent.isFile(),
+            isSocket: dirent.isSocket(),
+            isFifo: dirent.isFIFO(),
+            isSymlink: dirent.isSymbolicLink(),
+            isBlockDevice: dirent.isBlockDevice(),
+            isCharacterDevice: dirent.isCharacterDevice(),
+          }))
+        });
+      }
+    });
   },
   exit: function (_index, _errorMessage, status) {
     rl.close();
@@ -140,20 +154,14 @@ const io = {
   },
   dirRemoveFile: function (index, path) {
     fs.unlink(path, (err) => {
-      if (err) {
-        console.error(err);
-      } else {
-        this.send({ index, value: null });
-      }
+      if (err) throw err;
+      this.send({ index, value: null });
     });
   },
   dirRemoveDirectoryRecursive: function (index, path) {
     fs.rm(path, { recursive: true, force: true }, (err) => {
-      if (err) {
-        console.error(err);
-      } else {
-        this.send({ index, value: null });
-      }
+      if (err) throw err;
+      this.send({ index, value: null });
     });
   },
   writeIORef: function (index, id, value) {
@@ -183,19 +191,13 @@ const io = {
 
         if (encoding == "gzip") {
           zlib.gunzip(buffer, (err, decoded) => {
-            if (err) {
-              console.error(err);
-            } else {
-              this.send({ index, value: decoded && decoded.toString() });
-            }
+            if (err) throw err;
+            this.send({ index, value: decoded && decoded.toString() });
           });
         } else if (encoding == "deflate") {
           zlib.inflate(buffer, (err, decoded) => {
-            if (err) {
-              console.error(err);
-            } else {
-              this.send({ index, value: decoded && decoded.toString() });
-            }
+            if (err) throw err;
+            this.send({ index, value: decoded && decoded.toString() });
           });
         } else {
           this.send({ index, value: buffer.toString() });
@@ -204,7 +206,7 @@ const io = {
     });
 
     req.on("error", (err) => {
-      console.error(err);
+      throw err;
     });
 
     req.end();
@@ -248,17 +250,20 @@ const io = {
     });
 
     req.on("error", (err) => {
-      console.error(err);
+      throw err;
     });
   },
   write: function (index, path, value) {
-    this.send({
-      index,
-      value: fs.writeFileSync(path, JSON.stringify(value)),
+    fs.writeFile(path, JSON.stringify(value), (err) => {
+      if (err) throw err;
+      this.send({ index, value: null });
     });
   },
   writeString: function (index, path, str) {
-    this.send({ index, value: fs.writeFileSync(path, str) });
+    fs.writeFile(path, str, (err) => {
+      if (err) throw err;
+      this.send({ index, value: null });
+    });
   },
   envLookupEnv: function (index, varname) {
     this.send({ index, value: process.env[varname] });
@@ -270,9 +275,9 @@ const io = {
     this.send({ index, value: process.argv.slice(2) });
   },
   binaryDecodeFileOrFail: function (index, filename) {
-    this.send({
-      index,
-      value: JSON.parse(fs.readFileSync(filename).toString()),
+    fs.readFile(filename, (err, data) => {
+      if (err) throw err;
+      this.send({ index, value: JSON.parse(data.toString()) });
     });
   },
   dirGetAppUserDataDirectory: function (index, app) {
@@ -282,12 +287,9 @@ const io = {
     this.send({ index, value: process.cwd() });
   },
   dirGetModificationTime: function (index, filename) {
-    fs.stat(filename, (error, stats) => {
-      if (error) {
-        console.log(error);
-      } else {
-        this.send({ index, value: parseInt(stats.mtimeMs, 10) });
-      }
+    fs.stat(filename, (err, stats) => {
+      if (err) throw err;
+      this.send({ index, value: parseInt(stats.mtimeMs, 10) });
     });
   },
   dirDoesDirectoryExist: function (index, path) {
@@ -404,28 +406,31 @@ const io = {
     });
   },
   procWithCreateProcess: function (index, createProcess) {
-    const file = tmp.fileSync();
-    const reader = fs.createReadStream(file.name);
+    tmp.file((err, path, fd, cleanupCallback) => {
+      if (err) throw err;
 
-    reader.on("open", (fd) => {
-      nextCounter += 1;
-      processes[nextCounter] = child_process.spawn(
-        createProcess.cmdspec.cmd,
-        createProcess.cmdspec.args,
-        {
-          stdio: [
-            createProcess.stdin,
-            createProcess.stdout,
-            createProcess.stderr,
-          ],
-        }
-      );
+      const reader = fs.createReadStream(path);
 
-      this.send({ index, value: { stdin: file.fd, ph: nextCounter } });
-    });
+      reader.on("open", (_fd) => {
+        nextCounter += 1;
+        processes[nextCounter] = child_process.spawn(
+          createProcess.cmdspec.cmd,
+          createProcess.cmdspec.args,
+          {
+            stdio: [
+              createProcess.stdin,
+              createProcess.stdout,
+              createProcess.stderr,
+            ],
+          }
+        );
 
-    reader.on("data", (chunk) => {
-      processes[nextCounter].stdin.end(chunk);
+        this.send({ index, value: { stdin: fd, ph: nextCounter } });
+      });
+
+      reader.on("data", (chunk) => {
+        processes[nextCounter].stdin.end(chunk);
+      });
     });
   },
   procWaitForProcess: function (index, ph) {
@@ -438,16 +443,20 @@ const io = {
     this.send({ index, value: null });
   },
   hFileSize: function (index, fd) {
-    const stats = fs.fstatSync(fd);
-    this.send({ index, value: stats.size });
+    fs.fstat(fd, (err, stats) => {
+      if (err) throw err;
+      this.send({ index, value: stats.size });
+    });
   },
   hFlush: function (index, fd) {
     // TODO no-op?
     this.send({ index, value: null });
   },
   withFile: function (index, filename, mode) {
-    var fd = fs.openSync(filename, mode);
-    this.send({ index, value: fd });
+    fs.open(filename, mode, (err, fd) => {
+      if (err) throw err;
+      this.send({ index, value: fd });
+    });
   },
   statePut: function (index, value) {
     state = value;
