@@ -60,9 +60,11 @@ writeChunks src mba offset chunks =
                             ( hi, lo ) =
                                 NI.divMod (code - 0x00010000) 0x0400
 
+                            hiCode : String
                             hiCode =
                                 writeCode (hi + 0xD800)
 
+                            lowCode : String
                             lowCode =
                                 writeCode (lo + 0xDC00)
 
