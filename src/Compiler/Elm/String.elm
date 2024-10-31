@@ -4,6 +4,7 @@ module Compiler.Elm.String exposing
     )
 
 import Hex
+import Numeric.Integer as NI
 
 
 
@@ -52,12 +53,26 @@ writeChunks src mba offset chunks =
                             newOffset =
                                 offset + 6
                         in
-                        writeChunks src (mba ++ Hex.toString code) newOffset otherChunks
+                        writeChunks src (mba ++ writeCode code) newOffset otherChunks
 
                     else
                         let
+                            ( hi, lo ) =
+                                NI.divMod (code - 0x00010000) 0x0400
+
+                            hiCode =
+                                writeCode (hi + 0xD800)
+
+                            lowCode =
+                                writeCode (lo + 0xDC00)
+
                             newOffset : Int
                             newOffset =
                                 offset + 12
                         in
-                        writeChunks src (mba ++ Hex.toString code) newOffset otherChunks
+                        writeChunks src (mba ++ hiCode ++ lowCode) newOffset otherChunks
+
+
+writeCode : Int -> String
+writeCode code =
+    "\\u" ++ String.padLeft 4 '0' (String.toUpper (Hex.toString code))
