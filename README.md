@@ -9,7 +9,7 @@ Guida builds on the foundations of Elm, aiming to advance the future of function
 By translating Elm's compiler from Haskell to a self-hosted environment, Guida helps developers to
 build reliable, maintainable, and performant applications without leaving the language they love.
 
-**Continuity and Confidence (Version 1.x):**
+**Continuity and Confidence (Version 0.x):**
 Guida starts by ensuring full backward compatibility with Elm v0.19.1, allowing developers to migrate
 effortlessly and explore Guida with complete confidence.
 
@@ -18,7 +18,7 @@ features and behaviors of Elm v0.19.1, but also any existing bugs and quirks.
 By doing so, we provide a stable and predictable environment for developers, ensuring that their
 existing Elm projects work exactly as expected when migrated to Guida.
 
-**Evolution and Innovation (Version 2.x and Beyond):**
+**Evolution and Innovation (Version 1.x and Beyond):**
 As Guida evolves, we will introduce new features and improvements.
 This phase will foster a unified ecosystem that adapts to the needs of its users.
 
