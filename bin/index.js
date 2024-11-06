@@ -135,11 +135,11 @@ const io = {
   },
   newIORef: function (index, value) {
     nextCounter += 1;
-    ioRefs[nextCounter] = { subscribers: [], value };
+    ioRefs[nextCounter] = value;
     this.send({ index, value: nextCounter });
   },
   readIORef: function (index, id) {
-    this.send({ index, value: ioRefs[id].value });
+    this.send({ index, value: ioRefs[id] });
   },
   vectorUnsafeLast: function (index, array) {
     this.send({ index, value: array[array.length - 1] });
@@ -165,14 +165,7 @@ const io = {
     });
   },
   writeIORef: function (index, id, value) {
-    ioRefs[id].value = value;
-
-    const subscribers = ioRefs[id].subscribers;
-    ioRefs[id].subscribers = [];
-    subscribers.forEach((subscriber) => {
-      this.send({ index: subscriber, value });
-    });
-
+    ioRefs[id] = value;
     this.send({ index, value: null });
   },
   httpFetch: function (index, method, urlStr, headers) {
