@@ -5,4 +5,5 @@ elm-stuff
 
 # Guida
 bin/guida.js
+bin/guida.min.js
 guida-stuff
