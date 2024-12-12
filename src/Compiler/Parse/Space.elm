@@ -32,7 +32,7 @@ chomp toError =
         \(P.State src pos end indent row col) ->
             let
                 ( ( status, newPos ), ( newRow, newCol ) ) =
-                    eatSpaces src pos end row col
+                    eat Spaces src pos end row col
             in
             case status of
                 Good ->
@@ -97,7 +97,7 @@ chompAndCheckIndent toSpaceError toIndentError =
         \(P.State src pos end indent row col) ->
             let
                 ( ( status, newPos ), ( newRow, newCol ) ) =
-                    eatSpaces src pos end row col
+                    eat Spaces src pos end row col
             in
             case status of
                 Good ->
@@ -120,7 +120,18 @@ chompAndCheckIndent toSpaceError toIndentError =
 
 
 
--- EAT SPACES
+{- EAT SPACES, LINE COMMENTS AND MULTI COMMENTS
+
+   This function combines the functionality of the original `eatSpaces`, `eatLineComment`,
+   and `eatMultiComment` methods. The merge resolves a "RangeError: Maximum call stack size exceeded"
+   issue reported in guida-lang/compiler#53.
+-}
+
+
+type EatType
+    = Spaces
+    | LineComment
+    | MultiComment
 
 
 type Status
@@ -129,112 +140,102 @@ type Status
     | EndlessMultiComment
 
 
-eatSpaces : String -> Int -> Int -> Row -> Col -> ( ( Status, Int ), ( Row, Col ) )
-eatSpaces src pos end row col =
-    if pos >= end then
-        ( ( Good, pos ), ( row, col ) )
+eat : EatType -> String -> Int -> Int -> Row -> Col -> ( ( Status, Int ), ( Row, Col ) )
+eat eatType src pos end row col =
+    case eatType of
+        Spaces ->
+            if pos >= end then
+                ( ( Good, pos ), ( row, col ) )
 
-    else
-        case P.unsafeIndex src pos of
-            ' ' ->
-                eatSpaces src (pos + 1) end row (col + 1)
+            else
+                case P.unsafeIndex src pos of
+                    ' ' ->
+                        eat Spaces src (pos + 1) end row (col + 1)
 
-            '\n' ->
-                eatSpaces src (pos + 1) end (row + 1) 1
+                    '\n' ->
+                        eat Spaces src (pos + 1) end (row + 1) 1
 
-            '{' ->
-                eatMultiComment src pos end row col
+                    '{' ->
+                        eat MultiComment src pos end row col
 
-            '-' ->
+                    '-' ->
+                        let
+                            pos1 : Int
+                            pos1 =
+                                pos + 1
+                        in
+                        if pos1 < end && P.unsafeIndex src pos1 == '-' then
+                            eat LineComment src (pos + 2) end row (col + 2)
+
+                        else
+                            ( ( Good, pos ), ( row, col ) )
+
+                    '\u{000D}' ->
+                        eat Spaces src (pos + 1) end row col
+
+                    '\t' ->
+                        ( ( HasTab, pos ), ( row, col ) )
+
+                    _ ->
+                        ( ( Good, pos ), ( row, col ) )
+
+        LineComment ->
+            if pos >= end then
+                ( ( Good, pos ), ( row, col ) )
+
+            else
+                let
+                    word : Char
+                    word =
+                        P.unsafeIndex src pos
+                in
+                if word == '\n' then
+                    eat Spaces src (pos + 1) end (row + 1) 1
+
+                else
+                    let
+                        newPos : Int
+                        newPos =
+                            pos + P.getCharWidth word
+                    in
+                    eat LineComment src newPos end row (col + 1)
+
+        MultiComment ->
+            let
+                pos2 : Int
+                pos2 =
+                    pos + 2
+            in
+            if pos2 >= end then
+                ( ( Good, pos ), ( row, col ) )
+
+            else
                 let
                     pos1 : Int
                     pos1 =
                         pos + 1
                 in
-                if pos1 < end && P.unsafeIndex src pos1 == '-' then
-                    eatLineComment src (pos + 2) end row (col + 2)
+                if P.unsafeIndex src pos1 == '-' then
+                    if P.unsafeIndex src pos2 == '|' then
+                        ( ( Good, pos ), ( row, col ) )
+
+                    else
+                        let
+                            ( ( status, newPos ), ( newRow, newCol ) ) =
+                                eatMultiCommentHelp src pos2 end row (col + 2) 1
+                        in
+                        case status of
+                            MultiGood ->
+                                eat Spaces src newPos end newRow newCol
+
+                            MultiTab ->
+                                ( ( HasTab, newPos ), ( newRow, newCol ) )
+
+                            MultiEndless ->
+                                ( ( EndlessMultiComment, pos ), ( row, col ) )
 
                 else
                     ( ( Good, pos ), ( row, col ) )
-
-            '\u{000D}' ->
-                eatSpaces src (pos + 1) end row col
-
-            '\t' ->
-                ( ( HasTab, pos ), ( row, col ) )
-
-            _ ->
-                ( ( Good, pos ), ( row, col ) )
-
-
-
--- LINE COMMENTS
-
-
-eatLineComment : String -> Int -> Int -> Row -> Col -> ( ( Status, Int ), ( Row, Col ) )
-eatLineComment src pos end row col =
-    if pos >= end then
-        ( ( Good, pos ), ( row, col ) )
-
-    else
-        let
-            word : Char
-            word =
-                P.unsafeIndex src pos
-        in
-        if word == '\n' then
-            eatSpaces src (pos + 1) end (row + 1) 1
-
-        else
-            let
-                newPos : Int
-                newPos =
-                    pos + P.getCharWidth word
-            in
-            eatLineComment src newPos end row (col + 1)
-
-
-
--- MULTI COMMENTS
-
-
-eatMultiComment : String -> Int -> Int -> Row -> Col -> ( ( Status, Int ), ( Row, Col ) )
-eatMultiComment src pos end row col =
-    let
-        pos2 : Int
-        pos2 =
-            pos + 2
-    in
-    if pos2 >= end then
-        ( ( Good, pos ), ( row, col ) )
-
-    else
-        let
-            pos1 : Int
-            pos1 =
-                pos + 1
-        in
-        if P.unsafeIndex src pos1 == '-' then
-            if P.unsafeIndex src pos2 == '|' then
-                ( ( Good, pos ), ( row, col ) )
-
-            else
-                let
-                    ( ( status, newPos ), ( newRow, newCol ) ) =
-                        eatMultiCommentHelp src pos2 end row (col + 2) 1
-                in
-                case status of
-                    MultiGood ->
-                        eatSpaces src newPos end newRow newCol
-
-                    MultiTab ->
-                        ( ( HasTab, newPos ), ( newRow, newCol ) )
-
-                    MultiEndless ->
-                        ( ( EndlessMultiComment, pos ), ( row, col ) )
-
-        else
-            ( ( Good, pos ), ( row, col ) )
 
 
 type MultiStatus
