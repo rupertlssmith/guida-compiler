@@ -82,7 +82,7 @@ readIORefMVector (IORef ref) s =
             ( s, value )
 
         Nothing ->
-            crash "Data.IORef.readIORefDescriptor: could not find entry"
+            crash "Data.IORef.readIORefMVector: could not find entry"
 
 
 writeIORefWeight : IORef Int -> Int -> IO ()
