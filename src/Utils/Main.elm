@@ -983,7 +983,7 @@ modifyMVar decoder encoder m io =
 takeMVar : Decode.Decoder a -> MVar a -> IO a
 takeMVar decoder (MVar ref) =
     IO
-        (\_ s ->
+        (\index s ->
             case Array.get ref s.mVars of
                 Just mVar ->
                     case mVar.value of
@@ -1000,7 +1000,7 @@ takeMVar decoder (MVar ref) =
                                     )
 
                         Nothing ->
-                            ( { s | mVars = Array.set ref { mVar | subscribers = mVar.subscribers ++ [ IO.TakeSubscriber ] } s.mVars }
+                            ( { s | mVars = Array.set ref { mVar | subscribers = mVar.subscribers ++ [ IO.TakeSubscriber index ] } s.mVars }
                             , IO.TakeMVar IO.pure Nothing Nothing
                             )
 
@@ -1043,6 +1043,9 @@ putMVar encoder (MVar ref) value =
                                             case subscriber of
                                                 IO.ReadSubscriber readIndex ->
                                                     ( filteredSubscribersAcc, readIndex :: readIndexesAcc )
+
+                                                IO.TakeSubscriber takeIndex ->
+                                                    ( filteredSubscribersAcc, takeIndex :: readIndexesAcc )
 
                                                 _ ->
                                                     ( subscriber :: filteredSubscribersAcc, readIndexesAcc )

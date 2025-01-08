@@ -81,6 +81,7 @@ port module System.IO exposing
 -}
 
 import Array exposing (Array)
+import Cmd.Extra as Cmd
 import Codec.Archive.Zip as Zip
 import Dict exposing (Dict)
 import Json.Encode as Encode
@@ -106,7 +107,8 @@ run app =
         { init =
             \flags ->
                 update (PureMsg 0 app)
-                    { args = flags.args
+                    { count = 1
+                    , args = flags.args
                     , currentDirectory = flags.currentDirectory
                     , envVars = Dict.fromList flags.envVars
                     , homedir = flags.homedir
@@ -232,7 +234,7 @@ update msg model =
         PureMsg index (IO fn) ->
             case fn index model of
                 ( newRealWorld, Pure () ) ->
-                    ( newRealWorld
+                    ( { newRealWorld | next = Dict.remove index newRealWorld.next }
                     , if index == 0 then
                         sendExitWith 0
 
@@ -241,12 +243,12 @@ update msg model =
                     )
 
                 ( newRealWorld, ForkIO next forkIO ) ->
-                    let
-                        ( updatedModel, updatedCmd ) =
-                            update (PureMsg index (next ())) newRealWorld
-                    in
-                    update (PureMsg (Dict.size updatedModel.next) forkIO) updatedModel
-                        |> Tuple.mapSecond (\cmd -> Cmd.batch [ cmd, updatedCmd ])
+                    ( { newRealWorld | count = newRealWorld.count + 1 }
+                    , Cmd.batch
+                        [ Cmd.perform (PureMsg index (next ()))
+                        , Cmd.perform (PureMsg newRealWorld.count forkIO)
+                        ]
+                    )
 
                 ( newRealWorld, GetLine next ) ->
                     ( { newRealWorld | next = Dict.insert index (GetLineNext next) model.next }, sendGetLine index )
@@ -372,13 +374,13 @@ update msg model =
                         |> updatePutIndex maybePutIndex
 
                 ( newRealWorld, PutMVar next readIndexes (Just value) ) ->
-                    List.foldl
-                        (\readIndex ( updatedModel, updateCmd ) ->
-                            update (ReadMVarMsg readIndex value) updatedModel
-                                |> Tuple.mapSecond (\cmd -> Cmd.batch [ updateCmd, cmd ])
+                    ( { newRealWorld | next = Dict.insert index (PutMVarNext next) model.next }
+                    , Cmd.batch
+                        (List.foldl (\readIndex -> (::) (Cmd.perform (ReadMVarMsg readIndex value)))
+                            [ Cmd.perform (PutMVarMsg index) ]
+                            readIndexes
                         )
-                        (update (PutMVarMsg index) { newRealWorld | next = Dict.insert index (PutMVarNext next) model.next })
-                        readIndexes
+                    )
 
                 ( newRealWorld, PutMVar next _ Nothing ) ->
                     update (PutMVarMsg index) { newRealWorld | next = Dict.insert index (PutMVarNext next) model.next }
@@ -865,7 +867,8 @@ type ION a
 
 
 type alias RealWorld =
-    { args : List String
+    { count : Int
+    , args : List String
     , currentDirectory : String
     , envVars : Dict String String
     , homedir : FilePath
@@ -884,7 +887,7 @@ type alias RealWorldMVar =
 
 type MVarSubscriber
     = ReadSubscriber Int
-    | TakeSubscriber
+    | TakeSubscriber Int
     | PutSubscriber Int Encode.Value
 
 
@@ -895,12 +898,12 @@ pure x =
 
 apply : IO a -> IO (a -> b) -> IO b
 apply ma mf =
-    bind (\f -> bind (\a -> pure (f a)) ma) mf
+    bind (\f -> bind (pure << f) ma) mf
 
 
 fmap : (a -> b) -> IO a -> IO b
 fmap fn ma =
-    bind (\a -> pure (fn a)) ma
+    bind (pure << fn) ma
 
 
 bind : (a -> IO b) -> IO a -> IO b
