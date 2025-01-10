@@ -1,6 +1,6 @@
 port module System.IO exposing
     ( Program, Flags, Model, Msg, Next, run
-    , IO(..), ION(..), RealWorld, pure, apply, fmap, bind
+    , IO(..), ION(..), RealWorld, pure, apply, fmap, bind, mapM
     , FilePath, Handle(..)
     , stdout, stderr
     , withFile, IOMode(..)
@@ -21,7 +21,7 @@ port module System.IO exposing
 
 # The IO monad
 
-@docs IO, ION, RealWorld, pure, apply, fmap, bind
+@docs IO, ION, RealWorld, pure, apply, fmap, bind, mapM
 
 
 # Files and handles
@@ -125,6 +125,7 @@ run app =
                     , recvHPutStr HPutLineMsg
                     , recvWriteString WriteStringMsg
                     , recvRead (\{ index, value } -> ReadMsg index value)
+                    , recvReadStdin (\{ index, value } -> ReadStdinMsg index value)
                     , recvHttpFetch (\{ index, value } -> HttpFetchMsg index value)
                     , recvGetArchive (\{ index, value } -> GetArchiveMsg index value)
                     , recvHttpUpload HttpUploadMsg
@@ -143,6 +144,7 @@ run app =
                     , recvDirGetModificationTime (\{ index, value } -> DirGetModificationTimeMsg index value)
                     , recvDirDoesDirectoryExist (\{ index, value } -> DirDoesDirectoryExistMsg index value)
                     , recvDirCanonicalizePath (\{ index, value } -> DirCanonicalizePathMsg index value)
+                    , recvDirListDirectory (\{ index, value } -> DirListDirectoryMsg index value)
                     , recvBinaryDecodeFileOrFail (\{ index, value } -> BinaryDecodeFileOrFailMsg index value)
                     , recvWrite WriteMsg
                     , recvDirRemoveFile DirRemoveFileMsg
@@ -162,6 +164,7 @@ type Next
     | HPutLineNext (() -> IO ())
     | WriteStringNext (() -> IO ())
     | ReadNext (String -> IO ())
+    | ReadStdinNext (String -> IO ())
     | HttpFetchNext (String -> IO ())
     | GetArchiveNext (( String, Zip.Archive ) -> IO ())
     | HttpUploadNext (() -> IO ())
@@ -181,6 +184,7 @@ type Next
     | DirGetModificationTimeNext (Int -> IO ())
     | DirDoesDirectoryExistNext (Bool -> IO ())
     | DirCanonicalizePathNext (String -> IO ())
+    | DirListDirectoryNext (List String -> IO ())
     | BinaryDecodeFileOrFailNext (Encode.Value -> IO ())
     | WriteNext (() -> IO ())
     | DirRemoveFileNext (() -> IO ())
@@ -199,6 +203,7 @@ type Msg
     | HPutLineMsg Int
     | WriteStringMsg Int
     | ReadMsg Int String
+    | ReadStdinMsg Int String
     | HttpFetchMsg Int String
     | GetArchiveMsg Int ( String, Zip.Archive )
     | HttpUploadMsg Int
@@ -217,6 +222,7 @@ type Msg
     | DirGetModificationTimeMsg Int Int
     | DirDoesDirectoryExistMsg Int Bool
     | DirCanonicalizePathMsg Int FilePath
+    | DirListDirectoryMsg Int (List FilePath)
     | BinaryDecodeFileOrFailMsg Int Encode.Value
     | WriteMsg Int
     | DirRemoveFileMsg Int
@@ -261,6 +267,9 @@ update msg model =
 
                 ( newRealWorld, Read next fd ) ->
                     ( { newRealWorld | next = Dict.insert index (ReadNext next) model.next }, sendRead { index = index, fd = fd } )
+
+                ( newRealWorld, ReadStdin next ) ->
+                    ( { newRealWorld | next = Dict.insert index (ReadStdinNext next) model.next }, sendReadStdin { index = index } )
 
                 ( newRealWorld, HttpFetch next method urlStr headers ) ->
                     ( { newRealWorld | next = Dict.insert index (HttpFetchNext next) model.next }, sendHttpFetch { index = index, method = method, urlStr = urlStr, headers = headers } )
@@ -336,6 +345,9 @@ update msg model =
 
                 ( newRealWorld, DirCanonicalizePath next path ) ->
                     ( { newRealWorld | next = Dict.insert index (DirCanonicalizePathNext next) model.next }, sendDirCanonicalizePath { index = index, path = path } )
+
+                ( newRealWorld, DirListDirectory next path ) ->
+                    ( { newRealWorld | next = Dict.insert index (DirListDirectoryNext next) model.next }, sendDirListDirectory { index = index, path = path } )
 
                 ( newRealWorld, BinaryDecodeFileOrFail next filename ) ->
                     ( { newRealWorld | next = Dict.insert index (BinaryDecodeFileOrFailNext next) model.next }, sendBinaryDecodeFileOrFail { index = index, filename = filename } )
@@ -416,6 +428,14 @@ update msg model =
 
                 _ ->
                     crash "ReadMsg"
+
+        ReadStdinMsg index value ->
+            case Dict.get index model.next of
+                Just (ReadStdinNext fn) ->
+                    update (PureMsg index (fn value)) model
+
+                _ ->
+                    crash "ReadStdinMsg"
 
         HttpFetchMsg index value ->
             case Dict.get index model.next of
@@ -561,6 +581,14 @@ update msg model =
                 _ ->
                     crash "DirCanonicalizePathMsg"
 
+        DirListDirectoryMsg index value ->
+            case Dict.get index model.next of
+                Just (DirListDirectoryNext fn) ->
+                    update (PureMsg index (fn value)) model
+
+                _ ->
+                    crash "DirListDirectoryMsg"
+
         BinaryDecodeFileOrFailMsg index value ->
             case Dict.get index model.next of
                 Just (BinaryDecodeFileOrFailNext fn) ->
@@ -670,6 +698,12 @@ port sendRead : { index : Int, fd : String } -> Cmd msg
 
 
 port recvRead : ({ index : Int, value : String } -> msg) -> Sub msg
+
+
+port sendReadStdin : { index : Int } -> Cmd msg
+
+
+port recvReadStdin : ({ index : Int, value : String } -> msg) -> Sub msg
 
 
 port sendHttpFetch : { index : Int, method : String, urlStr : String, headers : List ( String, String ) } -> Cmd msg
@@ -783,6 +817,12 @@ port sendDirCanonicalizePath : { index : Int, path : FilePath } -> Cmd msg
 port recvDirCanonicalizePath : ({ index : Int, value : FilePath } -> msg) -> Sub msg
 
 
+port sendDirListDirectory : { index : Int, path : FilePath } -> Cmd msg
+
+
+port recvDirListDirectory : ({ index : Int, value : List FilePath } -> msg) -> Sub msg
+
+
 port sendBinaryDecodeFileOrFail : { index : Int, filename : FilePath } -> Cmd msg
 
 
@@ -834,6 +874,7 @@ type ION a
     | GetLine (String -> IO a)
     | WriteString (() -> IO a) FilePath String
     | Read (String -> IO a) FilePath
+    | ReadStdin (String -> IO a)
     | HttpFetch (String -> IO a) String String (List ( String, String ))
     | GetArchive (( String, Zip.Archive ) -> IO a) String String
     | HttpUpload (() -> IO a) String (List ( String, String )) (List Encode.Value)
@@ -853,6 +894,7 @@ type ION a
     | DirGetModificationTime (Int -> IO a) FilePath
     | DirDoesDirectoryExist (Bool -> IO a) FilePath
     | DirCanonicalizePath (String -> IO a) FilePath
+    | DirListDirectory (List String -> IO a) FilePath
     | BinaryDecodeFileOrFail (Encode.Value -> IO a) FilePath
     | Write (() -> IO a) FilePath Encode.Value
     | DirRemoveFile (() -> IO a) FilePath
@@ -929,6 +971,9 @@ bind f (IO ma) =
                 ( s1, Read next fd ) ->
                     ( s1, Read (\input -> bind f (next input)) fd )
 
+                ( s1, ReadStdin next ) ->
+                    ( s1, ReadStdin (\input -> bind f (next input)) )
+
                 ( s1, HttpFetch next method urlStr headers ) ->
                     ( s1, HttpFetch (\body -> bind f (next body)) method urlStr headers )
 
@@ -986,6 +1031,9 @@ bind f (IO ma) =
                 ( s1, DirCanonicalizePath next path ) ->
                     ( s1, DirCanonicalizePath (\value -> bind f (next value)) path )
 
+                ( s1, DirListDirectory next path ) ->
+                    ( s1, DirListDirectory (\value -> bind f (next value)) path )
+
                 ( s1, BinaryDecodeFileOrFail next filename ) ->
                     ( s1, BinaryDecodeFileOrFail (\value -> bind f (next value)) filename )
 
@@ -1021,6 +1069,12 @@ bind f (IO ma) =
 unIO : IO a -> (Int -> RealWorld -> ( RealWorld, ION a ))
 unIO (IO a) =
     a
+
+
+mapM : (a -> IO b) -> List a -> IO (List b)
+mapM f =
+    List.foldr (\a -> bind (\c -> fmap (\va -> va :: c) (f a)))
+        (pure [])
 
 
 

@@ -30,6 +30,7 @@ module Utils.Main exposing
     , dirGetAppUserDataDirectory
     , dirGetCurrentDirectory
     , dirGetModificationTime
+    , dirListDirectory
     , dirRemoveDirectoryRecursive
     , dirRemoveFile
     , dirWithCurrentDirectory
@@ -797,6 +798,11 @@ dirWithCurrentDirectory dir action =
                     (IO (\_ s -> ( s, IO.DirWithCurrentDirectory IO.pure currentDir )))
                     action
             )
+
+
+dirListDirectory : FilePath -> IO (List FilePath)
+dirListDirectory path =
+    IO (\_ s -> ( s, IO.DirListDirectory IO.pure path ))
 
 
 
