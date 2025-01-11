@@ -245,8 +245,13 @@ install =
                 [ Terminal.require0
                 , Terminal.require1 Terminal.package
                 ]
+
+        installFlags : Terminal.Flags
+        installFlags =
+            Terminal.flags
+                |> Terminal.more (Terminal.onOff "yes" "Reply 'yes' to all automated prompts.")
     in
-    Terminal.Command "install" Terminal.Uncommon details example installArgs Terminal.noFlags <|
+    Terminal.Command "install" Terminal.Uncommon details example installArgs installFlags <|
         \chunks ->
             Chomp.chomp Nothing
                 chunks
@@ -260,10 +265,11 @@ install =
                             )
                     )
                 ]
-                (Chomp.pure ()
+                (Chomp.pure Install.Flags
+                    |> Chomp.apply (Chomp.chompOnOffFlag "yes")
                     |> Chomp.bind
                         (\value ->
-                            Chomp.checkForUnknownFlags Terminal.noFlags
+                            Chomp.checkForUnknownFlags installFlags
                                 |> Chomp.fmap (\_ -> value)
                         )
                 )

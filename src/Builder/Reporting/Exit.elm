@@ -1044,7 +1044,7 @@ installToReport exit =
             Help.report "NEW PROJECT?"
                 Nothing
                 "Are you trying to start a new project? Try this command instead:"
-                [ D.indent 4 <| D.green (D.fromChars "elm init")
+                [ D.indent 4 <| D.green (D.fromChars "guida init")
                 , D.reflow "It will help you get started!"
                 ]
 
@@ -1062,9 +1062,9 @@ installToReport exit =
                 [ D.green <|
                     D.indent 4 <|
                         D.vcat <|
-                            [ D.fromChars "elm install elm/http"
-                            , D.fromChars "elm install elm/json"
-                            , D.fromChars "elm install elm/random"
+                            [ D.fromChars "guida install elm/http"
+                            , D.fromChars "guida install elm/json"
+                            , D.fromChars "guida install elm/random"
                             ]
                 , D.toFancyHint
                     [ D.fromChars "In"

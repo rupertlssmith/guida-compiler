@@ -16,6 +16,10 @@ import System.IO as IO exposing (IO)
 import Utils.Main as Utils exposing (FilePath)
 
 
+
+-- RUN
+
+
 type Flags
     = Flags (Maybe FilePath) Bool Bool Bool
 

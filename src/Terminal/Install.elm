@@ -1,5 +1,6 @@
 module Terminal.Install exposing
     ( Args(..)
+    , Flags(..)
     , run
     )
 
@@ -30,8 +31,12 @@ type Args
     | Install Pkg.Name
 
 
-run : Args -> () -> IO ()
-run args () =
+type Flags
+    = Flags Bool
+
+
+run : Args -> Flags -> IO ()
+run args (Flags autoYes) =
     Reporting.attempt Exit.installToReport
         (Stuff.findRoot
             |> IO.bind
@@ -57,11 +62,11 @@ run args () =
                                                                 case oldOutline of
                                                                     Outline.App outline ->
                                                                         makeAppPlan env pkg outline
-                                                                            |> Task.bind (\changes -> attemptChanges root env oldOutline V.toChars changes)
+                                                                            |> Task.bind (\changes -> attemptChanges root env oldOutline V.toChars changes autoYes)
 
                                                                     Outline.Pkg outline ->
                                                                         makePkgPlan env pkg outline
-                                                                            |> Task.bind (\changes -> attemptChanges root env oldOutline C.toChars changes)
+                                                                            |> Task.bind (\changes -> attemptChanges root env oldOutline C.toChars changes autoYes)
                                                             )
                                                 )
                                         )
@@ -84,14 +89,14 @@ type alias Task a =
     Task.Task Exit.Install a
 
 
-attemptChanges : String -> Solver.Env -> Outline.Outline -> (a -> String) -> Changes a -> Task ()
-attemptChanges root env oldOutline toChars changes =
+attemptChanges : String -> Solver.Env -> Outline.Outline -> (a -> String) -> Changes a -> Bool -> Task ()
+attemptChanges root env oldOutline toChars changes autoYes =
     case changes of
         AlreadyInstalled ->
             Task.io (IO.putStrLn "It is already installed!")
 
         PromoteIndirect newOutline ->
-            attemptChangesHelp root env oldOutline newOutline <|
+            attemptChangesHelp root env oldOutline newOutline autoYes <|
                 D.vcat
                     [ D.fillSep
                         [ D.fromChars "I"
@@ -124,7 +129,7 @@ attemptChanges root env oldOutline toChars changes =
                     ]
 
         PromoteTest newOutline ->
-            attemptChangesHelp root env oldOutline newOutline <|
+            attemptChangesHelp root env oldOutline newOutline autoYes <|
                 D.vcat
                     [ D.fillSep
                         [ D.fromChars "I"
@@ -165,7 +170,7 @@ attemptChanges root env oldOutline toChars changes =
                 changeDocs =
                     Dict.foldr compare (addChange toChars widths) (Docs [] [] []) changeDict
             in
-            attemptChangesHelp root env oldOutline newOutline <|
+            attemptChangesHelp root env oldOutline newOutline autoYes <|
                 D.vcat
                     [ D.fromChars "Here is my plan:"
                     , viewChangeDocs changeDocs
@@ -174,12 +179,20 @@ attemptChanges root env oldOutline toChars changes =
                     ]
 
 
-attemptChangesHelp : FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> D.Doc -> Task ()
-attemptChangesHelp root env oldOutline newOutline question =
+attemptChangesHelp : FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> Bool -> D.Doc -> Task ()
+attemptChangesHelp root env oldOutline newOutline autoYes question =
     Task.eio Exit.InstallBadDetails <|
         BW.withScope
             (\scope ->
-                Reporting.ask question
+                let
+                    askQuestion =
+                        if autoYes then
+                            IO.pure True
+
+                        else
+                            Reporting.ask question
+                in
+                askQuestion
                     |> IO.bind
                         (\approved ->
                             if approved then
