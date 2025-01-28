@@ -156,20 +156,20 @@ intersect (Range lo lop hop hi) (Range lo_ lop_ hop_ hi_) =
 
 goodElm : Constraint -> Bool
 goodElm constraint =
-    satisfies constraint V.compiler
+    satisfies constraint V.elmCompiler
 
 
 defaultElm : Constraint
 defaultElm =
     let
         (V.Version major _ _) =
-            V.compiler
+            V.elmCompiler
     in
     if major > 0 then
-        untilNextMajor V.compiler
+        untilNextMajor V.elmCompiler
 
     else
-        untilNextMinor V.compiler
+        untilNextMinor V.elmCompiler
 
 
 

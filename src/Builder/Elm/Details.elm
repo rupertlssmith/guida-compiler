@@ -279,7 +279,7 @@ verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect elm) 
 
 verifyApp : Env -> File.Time -> Outline.AppOutline -> Task Details
 verifyApp env time ((Outline.AppOutline elmVersion srcDirs direct _ _ _) as outline) =
-    if elmVersion == V.compiler then
+    if elmVersion == V.elmCompiler then
         checkAppDeps outline
             |> Task.bind
                 (\stated ->

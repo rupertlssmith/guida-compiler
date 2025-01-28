@@ -6,6 +6,7 @@ module Compiler.Elm.Version exposing
     , compare
     , compiler
     , decoder
+    , elmCompiler
     , encode
     , jsonDecoder
     , jsonEncoder
@@ -102,6 +103,11 @@ compiler =
     --       Version major 0 0
     --     [] ->
     --       error "could not detect version of elm-compiler you are using"
+    Version 1 0 0
+
+
+elmCompiler : Version
+elmCompiler =
     Version 0 19 1
 
 

@@ -1440,7 +1440,7 @@ toDebugMetadata mode msgType =
         Mode.Dev (Just interfaces) ->
             JS.ExprJson
                 (Encode.object
-                    [ ( "versions", Encode.object [ ( "elm", V.encode V.compiler ) ] )
+                    [ ( "versions", Encode.object [ ( "elm", V.encode V.elmCompiler ) ] )
                     , ( "types", Type.encodeMetadata (Extract.fromMsg interfaces msgType) )
                     ]
                 )

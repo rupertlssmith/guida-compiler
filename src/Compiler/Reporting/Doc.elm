@@ -186,7 +186,7 @@ makeLink fileName =
 
 makeNakedLink : String -> String
 makeNakedLink fileName =
-    "https://elm-lang.org/" ++ V.toChars V.compiler ++ "/" ++ fileName
+    "https://elm-lang.org/" ++ V.toChars V.elmCompiler ++ "/" ++ fileName
 
 
 reflowLink : String -> String -> String -> Doc
