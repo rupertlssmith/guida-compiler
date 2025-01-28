@@ -37,7 +37,7 @@ import Utils.Main as Utils exposing (FilePath)
 
 
 type Flags
-    = Flags Bool Bool (Maybe Output) (Maybe ReportType) (Maybe String)
+    = Flags Bool Bool Bool (Maybe Output) (Maybe ReportType) (Maybe String)
 
 
 type Output
@@ -59,7 +59,7 @@ type alias Task a =
 
 
 run : List String -> Flags -> IO ()
-run paths ((Flags _ _ _ report _) as flags) =
+run paths ((Flags _ _ _ _ report _) as flags) =
     getStyle report
         |> IO.bind
             (\style ->
@@ -78,7 +78,7 @@ run paths ((Flags _ _ _ report _) as flags) =
 
 
 runHelp : String -> List String -> Reporting.Style -> Flags -> IO (Result Exit.Make ())
-runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
+runHelp root paths style (Flags debug optimize withSourceMaps maybeOutput _ maybeDocs) =
     BW.withScope
         (\scope ->
             Stuff.withRootLock root <|
@@ -105,14 +105,14 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                                                                                 Task.pure ()
 
                                                                             [ name ] ->
-                                                                                toBuilder root details desiredMode artifacts
+                                                                                toBuilder withSourceMaps Html.leadingLines root details desiredMode artifacts
                                                                                     |> Task.bind
                                                                                         (\builder ->
                                                                                             generate style "index.html" (Html.sandwich name builder) (NE.Nonempty name [])
                                                                                         )
 
                                                                             name :: names ->
-                                                                                toBuilder root details desiredMode artifacts
+                                                                                toBuilder withSourceMaps 0 root details desiredMode artifacts
                                                                                     |> Task.bind
                                                                                         (\builder ->
                                                                                             generate style "elm.js" builder (NE.Nonempty name names)
@@ -124,7 +124,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                                                                     Just (JS target) ->
                                                                         case getNoMains artifacts of
                                                                             [] ->
-                                                                                toBuilder root details desiredMode artifacts
+                                                                                toBuilder withSourceMaps 0 root details desiredMode artifacts
                                                                                     |> Task.bind
                                                                                         (\builder ->
                                                                                             generate style target builder (Build.getRootNames artifacts)
@@ -137,7 +137,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                                                                         hasOneMain artifacts
                                                                             |> Task.bind
                                                                                 (\name ->
-                                                                                    toBuilder root details desiredMode artifacts
+                                                                                    toBuilder withSourceMaps Html.leadingLines root details desiredMode artifacts
                                                                                         |> Task.bind
                                                                                             (\builder ->
                                                                                                 generate style target (Html.sandwich name builder) (NE.Nonempty name [])
@@ -315,18 +315,18 @@ type DesiredMode
     | Prod
 
 
-toBuilder : FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task String
-toBuilder root details desiredMode artifacts =
+toBuilder : Bool -> Int -> FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task String
+toBuilder withSourceMaps leadingLines root details desiredMode artifacts =
     Task.mapError Exit.MakeBadGenerate <|
         case desiredMode of
             Debug ->
-                Generate.debug root details artifacts
+                Generate.debug withSourceMaps leadingLines root details artifacts
 
             Dev ->
-                Generate.dev root details artifacts
+                Generate.dev withSourceMaps leadingLines root details artifacts
 
             Prod ->
-                Generate.prod root details artifacts
+                Generate.prod withSourceMaps leadingLines root details artifacts
 
 
 
