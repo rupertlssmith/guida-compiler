@@ -120,7 +120,7 @@ init =
                                                     (\_ ->
                                                         Outline.write "." <|
                                                             Outline.App <|
-                                                                Outline.AppOutline V.compiler (NE.Nonempty (Outline.RelativeSrcDir "src") []) directs indirects Dict.empty Dict.empty
+                                                                Outline.AppOutline V.elmCompiler (NE.Nonempty (Outline.RelativeSrcDir "src") []) directs indirects Dict.empty Dict.empty
                                                     )
                                                 |> IO.bind (\_ -> IO.putStrLn "Okay, I created it. Now read that link!")
                                                 |> IO.fmap (\_ -> Ok ())
