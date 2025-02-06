@@ -158,8 +158,8 @@ getTransitive constraints solution unvisited visited =
 -- ADD TO APP - used in Install
 
 
-addToApp : Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> Outline.AppOutline -> IO (SolverResult AppSolution)
-addToApp cache connection registry pkg (Outline.AppOutline elm srcDirs direct indirect testDirect testIndirect) =
+addToApp : Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> Outline.AppOutline -> Bool -> IO (SolverResult AppSolution)
+addToApp cache connection registry pkg (Outline.AppOutline elm srcDirs direct indirect testDirect testIndirect) forTest =
     Stuff.withRegistryLock cache <|
         let
             allIndirects : Dict ( String, String ) Pkg.Name V.Version
@@ -196,7 +196,11 @@ addToApp cache connection registry pkg (Outline.AppOutline elm srcDirs direct in
                                     let
                                         d : Dict ( String, String ) Pkg.Name V.Version
                                         d =
-                                            Dict.intersection Pkg.compareName new (Dict.insert identity pkg V.one direct)
+                                            if forTest then
+                                                Dict.intersection Pkg.compareName new direct
+
+                                            else
+                                                Dict.intersection Pkg.compareName new (Dict.insert identity pkg V.one direct)
 
                                         i : Dict ( String, String ) Pkg.Name V.Version
                                         i =
@@ -204,7 +208,11 @@ addToApp cache connection registry pkg (Outline.AppOutline elm srcDirs direct in
 
                                         td : Dict ( String, String ) Pkg.Name V.Version
                                         td =
-                                            Dict.intersection Pkg.compareName new (Dict.remove identity pkg testDirect)
+                                            if forTest then
+                                                Dict.intersection Pkg.compareName new (Dict.insert identity pkg V.one testDirect)
+
+                                            else
+                                                Dict.intersection Pkg.compareName new (Dict.remove identity pkg testDirect)
 
                                         ti : Dict ( String, String ) Pkg.Name V.Version
                                         ti =

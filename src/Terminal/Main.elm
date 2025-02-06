@@ -253,6 +253,7 @@ install =
         installFlags : Terminal.Flags
         installFlags =
             Terminal.flags
+                |> Terminal.more (Terminal.onOff "test" "Install as a test-dependency.")
                 |> Terminal.more (Terminal.onOff "yes" "Reply 'yes' to all automated prompts.")
     in
     Terminal.Command "install" Terminal.Uncommon details example installArgs installFlags <|
@@ -270,6 +271,7 @@ install =
                     )
                 ]
                 (Chomp.pure Install.Flags
+                    |> Chomp.apply (Chomp.chompOnOffFlag "test")
                     |> Chomp.apply (Chomp.chompOnOffFlag "yes")
                     |> Chomp.bind
                         (\value ->

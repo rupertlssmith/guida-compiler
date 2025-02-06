@@ -184,12 +184,13 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline _ 
 
 makePkgPlan : Pkg.Name -> Outline.PkgOutline -> Task (Changes C.Constraint)
 makePkgPlan pkg (Outline.PkgOutline name summary license version exposed deps test elmVersion) =
-    if Dict.member identity pkg deps then
+    let
+        old : Dict ( String, String ) Pkg.Name C.Constraint
+        old =
+            Dict.union deps test
+    in
+    if Dict.member identity pkg old then
         let
-            old : Dict ( String, String ) Pkg.Name C.Constraint
-            old =
-                Dict.union deps test
-
             new : Dict ( String, String ) Pkg.Name C.Constraint
             new =
                 Dict.remove identity pkg old
