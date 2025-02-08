@@ -19,7 +19,6 @@ module Compiler.Generate.JavaScript.Builder exposing
 -- They did the hard work of reading the spec to figure out
 -- how all the types should fit together.
 
-import Basics.Extra exposing (flip)
 import Compiler.Generate.JavaScript.Name as Name
 import Compiler.Json.Encode as Json
 import Compiler.Reporting.Annotation as A
@@ -170,7 +169,7 @@ addByteString str (Builder revKernels revBuilders currentLine currentCol mapping
     let
         bsLines : Int
         bsLines =
-            String.length (String.filter ((==) '\n') str)
+            List.length (String.lines str) - 1
     in
     if bsLines == 0 then
         let
@@ -189,7 +188,7 @@ addTrackedByteString moduleName (A.Position line col) str (Builder revKernels re
     let
         bsLines : Int
         bsLines =
-            String.length (String.filter ((==) '\n') str)
+            List.length (String.lines str) - 1
 
         newMappings : List Mapping
         newMappings =
@@ -534,7 +533,9 @@ merge a b =
 linesMap : (a -> Builder -> ( Lines, Builder )) -> List a -> Bool
 linesMap func xs =
     List.foldl
-        (\a ( lines, builder ) -> func a builder |> Tuple.mapFirst (flip (::) lines))
+        (\a ( lines, builder ) ->
+            Tuple.mapFirst (\line -> line :: lines) (func a builder)
+        )
         ( [], emptyBuilder 0 )
         xs
         |> Tuple.first
