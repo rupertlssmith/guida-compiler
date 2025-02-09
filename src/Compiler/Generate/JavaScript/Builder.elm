@@ -532,14 +532,22 @@ merge a b =
 
 linesMap : (a -> Builder -> ( Lines, Builder )) -> List a -> Bool
 linesMap func xs =
-    List.foldl
-        (\a ( lines, builder ) ->
-            Tuple.mapFirst (\line -> line :: lines) (func a builder)
-        )
-        ( [], emptyBuilder 0 )
-        xs
-        |> Tuple.first
-        |> List.member Many
+    linesMapHelp func xs (emptyBuilder 0)
+
+
+linesMapHelp : (a -> Builder -> ( Lines, Builder )) -> List a -> Builder -> Bool
+linesMapHelp func xs builder =
+    case xs of
+        [] ->
+            False
+
+        a :: rest ->
+            case func a builder of
+                ( Many, _ ) ->
+                    True
+
+                ( _, newBuilder ) ->
+                    linesMapHelp func rest newBuilder
 
 
 commaSepExpr : (a -> Builder -> Builder) -> List a -> Builder -> Builder
