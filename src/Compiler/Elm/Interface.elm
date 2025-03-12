@@ -247,7 +247,7 @@ unionEncoder union_ =
 
         PrivateUnion union ->
             Encode.object
-                [ ( "type", Encode.string "ClosedUnion" )
+                [ ( "type", Encode.string "PrivateUnion" )
                 , ( "union", Can.unionEncoder union )
                 ]
 
@@ -267,7 +267,7 @@ unionDecoder =
                             (Decode.field "union" Can.unionDecoder)
 
                     "PrivateUnion" ->
-                        Decode.map ClosedUnion
+                        Decode.map PrivateUnion
                             (Decode.field "union" Can.unionDecoder)
 
                     _ ->
