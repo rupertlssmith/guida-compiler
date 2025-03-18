@@ -44,6 +44,10 @@ const examples = [
   ["Mario", defaultFlags],
 ];
 
+const escapedNewCodeRegex = function (guidaOutput) {
+  return fs.readFileSync(guidaOutput).toString().replace(/\/\/__START__$(?:(?!__START__)[\s\S])*?\/\/__END__$/gm, "");
+};
+
 const generateCommandFlags = function (flag) {
   if (flag === "no-flags") {
     return "";
@@ -79,12 +83,33 @@ describe("backwards compatibility", () => {
           console.error(e);
         }
 
-        const escapedNewCodeRegex = /\/\/__START__[\s\S]*\/\/__END__/gm;
-
-        expect(fs.readFileSync(elmOutput).toString()).toBe(
-          fs.readFileSync(guidaOutput).toString().replace(escapedNewCodeRegex, "")
-        );
+        expect(fs.readFileSync(elmOutput).toString()).toBe(escapedNewCodeRegex(guidaOutput));
       });
     }
   );
+
+  test("self-hosted environment", () => {
+    const elmOutput = `${tmpDir}/guida-test-elm-self-hosted-${process.pid}.js`;
+    const guidaOutput = `${tmpDir}/guida-test-guida-self-hosted-${process.pid}.js`;
+
+    try {
+      childProcess.execSync(
+        `elm make ./src/Terminal/Main.elm --output ${elmOutput}`,
+        { cwd: path.join(__dirname, "..") }
+      );
+    } catch (e) {
+      console.error(e);
+    }
+
+    try {
+      childProcess.execSync(
+        `./bin/index.js make ./src/Terminal/Main.elm --output ${guidaOutput}`,
+        { cwd: path.join(__dirname, "..") }
+      );
+    } catch (e) {
+      console.error(e);
+    }
+
+    expect(fs.readFileSync(elmOutput).toString()).toBe(escapedNewCodeRegex(guidaOutput));
+  });
 });
