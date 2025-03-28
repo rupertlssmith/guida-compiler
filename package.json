@@ -13,7 +13,7 @@
     "test": "npm-run-all --parallel test:*",
     "test:jest": "jest",
     "test:elm": "elm-test tests/Parse",
-    "test:elm-review": "elm-review",
+    "test:elm-review": "elm-review --ignore-dirs tests/assets",
     "test:elm-format-validate": "elm-format . --validate",
     "elm-format": "elm-format . --yes"
   },
