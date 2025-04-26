@@ -11,6 +11,7 @@ describe("repl", () => {
         repl.stdout.on("data", (data) => {
             if (data.toString() === "> ") {
                 repl.stdin.write("1 + 1\n");
+                repl.stdin.end();
             } else if (data.toString() === "\x1B[95m2\x1B[0m\x1B[90m : number\x1B[0m\n") {
                 repl.kill();
                 done();
