@@ -306,7 +306,7 @@ generate : Reporting.Style -> FilePath -> String -> NE.Nonempty ModuleName.Raw -
 generate style target builder names =
     Task.io
         (Utils.dirCreateDirectoryIfMissing True (Utils.fpTakeDirectory target)
-            |> IO.bind (\_ -> File.writeBuilder target builder)
+            |> IO.bind (\_ -> File.writeUtf8 target builder)
             |> IO.bind (\_ -> Reporting.reportGenerate style names target)
         )
 

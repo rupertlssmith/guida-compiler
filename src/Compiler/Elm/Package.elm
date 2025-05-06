@@ -20,6 +20,7 @@ module Compiler.Elm.Package exposing
     , parser
     , random
     , suggestions
+    , test
     , time
     , toChars
     , toJsonString
@@ -171,6 +172,11 @@ webgl =
 linearAlgebra : Name
 linearAlgebra =
     toName elmExplorations "linear-algebra"
+
+
+test : Name
+test =
+    toName elmExplorations "test"
 
 
 elm : Author

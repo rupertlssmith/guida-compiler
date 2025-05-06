@@ -9,7 +9,6 @@ module Builder.File exposing
     , timeDecoder
     , timeEncoder
     , writeBinary
-    , writeBuilder
     , writePackage
     , writeUtf8
     , zeroTime
@@ -112,15 +111,6 @@ readUtf8 path =
 readStdin : IO String
 readStdin =
     Impure.task "readStdin" [] Impure.EmptyBody (Impure.StringResolver identity)
-
-
-
--- WRITE BUILDER
-
-
-writeBuilder : FilePath -> String -> IO ()
-writeBuilder =
-    IO.writeString
 
 
 
