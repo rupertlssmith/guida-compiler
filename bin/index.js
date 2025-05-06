@@ -176,27 +176,30 @@ server.post("withCreateProcess", (request) => {
   tmp.file((err, path, fd) => {
     if (err) throw err;
 
-      nextCounter += 1;
+    nextCounter += 1;
 
     fs.createReadStream(path)
       .on("data", (chunk) => {
-        processes[nextCounter].stdin.end(chunk);
+        processes[nextCounter].stdin.write(chunk);
+      })
+      .on("close", () => {
+        processes[nextCounter].stdin.end();
       });
 
-      processes[nextCounter] = child_process.spawn(
-        createProcess.cmdspec.cmd,
-        createProcess.cmdspec.args,
-        {
-          stdio: [
-            createProcess.stdin,
-            createProcess.stdout,
-            createProcess.stderr,
-          ],
-        }
-      );
+    processes[nextCounter] = child_process.spawn(
+      createProcess.cmdspec.cmd,
+      createProcess.cmdspec.args,
+      {
+        stdio: [
+          createProcess.stdin,
+          createProcess.stdout,
+          createProcess.stderr,
+        ],
+      }
+    );
 
-      request.respond(200, null, JSON.stringify({ stdinHandle: fd, ph: nextCounter }));
-    });
+    request.respond(200, null, JSON.stringify({ stdinHandle: fd, ph: nextCounter }));
+  });
 });
 
 server.post("hClose", (request) => {
@@ -426,6 +429,15 @@ server.post("putMVar", (request) => {
   } else {
     mVars[id].subscribers.push({ action: "put", request, value });
   }
+});
+
+// NODE.JS SPECIFIC
+server.post("nodeGetDirname", (request) => {
+  request.respond(200, null, __dirname);
+});
+
+server.post("nodeMathRandom", (request) => {
+  request.respond(200, null, Math.random());
 });
 
 server.setDefaultHandler((request) => {

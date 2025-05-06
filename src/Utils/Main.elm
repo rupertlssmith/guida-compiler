@@ -47,9 +47,9 @@ module Utils.Main exposing
     , forkIO
     , fpAddExtension
     , fpAddTrailingPathSeparator
+    , fpCombine
     , fpDropExtension
     , fpDropFileName
-    , fpForwardSlash
     , fpIsRelative
     , fpJoinPath
     , fpMakeRelative
@@ -103,6 +103,8 @@ module Utils.Main exposing
     , newChan
     , newEmptyMVar
     , newMVar
+    , nodeGetDirname
+    , nodeMathRandom
     , nonEmptyListTraverse
     , putMVar
     , readChan
@@ -171,9 +173,17 @@ fpDropFileName path =
             ""
 
 
-fpForwardSlash : FilePath -> FilePath -> FilePath
-fpForwardSlash path1 path2 =
-    if String.startsWith path1 path2 then
+{-| An alias for `</>`.
+
+Combine two paths with a path separator. If the second path starts with a
+path separator or a drive letter, then it returns the second.
+The intention is that readFile `(dir </> file)` will access the same file
+as `setCurrentDirectory dir; readFile file`.
+
+-}
+fpCombine : FilePath -> FilePath -> FilePath
+fpCombine path1 path2 =
+    if String.startsWith "/" path2 || String.startsWith path1 path2 then
         path2
 
     else
@@ -676,7 +686,7 @@ fpPathSeparator =
 
 fpIsRelative : FilePath -> Bool
 fpIsRelative =
-    String.startsWith "/"
+    not << String.startsWith "/"
 
 
 fpTakeFileName : FilePath -> FilePath
@@ -1205,6 +1215,26 @@ replGetInputLine prompt =
 replGetInputLineWithInitial : String -> ( String, String ) -> ReplInputT (Maybe String)
 replGetInputLineWithInitial prompt ( left, right ) =
     replGetInputLine (left ++ prompt ++ right)
+
+
+
+-- NODE
+
+
+nodeGetDirname : IO String
+nodeGetDirname =
+    Impure.task "nodeGetDirname"
+        []
+        Impure.EmptyBody
+        (Impure.StringResolver identity)
+
+
+nodeMathRandom : IO Float
+nodeMathRandom =
+    Impure.task "nodeMathRandom"
+        []
+        Impure.EmptyBody
+        (Impure.DecoderResolver Decode.float)
 
 
 
