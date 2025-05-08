@@ -663,8 +663,8 @@ fpJoinPath paths =
 
 fpMakeRelative : FilePath -> FilePath -> FilePath
 fpMakeRelative root path =
-    if String.startsWith path root then
-        String.dropLeft (String.length root) path
+    if String.startsWith root path then
+        String.dropLeft (String.length root + 1) path
 
     else
         path

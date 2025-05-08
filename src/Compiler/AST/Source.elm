@@ -65,7 +65,7 @@ type Expr_
     | Case Expr (List ( Pattern, Expr ))
     | Accessor Name
     | Access Expr (A.Located Name)
-    | Update (A.Located ( Maybe Name, Name )) (List ( A.Located Name, Expr ))
+    | Update Expr (List ( A.Located Name, Expr ))
     | Record (List ( A.Located Name, Expr ))
     | Unit
     | Tuple Expr Expr (List Expr)
@@ -992,7 +992,7 @@ expr_Encoder expr_ =
         Update name fields ->
             BE.sequence
                 [ BE.unsignedInt8 17
-                , A.locatedEncoder (BE.jsonPair (BE.maybe BE.string) BE.string) name
+                , exprEncoder name
                 , BE.list (BE.jsonPair (A.locatedEncoder BE.string) exprEncoder) fields
                 ]
 
@@ -1099,7 +1099,7 @@ expr_Decoder =
 
                     17 ->
                         BD.map2 Update
-                            (A.locatedDecoder (BD.jsonPair (BD.maybe BD.string) BD.string))
+                            exprDecoder
                             (BD.list (BD.jsonPair (A.locatedDecoder BD.string) exprDecoder))
 
                     18 ->

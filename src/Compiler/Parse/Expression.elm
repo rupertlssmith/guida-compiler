@@ -1,4 +1,7 @@
-module Compiler.Parse.Expression exposing (expression)
+module Compiler.Parse.Expression exposing
+    ( expression
+    , record
+    )
 
 import Compiler.AST.Source as Src
 import Compiler.Data.Name as Name exposing (Name)
@@ -10,7 +13,7 @@ import Compiler.Parse.Shader as Shader
 import Compiler.Parse.Space as Space
 import Compiler.Parse.String as String
 import Compiler.Parse.Symbol as Symbol
-import Compiler.Parse.SyntaxVersion exposing (SyntaxVersion)
+import Compiler.Parse.SyntaxVersion as SV exposing (SyntaxVersion)
 import Compiler.Parse.Type as Type
 import Compiler.Parse.Variable as Var
 import Compiler.Reporting.Annotation as A
@@ -266,43 +269,113 @@ chompTupleEnd syntaxVersion start firstExpr revExprs =
 
 record : SyntaxVersion -> A.Position -> P.Parser E.Expr Src.Expr
 record syntaxVersion start =
-    P.inContext E.Record (P.word1 '{' E.Start) <|
-        (Space.chompAndCheckIndent E.RecordSpace E.RecordIndentOpen
-            |> P.bind
-                (\_ ->
-                    P.oneOf E.RecordOpen
-                        [ P.word1 '}' E.RecordOpen
-                            |> P.bind (\_ -> P.addEnd start (Src.Record []))
-                        , P.addLocation (foreignAlpha E.RecordField)
-                            |> P.bind
-                                (\starter ->
-                                    Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
-                                        |> P.bind (\_ -> P.word1 '|' E.RecordEquals)
-                                        |> P.bind (\_ -> Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField)
-                                        |> P.bind (\_ -> chompField syntaxVersion)
-                                        |> P.bind (\firstField -> chompFields syntaxVersion [ firstField ])
-                                        |> P.bind (\fields -> P.addEnd start (Src.Update starter fields))
-                                )
-                        , P.addLocation (Var.lower E.RecordField)
-                            |> P.bind
-                                (\starter ->
-                                    Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
-                                        |> P.bind (\_ -> P.word1 '=' E.RecordEquals)
-                                        |> P.bind (\_ -> Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr)
-                                        |> P.bind (\_ -> P.specialize E.RecordExpr (expression syntaxVersion))
-                                        |> P.bind
-                                            (\( value, end ) ->
-                                                Space.checkIndent end E.RecordIndentEnd
-                                                    |> P.bind (\_ -> chompFields syntaxVersion [ ( starter, value ) ])
-                                                    |> P.bind (\fields -> P.addEnd start (Src.Record fields))
-                                            )
-                                )
-                        ]
+    case syntaxVersion of
+        SV.Elm ->
+            P.inContext E.Record (P.word1 '{' E.Start) <|
+                (Space.chompAndCheckIndent E.RecordSpace E.RecordIndentOpen
+                    |> P.bind
+                        (\_ ->
+                            P.oneOf E.RecordOpen
+                                [ P.word1 '}' E.RecordOpen
+                                    |> P.bind (\_ -> P.addEnd start (Src.Record []))
+                                , P.addLocation (Var.lower E.RecordField)
+                                    |> P.bind
+                                        (\((A.At starterPosition starterName) as starter) ->
+                                            Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
+                                                |> P.bind
+                                                    (\_ ->
+                                                        P.oneOf E.RecordEquals
+                                                            [ P.word1 '|' E.RecordEquals
+                                                                |> P.bind (\_ -> Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField)
+                                                                |> P.bind (\_ -> chompField syntaxVersion)
+                                                                |> P.bind (\firstField -> chompFields syntaxVersion [ firstField ])
+                                                                |> P.bind (\fields -> P.addEnd start (Src.Update (A.At starterPosition (Src.Var Src.LowVar starterName)) fields))
+                                                            , P.word1 '=' E.RecordEquals
+                                                                |> P.bind (\_ -> Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr)
+                                                                |> P.bind (\_ -> P.specialize E.RecordExpr (expression syntaxVersion))
+                                                                |> P.bind
+                                                                    (\( value, end ) ->
+                                                                        Space.checkIndent end E.RecordIndentEnd
+                                                                            |> P.bind (\_ -> chompFields syntaxVersion [ ( starter, value ) ])
+                                                                            |> P.bind (\fields -> P.addEnd start (Src.Record fields))
+                                                                    )
+                                                            ]
+                                                    )
+                                        )
+                                ]
+                        )
                 )
-        )
+
+        SV.Guida ->
+            P.inContext E.Record (P.word1 '{' E.Start) <|
+                (Space.chompAndCheckIndent E.RecordSpace E.RecordIndentOpen
+                    |> P.bind
+                        (\_ ->
+                            P.oneOf E.RecordOpen
+                                [ P.word1 '}' E.RecordOpen
+                                    |> P.bind (\_ -> P.addEnd start (Src.Record []))
+                                , P.getPosition
+                                    |> P.bind
+                                        (\nameStart ->
+                                            foreignAlpha E.RecordField
+                                                |> P.bind (\var -> P.addEnd nameStart var)
+                                                |> P.bind (accessibleRecord nameStart)
+                                                |> P.bind
+                                                    (\starter ->
+                                                        Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
+                                                            |> P.bind (\_ -> P.word1 '|' E.RecordEquals)
+                                                            |> P.bind (\_ -> Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField)
+                                                            |> P.bind (\_ -> chompField syntaxVersion)
+                                                            |> P.bind (\firstField -> chompFields syntaxVersion [ firstField ])
+                                                            |> P.bind (\fields -> P.addEnd start (Src.Update starter fields))
+                                                    )
+                                        )
+                                , P.addLocation (Var.lower E.RecordField)
+                                    |> P.bind
+                                        (\starter ->
+                                            Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
+                                                |> P.bind (\_ -> P.word1 '=' E.RecordEquals)
+                                                |> P.bind (\_ -> Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr)
+                                                |> P.bind (\_ -> P.specialize E.RecordExpr (expression syntaxVersion))
+                                                |> P.bind
+                                                    (\( value, end ) ->
+                                                        Space.checkIndent end E.RecordIndentEnd
+                                                            |> P.bind (\_ -> chompFields syntaxVersion [ ( starter, value ) ])
+                                                            |> P.bind (\fields -> P.addEnd start (Src.Record fields))
+                                                    )
+                                        )
+                                ]
+                        )
+                )
 
 
-foreignAlpha : (Row -> Col -> x) -> P.Parser x ( Maybe Name, Name )
+accessibleRecord : A.Position -> Src.Expr -> P.Parser E.Record Src.Expr
+accessibleRecord start expr =
+    P.oneOfWithFallback
+        [ P.word1 '.' E.RecordOpen
+            |> P.bind (\_ -> P.getPosition)
+            |> P.bind
+                (\pos ->
+                    Var.lower E.RecordOpen
+                        |> P.bind
+                            (\field ->
+                                P.getPosition
+                                    |> P.bind
+                                        (\end ->
+                                            accessibleRecord start <|
+                                                A.at start end (Src.Access expr (A.at pos end field))
+                                        )
+                            )
+                )
+        ]
+        expr
+
+
+
+-- FOREIGN ALPHA
+
+
+foreignAlpha : (Row -> Col -> x) -> P.Parser x Src.Expr_
 foreignAlpha toError =
     P.Parser <|
         \(P.State src pos end indent row col) ->
@@ -330,7 +403,7 @@ foreignAlpha toError =
                                 P.Eerr row col toError
 
                             else
-                                P.Cok ( Nothing, name ) newState
+                                P.Cok (Src.Var varType name) newState
 
                         else
                             let
@@ -338,7 +411,7 @@ foreignAlpha toError =
                                 home =
                                     Name.fromPtr src pos (alphaStart + -1)
                             in
-                            P.Cok ( Just home, name ) newState
+                            P.Cok (Src.VarQual varType home name) newState
 
                     Src.CapVar ->
                         P.Eerr row col toError
