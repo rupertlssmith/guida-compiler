@@ -4,14 +4,16 @@
   "description": "Guida is a functional programming language that builds upon the solid foundation of Elm, offering backward compatibility with all existing Elm 0.19.1 projects",
   "author": "Decio Ferreira",
   "license": "BSD-3-Clause",
-  "browser": "lib/index.js",
+  "main": "lib/node.js",
+  "browser": "lib/browser.js",
   "bin": {
     "guida": "bin/index.js"
   },
   "scripts": {
     "build": "npm-run-all --sequential build:*",
-    "build:bin": "./scripts/build.sh bin",
+    "build:node": "./scripts/build.sh node",
     "build:browser": "./scripts/build.sh browser",
+    "build:bin": "./scripts/build.sh bin",
     "test": "npm-run-all --sequential test:*",
     "test:eslint": "eslint",
     "test:elm-format-validate": "elm-format . --validate",

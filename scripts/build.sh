@@ -5,22 +5,26 @@
 set -e
 
 case $1 in
-  "bin")
-    dir="bin"
-    elm_entry="src/Terminal/Main.elm"
+  "node")
+    filepath="lib/guida.node"
+    elm_entry="src/Node/Main.elm"
     ;;
   "browser")
-    dir="lib"
+    filepath="lib/guida.browser"
     elm_entry="src/Browser/Main.elm"
     ;;
+  "bin")
+    filepath="bin/guida"
+    elm_entry="src/Terminal/Main.elm"
+    ;;
   *)
-    echo "Usage: $0 bin|browser"
+    echo "Usage: $0 node|browser|bin"
     exit 1
     ;;
 esac
 
-js="$dir/guida.js"
-min="$dir/guida.min.js"
+js="$filepath.js"
+min="$filepath.min.js"
 
 guida make --optimize --output=$js $elm_entry
 
