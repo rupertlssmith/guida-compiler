@@ -3,7 +3,6 @@ module Compiler.Generate.JavaScript exposing
     , SourceMaps(..)
     , generate
     , generateForRepl
-    , generateForReplEndpoint
     )
 
 import Basics.Extra exposing (flip)
@@ -26,7 +25,6 @@ import Compiler.Reporting.Render.Type.Localizer as L
 import Data.Map as Dict exposing (Dict)
 import Data.Set as EverySet exposing (EverySet)
 import Json.Encode as Encode
-import Maybe.Extra as Maybe
 import System.TypeCheck.IO as IO
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils
@@ -196,64 +194,6 @@ print ansi localizer home name tipe =
 
 
 -- GENERATE FOR REPL ENDPOINT
-
-
-generateForReplEndpoint : L.Localizer -> Opt.GlobalGraph -> IO.Canonical -> Maybe Name.Name -> Can.Annotation -> String
-generateForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName (Can.Forall _ tipe) =
-    let
-        name : Name.Name
-        name =
-            Maybe.unwrap Name.replValueToPrint identity maybeName
-
-        mode : Mode.Mode
-        mode =
-            Mode.Dev Nothing
-
-        debugState : State
-        debugState =
-            addGlobal mode graph (emptyState 0) (Opt.Global ModuleName.debug "toString")
-
-        evalState : State
-        evalState =
-            addGlobal mode graph debugState (Opt.Global home name)
-    in
-    Functions.functions
-        ++ stateToBuilder evalState
-        ++ postMessage localizer home maybeName tipe
-
-
-postMessage : L.Localizer -> IO.Canonical -> Maybe Name.Name -> Can.Type -> String
-postMessage localizer home maybeName tipe =
-    let
-        name : Name.Name
-        name =
-            Maybe.unwrap Name.replValueToPrint identity maybeName
-
-        value : JsName.Name
-        value =
-            JsName.fromGlobal home name
-
-        toString : JsName.Name
-        toString =
-            JsName.fromKernel Name.debug "toAnsiString"
-
-        tipeDoc : D.Doc
-        tipeDoc =
-            RT.canToDoc localizer RT.None tipe
-
-        toName : String -> String
-        toName n =
-            "\"" ++ n ++ "\""
-    in
-    "self.postMessage({\n  name: "
-        ++ Maybe.unwrap "null" toName maybeName
-        ++ ",\n  value: "
-        ++ toString
-        ++ "(true, "
-        ++ value
-        ++ "),\n  type: "
-        ++ D.toString tipeDoc
-        ++ "\n});\n"
 
 
 type State

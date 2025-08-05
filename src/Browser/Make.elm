@@ -2,12 +2,6 @@ module Browser.Make exposing
     ( Flags(..)
     , Output(..)
     , ReportType(..)
-    , docsFile
-    , output
-    , parseDocsFile
-    , parseOutput
-    , parseReportType
-    , reportType
     , run
     )
 
@@ -25,9 +19,8 @@ import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Generate.Html as Html
 import Maybe.Extra as Maybe
 import System.IO as IO exposing (IO)
-import Terminal.Terminal.Internal exposing (Parser(..))
 import Utils.Crash exposing (crash)
-import Utils.Main as Utils exposing (FilePath)
+import Utils.Main exposing (FilePath)
 
 
 
@@ -198,76 +191,3 @@ toBuilder withSourceMaps leadingLines root details desiredMode artifacts =
 
 
 -- PARSERS
-
-
-reportType : Parser
-reportType =
-    Parser
-        { singular = "report type"
-        , plural = "report types"
-        , suggest = \_ -> IO.pure [ "json" ]
-        , examples = \_ -> IO.pure [ "json" ]
-        }
-
-
-parseReportType : String -> Maybe ReportType
-parseReportType string =
-    if string == "json" then
-        Just Json
-
-    else
-        Nothing
-
-
-output : Parser
-output =
-    Parser
-        { singular = "output file"
-        , plural = "output files"
-        , suggest = \_ -> IO.pure []
-        , examples = \_ -> IO.pure [ "elm.js", "index.html", "/dev/null" ]
-        }
-
-
-parseOutput : String -> Maybe Output
-parseOutput name =
-    if isDevNull name then
-        Just DevNull
-
-    else if hasExt ".html" name then
-        Just (Html name)
-
-    else if hasExt ".js" name then
-        Just (JS name)
-
-    else
-        Nothing
-
-
-docsFile : Parser
-docsFile =
-    Parser
-        { singular = "json file"
-        , plural = "json files"
-        , suggest = \_ -> IO.pure []
-        , examples = \_ -> IO.pure [ "docs.json", "documentation.json" ]
-        }
-
-
-parseDocsFile : String -> Maybe String
-parseDocsFile name =
-    if hasExt ".json" name then
-        Just name
-
-    else
-        Nothing
-
-
-hasExt : String -> String -> Bool
-hasExt ext path =
-    Utils.fpTakeExtension path == ext && String.length path > String.length ext
-
-
-isDevNull : String -> Bool
-isDevNull name =
-    name == "/dev/null" || name == "NUL" || name == "<|null"

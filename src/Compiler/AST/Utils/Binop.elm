@@ -3,16 +3,10 @@ module Compiler.AST.Utils.Binop exposing
     , Precedence
     , associativityDecoder
     , associativityEncoder
-    , jsonAssociativityDecoder
-    , jsonAssociativityEncoder
-    , jsonPrecedenceDecoder
-    , jsonPrecedenceEncoder
     , precedenceDecoder
     , precedenceEncoder
     )
 
-import Json.Decode as Decode
-import Json.Encode as Encode
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 
@@ -33,52 +27,6 @@ type Associativity
 
 
 -- JSON ENCODERS and DECODERS
-
-
-jsonPrecedenceEncoder : Precedence -> Encode.Value
-jsonPrecedenceEncoder =
-    Encode.int
-
-
-jsonPrecedenceDecoder : Decode.Decoder Precedence
-jsonPrecedenceDecoder =
-    Decode.int
-
-
-jsonAssociativityEncoder : Associativity -> Encode.Value
-jsonAssociativityEncoder associativity =
-    case associativity of
-        Left ->
-            Encode.string "Left"
-
-        Non ->
-            Encode.string "Non"
-
-        Right ->
-            Encode.string "Right"
-
-
-jsonAssociativityDecoder : Decode.Decoder Associativity
-jsonAssociativityDecoder =
-    Decode.string
-        |> Decode.andThen
-            (\str ->
-                case str of
-                    "Left" ->
-                        Decode.succeed Left
-
-                    "Non" ->
-                        Decode.succeed Non
-
-                    "Right" ->
-                        Decode.succeed Right
-
-                    _ ->
-                        Decode.fail ("Unknown Associativity: " ++ str)
-            )
-
-
-
 -- ENCODERS and DECODERS
 
 

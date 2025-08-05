@@ -23,7 +23,6 @@ module Text.PrettyPrint.ANSI.Leijen exposing
     , hcat
     , hsep
     , indent
-    , magenta
     , plain
     , plus
     , red
@@ -354,11 +353,6 @@ red =
 cyan : Doc -> Doc
 cyan =
     updateColor Cyan
-
-
-magenta : Doc -> Doc
-magenta =
-    updateColor Magenta
 
 
 green : Doc -> Doc

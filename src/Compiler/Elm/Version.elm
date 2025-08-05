@@ -8,8 +8,6 @@ module Compiler.Elm.Version exposing
     , decoder
     , elmCompiler
     , encode
-    , jsonDecoder
-    , jsonEncoder
     , major
     , max
     , maxVersion
@@ -25,8 +23,6 @@ module Compiler.Elm.Version exposing
 import Compiler.Json.Decode as D
 import Compiler.Json.Encode as E
 import Compiler.Parse.Primitives as P exposing (Col, Row)
-import Json.Decode as Decode
-import Json.Encode as Encode
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 
@@ -239,25 +235,6 @@ isDigit word =
 
 
 -- ENCODERS and DECODERS
-
-
-jsonEncoder : Version -> Encode.Value
-jsonEncoder version =
-    Encode.string (toChars version)
-
-
-jsonDecoder : Decode.Decoder Version
-jsonDecoder =
-    Decode.string
-        |> Decode.andThen
-            (\str ->
-                case P.fromByteString parser Tuple.pair str of
-                    Ok version ->
-                        Decode.succeed version
-
-                    Err _ ->
-                        Decode.fail "failed to parse version"
-            )
 
 
 versionEncoder : Version -> BE.Encoder

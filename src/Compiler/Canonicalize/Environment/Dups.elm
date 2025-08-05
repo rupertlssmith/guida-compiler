@@ -3,11 +3,9 @@ module Compiler.Canonicalize.Environment.Dups exposing
     , ToError
     , Tracker
     , checkFields
-    , checkFields_
     , checkLocatedFields
     , checkLocatedFields_
     , detect
-    , detectLocated
     , insert
     , none
     , one
@@ -116,11 +114,6 @@ addField ( A.At region name, value ) dups =
 checkLocatedFields_ : (A.Region -> a -> b) -> List ( A.Located Name, a ) -> R.RResult i w Error (Dict String (A.Located Name) b)
 checkLocatedFields_ toValue fields =
     detectLocated Error.DuplicateField (List.foldr (addField_ toValue) none fields)
-
-
-checkFields_ : (A.Region -> a -> b) -> List ( A.Located Name, a ) -> R.RResult i w Error (Dict String Name b)
-checkFields_ toValue fields =
-    detect Error.DuplicateField (List.foldr (addField_ toValue) none fields)
 
 
 addField_ : (A.Region -> a -> b) -> ( A.Located Name, a ) -> Tracker b -> Tracker b

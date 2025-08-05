@@ -26,6 +26,7 @@ import NoUnused.CustomTypeConstructorArgs
 import NoUnused.CustomTypeConstructors
 import NoUnused.Dependencies
 import NoUnused.Exports
+import NoUnused.Modules
 import NoUnused.Parameters
 import NoUnused.Patterns
 import NoUnused.Variables
@@ -50,9 +51,13 @@ config =
 
     -- , NoUnused.CustomTypeConstructors.rule []
     -- , NoUnused.CustomTypeConstructorArgs.rule
+    , NoUnused.Exports.rule
     , NoUnused.Dependencies.rule
+    , NoUnused.Modules.rule
 
-    -- , NoUnused.Exports.rule
+    , NoUnused.Variables.rule
+    , NoUnused.Patterns.rule
+
     , NoUnused.Parameters.rule
         |> Rule.ignoreErrorsForFiles [ "src/Utils/Crash.elm" ]
     , NoUnused.Patterns.rule
