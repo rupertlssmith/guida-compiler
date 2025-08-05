@@ -1,0 +1,10 @@
+{
+    "targets": {
+        "My target name": {
+            "inputs": [
+                "src/Terminal/Main.elm"
+            ],
+            "output": "bin/guida.js"
+        }
+    }
+}
