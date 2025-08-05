@@ -9,7 +9,8 @@ import Compiler.Reporting.Suggest as Suggest
 import List.Extra as List
 import Prelude
 import System.Exit as Exit
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Terminal.Terminal.Internal
     exposing
         ( ArgError(..)
@@ -34,17 +35,17 @@ import Utils.Main as Utils
 -- EXIT
 
 
-exitSuccess : List P.Doc -> IO a
+exitSuccess : List P.Doc -> Task Never a
 exitSuccess =
     exitWith Exit.ExitSuccess
 
 
-exitFailure : List P.Doc -> IO a
+exitFailure : List P.Doc -> Task Never a
 exitFailure =
     exitWith (Exit.ExitFailure 1)
 
 
-exitWith : Exit.ExitCode -> List P.Doc -> IO a
+exitWith : Exit.ExitCode -> List P.Doc -> Task Never a
 exitWith code docs =
     IO.hIsTerminalDevice IO.stderr
         |> IO.bind
@@ -68,7 +69,7 @@ exitWith code docs =
             )
 
 
-getExeName : IO String
+getExeName : Task Never String
 getExeName =
     IO.fmap Utils.fpTakeFileName Utils.envGetProgName
 
@@ -87,7 +88,7 @@ reflow string =
 -- HELP
 
 
-exitWithHelp : Maybe String -> String -> P.Doc -> Args -> Flags -> IO a
+exitWithHelp : Maybe String -> String -> P.Doc -> Args -> Flags -> Task Never a
 exitWithHelp maybeCommand details example (Args args) flags =
     toCommand maybeCommand
         |> IO.bind
@@ -109,7 +110,7 @@ exitWithHelp maybeCommand details example (Args args) flags =
             )
 
 
-toCommand : Maybe String -> IO String
+toCommand : Maybe String -> Task Never String
 toCommand maybeCommand =
     getExeName
         |> IO.fmap
@@ -190,7 +191,7 @@ flagsToDocs flags docs =
 -- OVERVIEW
 
 
-exitWithOverview : P.Doc -> P.Doc -> List Command -> IO a
+exitWithOverview : P.Doc -> P.Doc -> List Command -> Task Never a
 exitWithOverview intro outro commands =
     getExeName
         |> IO.bind
@@ -249,7 +250,7 @@ toCommandList exeName commands =
 -- UNKNOWN
 
 
-exitWithUnknown : String -> List String -> IO a
+exitWithUnknown : String -> List String -> Task Never a
 exitWithUnknown unknown knowns =
     let
         nearbyKnowns : List ( Int, String )
@@ -294,7 +295,7 @@ exitWithUnknown unknown knowns =
 -- ERROR TO DOC
 
 
-exitWithError : Error -> IO a
+exitWithError : Error -> Task Never a
 exitWithError err =
     IO.bind exitFailure
         (case err of
@@ -351,7 +352,7 @@ toRed str =
 -- ARG ERROR TO DOC
 
 
-argErrorToDocs : ArgError -> IO (List P.Doc)
+argErrorToDocs : ArgError -> Task Never (List P.Doc)
 argErrorToDocs argError =
     case argError of
         ArgMissing (Expectation tipe makeExamples) ->
@@ -432,7 +433,7 @@ argErrorToDocs argError =
 -- FLAG ERROR TO DOC
 
 
-flagErrorHelp : String -> String -> List P.Doc -> IO (List P.Doc)
+flagErrorHelp : String -> String -> List P.Doc -> Task Never (List P.Doc)
 flagErrorHelp summary original explanation =
     IO.pure <|
         [ reflow summary
@@ -441,7 +442,7 @@ flagErrorHelp summary original explanation =
             ++ explanation
 
 
-flagErrorToDocs : FlagError -> IO (List P.Doc)
+flagErrorToDocs : FlagError -> Task Never (List P.Doc)
 flagErrorToDocs flagError =
     case flagError of
         FlagWithValue flagName value ->

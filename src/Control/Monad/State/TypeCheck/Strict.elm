@@ -11,6 +11,7 @@ module Control.Monad.State.TypeCheck.Strict exposing
     , runStateT
     , traverseList
     , traverseMap
+    , traverseMaybe
     , traverseTuple
     )
 
@@ -120,3 +121,13 @@ traverseMapWithKey keyComparison toComparable f =
     Dict.foldl keyComparison
         (\k a -> bind (\c -> fmap (\va -> Dict.insert toComparable k va c) (f k a)))
         (pure Dict.empty)
+
+
+traverseMaybe : (a -> StateT s b) -> Maybe a -> StateT s (Maybe b)
+traverseMaybe f a =
+    case Maybe.map f a of
+        Just b ->
+            fmap Just b
+
+        Nothing ->
+            pure Nothing

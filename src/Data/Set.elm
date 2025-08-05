@@ -1,10 +1,10 @@
 module Data.Set exposing
     ( EverySet
-    , empty, insert
+    , empty, singleton, insert, remove
     , isEmpty, member, size
-    , union, diff
+    , union, intersect, diff
     , toList, fromList
-    , foldr
+    , map, foldl, foldr, filter, partition
     )
 
 {-| **Initial implementation from `Gizra/elm-all-set/1.0.1`**
@@ -20,7 +20,7 @@ based on [AssocList](https://package.elm-lang.org/packages/pzp1997/assoc-list/la
 
 # Build
 
-@docs empty, insert
+@docs empty, singleton, insert, remove
 
 
 # Query
@@ -30,7 +30,7 @@ based on [AssocList](https://package.elm-lang.org/packages/pzp1997/assoc-list/la
 
 # Combine
 
-@docs union, diff
+@docs union, intersect, diff
 
 
 # Lists
@@ -40,7 +40,7 @@ based on [AssocList](https://package.elm-lang.org/packages/pzp1997/assoc-list/la
 
 # Transform
 
-@docs foldr
+@docs map, foldl, foldr, filter, partition
 
 -}
 
@@ -61,11 +61,25 @@ empty =
     EverySet Dict.empty
 
 
+{-| Create a set with one value.
+-}
+singleton : (a -> comparable) -> a -> EverySet comparable a
+singleton toComparable k =
+    EverySet <| Dict.singleton toComparable k ()
+
+
 {-| Insert a value into a set.
 -}
 insert : (a -> comparable) -> a -> EverySet comparable a -> EverySet comparable a
 insert toComparable k (EverySet d) =
     EverySet <| Dict.insert toComparable k () d
+
+
+{-| Remove a value from a set. If the value is not found, no changes are made.
+-}
+remove : (a -> comparable) -> a -> EverySet comparable a -> EverySet comparable a
+remove toComparable k (EverySet d) =
+    EverySet <| Dict.remove toComparable k d
 
 
 {-| Determine if a set is empty.
@@ -96,6 +110,13 @@ union (EverySet d1) (EverySet d2) =
     EverySet <| Dict.union d1 d2
 
 
+{-| Get the intersection of two sets. Keeps values that appear in both sets.
+-}
+intersect : (a -> a -> Order) -> EverySet comparable a -> EverySet comparable a -> EverySet comparable a
+intersect keyComparison (EverySet d1) (EverySet d2) =
+    EverySet <| Dict.intersection keyComparison d1 d2
+
+
 {-| Get the difference between the first set and the second. Keeps values
 that do not appear in the second set.
 -}
@@ -118,8 +139,41 @@ fromList toComparable xs =
     List.foldl (insert toComparable) empty xs
 
 
+{-| Fold over the values in a set, in order from lowest to highest.
+-}
+foldl : (a -> a -> Order) -> (a -> b -> b) -> b -> EverySet c a -> b
+foldl keyComparison f b (EverySet d) =
+    Dict.foldl keyComparison (\k _ result -> f k result) b d
+
+
 {-| Fold over the values in a set, in order from highest to lowest.
 -}
 foldr : (a -> a -> Order) -> (a -> b -> b) -> b -> EverySet c a -> b
 foldr keyComparison f b (EverySet d) =
     Dict.foldr keyComparison (\k _ result -> f k result) b d
+
+
+{-| Map a function onto a set, creating a new set with no duplicates.
+-}
+map : (a -> a -> Order) -> (a2 -> comparable) -> (a -> a2) -> EverySet comparable a -> EverySet comparable a2
+map keyComparison toString f s =
+    fromList toString (List.map f (toList keyComparison s))
+
+
+{-| Create a new set consisting only of elements which satisfy a predicate.
+-}
+filter : (a -> Bool) -> EverySet comparable a -> EverySet comparable a
+filter p (EverySet d) =
+    EverySet <| Dict.filter (\k _ -> p k) d
+
+
+{-| Create two new sets; the first consisting of elements which satisfy a
+predicate, the second consisting of elements which do not.
+-}
+partition : (a -> Bool) -> EverySet comparable a -> ( EverySet comparable a, EverySet comparable a )
+partition p (EverySet d) =
+    let
+        ( p1, p2 ) =
+            Dict.partition (\k _ -> p k) d
+    in
+    ( EverySet p1, EverySet p2 )

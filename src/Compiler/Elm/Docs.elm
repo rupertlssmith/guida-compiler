@@ -14,7 +14,10 @@ module Compiler.Elm.Docs exposing
     , decoder
     , encode
     , fromModule
+    , jsonDecoder
     , jsonEncoder
+    , jsonModuleDecoder
+    , jsonModuleEncoder
     )
 
 import Basics.Extra exposing (flip)
@@ -38,6 +41,7 @@ import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Error.Docs as E
 import Compiler.Reporting.Result as Result
 import Data.Map as Dict exposing (Dict)
+import Json.Decode as Decode
 import Json.Encode as Encode
 import System.TypeCheck.IO as IO
 import Utils.Bytes.Decode as BD
@@ -778,6 +782,102 @@ addDef types def =
 jsonEncoder : Documentation -> Encode.Value
 jsonEncoder =
     E.toJsonValue << encode
+
+
+jsonDecoder : Decode.Decoder Documentation
+jsonDecoder =
+    Decode.map toDict (Decode.list jsonModuleDecoder)
+
+
+jsonModuleEncoder : Module -> Encode.Value
+jsonModuleEncoder (Module name comment unions aliases values binops) =
+    Encode.object
+        [ ( "name", Encode.string name )
+        , ( "comment", Encode.string comment )
+        , ( "unions", E.assocListDict compare Encode.string jsonUnionEncoder unions )
+        , ( "aliases", E.assocListDict compare Encode.string jsonAliasEncoder aliases )
+        , ( "values", E.assocListDict compare Encode.string jsonValueEncoder values )
+        , ( "binops", E.assocListDict compare Encode.string jsonBinopEncoder binops )
+        ]
+
+
+jsonModuleDecoder : Decode.Decoder Module
+jsonModuleDecoder =
+    Decode.map6 Module
+        (Decode.field "name" Decode.string)
+        (Decode.field "comment" Decode.string)
+        (Decode.field "unions" (D.assocListDict identity Decode.string jsonUnionDecoder))
+        (Decode.field "aliases" (D.assocListDict identity Decode.string jsonAliasDecoder))
+        (Decode.field "values" (D.assocListDict identity Decode.string jsonValueDecoder))
+        (Decode.field "binops" (D.assocListDict identity Decode.string jsonBinopDecoder))
+
+
+jsonUnionEncoder : Union -> Encode.Value
+jsonUnionEncoder (Union comment args cases) =
+    Encode.object
+        [ ( "comment", Encode.string comment )
+        , ( "args", Encode.list Encode.string args )
+        , ( "cases", Encode.list (E.jsonPair Encode.string (Encode.list Type.jsonEncoder)) cases )
+        ]
+
+
+jsonUnionDecoder : Decode.Decoder Union
+jsonUnionDecoder =
+    Decode.map3 Union
+        (Decode.field "comment" Decode.string)
+        (Decode.field "args" (Decode.list Decode.string))
+        (Decode.field "cases" (Decode.list (D.jsonPair Decode.string (Decode.list Type.jsonDecoder))))
+
+
+jsonAliasEncoder : Alias -> Encode.Value
+jsonAliasEncoder (Alias comment args type_) =
+    Encode.object
+        [ ( "comment", Encode.string comment )
+        , ( "args", Encode.list Encode.string args )
+        , ( "type", Type.jsonEncoder type_ )
+        ]
+
+
+jsonAliasDecoder : Decode.Decoder Alias
+jsonAliasDecoder =
+    Decode.map3 Alias
+        (Decode.field "comment" Decode.string)
+        (Decode.field "args" (Decode.list Decode.string))
+        (Decode.field "type" Type.jsonDecoder)
+
+
+jsonValueEncoder : Value -> Encode.Value
+jsonValueEncoder (Value comment type_) =
+    Encode.object
+        [ ( "comment", Encode.string comment )
+        , ( "type", Type.jsonEncoder type_ )
+        ]
+
+
+jsonValueDecoder : Decode.Decoder Value
+jsonValueDecoder =
+    Decode.map2 Value
+        (Decode.field "comment" Decode.string)
+        (Decode.field "type" Type.jsonDecoder)
+
+
+jsonBinopEncoder : Binop -> Encode.Value
+jsonBinopEncoder (Binop comment type_ associativity precedence) =
+    Encode.object
+        [ ( "comment", Encode.string comment )
+        , ( "type", Type.jsonEncoder type_ )
+        , ( "associativity", Binop.jsonAssociativityEncoder associativity )
+        , ( "precedence", Binop.jsonPrecedenceEncoder precedence )
+        ]
+
+
+jsonBinopDecoder : Decode.Decoder Binop
+jsonBinopDecoder =
+    Decode.map4 Binop
+        (Decode.field "comment" Decode.string)
+        (Decode.field "type" Type.jsonDecoder)
+        (Decode.field "associativity" Binop.jsonAssociativityDecoder)
+        (Decode.field "precedence" Binop.jsonPrecedenceDecoder)
 
 
 

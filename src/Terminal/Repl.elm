@@ -15,7 +15,7 @@ import Builder.Elm.Outline as Outline
 import Builder.Generate as Generate
 import Builder.Reporting as Reporting
 import Builder.Reporting.Exit as Exit
-import Builder.Reporting.Task as Task
+import Builder.Reporting.Task as WasRepTask
 import Builder.Stuff as Stuff
 import Compiler.AST.Source as Src
 import Compiler.Data.Name as N
@@ -44,8 +44,9 @@ import List.Extra as List
 import Maybe.Extra as Maybe
 import Prelude
 import System.Exit as Exit
-import System.IO as IO exposing (IO)
+import System.IO as IO
 import System.Process as Process
+import Task exposing (Task)
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils exposing (FilePath)
 
@@ -58,7 +59,7 @@ type Flags
     = Flags (Maybe FilePath) Bool
 
 
-run : () -> Flags -> IO ()
+run : () -> Flags -> Task Never ()
 run () flags =
     printWelcomeMessage
         |> IO.bind (\_ -> initSettings)
@@ -82,7 +83,7 @@ run () flags =
 -- WELCOME
 
 
-printWelcomeMessage : IO ()
+printWelcomeMessage : Task Never ()
 printWelcomeMessage =
     let
         vsn : String
@@ -118,7 +119,7 @@ type Env
     = Env FilePath FilePath Bool
 
 
-initEnv : Flags -> IO Env
+initEnv : Flags -> Task Never Env
 initEnv (Flags maybeAlternateInterpreter noColors) =
     getRoot
         |> IO.bind
@@ -525,7 +526,7 @@ annotation =
 -- EVAL
 
 
-eval : Env -> IO.ReplState -> Input -> IO Outcome
+eval : Env -> IO.ReplState -> Input -> Task Never Outcome
 eval env ((IO.ReplState imports types decls) as state) input =
     case input of
         Skip ->
@@ -584,21 +585,21 @@ type Output
     | OutputExpr String
 
 
-attemptEval : Env -> IO.ReplState -> IO.ReplState -> Output -> IO IO.ReplState
+attemptEval : Env -> IO.ReplState -> IO.ReplState -> Output -> Task Never IO.ReplState
 attemptEval (Env root interpreter ansi) oldState newState output =
     BW.withScope
         (\scope ->
             Stuff.withRootLock root
-                (Task.run
-                    (Task.eio Exit.ReplBadDetails
+                (WasRepTask.run
+                    (WasRepTask.eio Exit.ReplBadDetails
                         (Details.load Reporting.silent scope root)
-                        |> Task.bind
+                        |> WasRepTask.bind
                             (\details ->
-                                Task.eio identity
+                                WasRepTask.eio identity
                                     (Build.fromRepl root details (toByteString newState output))
-                                    |> Task.bind
+                                    |> WasRepTask.bind
                                         (\artifacts ->
-                                            Utils.maybeTraverseTask (Task.mapError Exit.ReplBadGenerate << Generate.repl root details ansi artifacts) (toPrintName output)
+                                            Utils.maybeTraverseTask (WasRepTask.mapError Exit.ReplBadGenerate << Generate.repl root details ansi artifacts) (toPrintName output)
                                         )
                             )
                     )
@@ -628,7 +629,7 @@ attemptEval (Env root interpreter ansi) oldState newState output =
             )
 
 
-interpret : FilePath -> String -> IO Exit.ExitCode
+interpret : FilePath -> String -> Task Never Exit.ExitCode
 interpret interpreter javascript =
     let
         createProcess : { cmdspec : Process.CmdSpec, std_out : Process.StdStream, std_err : Process.StdStream, std_in : Process.StdStream }
@@ -721,7 +722,7 @@ genericHelpMessage =
 -- GET ROOT
 
 
-getRoot : IO FilePath
+getRoot : Task Never FilePath
 getRoot =
     Stuff.findRoot
         |> IO.bind
@@ -772,7 +773,7 @@ defaultDeps =
 -- GET INTERPRETER
 
 
-getInterpreter : Maybe String -> IO FilePath
+getInterpreter : Maybe String -> Task Never FilePath
 getInterpreter maybeName =
     case maybeName of
         Just name ->
@@ -789,7 +790,7 @@ getInterpreter maybeName =
                 )
 
 
-getInterpreterHelp : String -> IO (Maybe FilePath) -> IO FilePath
+getInterpreterHelp : String -> Task Never (Maybe FilePath) -> Task Never FilePath
 getInterpreterHelp name findExe =
     findExe
         |> IO.bind
@@ -818,7 +819,7 @@ exeNotFound name =
 -- SETTINGS
 
 
-initSettings : IO Utils.ReplSettings
+initSettings : Task Never Utils.ReplSettings
 initSettings =
     Stuff.getReplCache
         |> IO.fmap

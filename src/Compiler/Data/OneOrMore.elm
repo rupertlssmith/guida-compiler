@@ -2,6 +2,7 @@ module Compiler.Data.OneOrMore exposing
     ( OneOrMore(..)
     , destruct
     , getFirstTwo
+    , map
     , more
     , one
     )
@@ -26,6 +27,19 @@ more =
 
 
 -- MAP
+
+
+map : (a -> b) -> OneOrMore a -> OneOrMore b
+map func oneOrMore =
+    case oneOrMore of
+        One value ->
+            One (func value)
+
+        More left right ->
+            More (map func left) (map func right)
+
+
+
 -- DESTRUCT
 
 

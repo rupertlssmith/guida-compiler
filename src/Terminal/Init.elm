@@ -19,7 +19,8 @@ import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
 import Compiler.Reporting.Doc as D
 import Data.Map as Dict exposing (Dict)
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Utils.Main as Utils
 
 
@@ -31,7 +32,7 @@ type Flags
     = Flags Bool Bool
 
 
-run : () -> Flags -> IO ()
+run : () -> Flags -> Task Never ()
 run () (Flags package autoYes) =
     Reporting.attempt Exit.initToReport <|
         (Utils.dirDoesFileExist "elm.json"
@@ -42,7 +43,7 @@ run () (Flags package autoYes) =
 
                     else
                         let
-                            askQuestion : IO Bool
+                            askQuestion : Task Never Bool
                             askQuestion =
                                 if autoYes then
                                     Help.toStdout (information [ D.fromChars "" ])
@@ -105,7 +106,7 @@ information question =
 -- INIT
 
 
-init : Bool -> IO (Result Exit.Init ())
+init : Bool -> Task Never (Result Exit.Init ())
 init package =
     Solver.initEnv
         |> IO.bind
@@ -207,7 +208,7 @@ init package =
             )
 
 
-verify : Stuff.PackageCache -> Solver.Connection -> Registry.Registry -> Dict ( String, String ) Pkg.Name Con.Constraint -> (Dict ( String, String ) Pkg.Name Solver.Details -> IO (Result Exit.Init ())) -> IO (Result Exit.Init ())
+verify : Stuff.PackageCache -> Solver.Connection -> Registry.Registry -> Dict ( String, String ) Pkg.Name Con.Constraint -> (Dict ( String, String ) Pkg.Name Solver.Details -> Task Never (Result Exit.Init ())) -> Task Never (Result Exit.Init ())
 verify cache connection registry constraints callback =
     Solver.verify cache connection registry constraints
         |> IO.bind

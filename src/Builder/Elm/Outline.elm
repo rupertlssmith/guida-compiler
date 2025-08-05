@@ -31,8 +31,9 @@ import Compiler.Json.Decode as D
 import Compiler.Json.Encode as E
 import Compiler.Parse.Primitives as P
 import Data.Map as Dict exposing (Dict)
-import System.IO as IO exposing (IO)
+import System.IO as IO
 import System.TypeCheck.IO as TypeCheck
+import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 import Utils.Main as Utils exposing (FilePath)
@@ -92,7 +93,7 @@ flattenExposed exposed =
 -- WRITE
 
 
-write : FilePath -> Outline -> IO ()
+write : FilePath -> Outline -> Task Never ()
 write root outline =
     E.write (root ++ "/elm.json") (encode outline)
 
@@ -171,7 +172,7 @@ encodeSrcDir srcDir =
 -- PARSE AND VERIFY
 
 
-read : FilePath -> IO (Result Exit.Outline Outline)
+read : FilePath -> Task Never (Result Exit.Outline Outline)
 read root =
     File.readUtf8 (root ++ "/elm.json")
         |> IO.bind
@@ -220,7 +221,7 @@ read root =
             )
 
 
-isSrcDirMissing : FilePath -> SrcDir -> IO Bool
+isSrcDirMissing : FilePath -> SrcDir -> Task Never Bool
 isSrcDirMissing root srcDir =
     IO.fmap not (Utils.dirDoesDirectoryExist (toAbsolute root srcDir))
 
@@ -245,7 +246,7 @@ toAbsolute root srcDir =
             Utils.fpCombine root dir
 
 
-detectDuplicates : FilePath -> List SrcDir -> IO (Maybe ( FilePath, ( FilePath, FilePath ) ))
+detectDuplicates : FilePath -> List SrcDir -> Task Never (Maybe ( FilePath, ( FilePath, FilePath ) ))
 detectDuplicates root srcDirs =
     Utils.listTraverse (toPair root) srcDirs
         |> IO.fmap
@@ -256,7 +257,7 @@ detectDuplicates root srcDirs =
             )
 
 
-toPair : FilePath -> SrcDir -> IO ( FilePath, OneOrMore.OneOrMore FilePath )
+toPair : FilePath -> SrcDir -> Task Never ( FilePath, OneOrMore.OneOrMore FilePath )
 toPair root srcDir =
     Utils.dirCanonicalizePath (toAbsolute root srcDir)
         |> IO.bind
@@ -279,7 +280,7 @@ isDup paths =
 -- GET ALL MODULE PATHS
 
 
-getAllModulePaths : FilePath -> IO (Dict (List String) TypeCheck.Canonical FilePath)
+getAllModulePaths : FilePath -> Task Never (Dict (List String) TypeCheck.Canonical FilePath)
 getAllModulePaths root =
     read root
         |> IO.bind
@@ -312,7 +313,7 @@ getAllModulePaths root =
             )
 
 
-getAllModulePathsHelper : Pkg.Name -> List FilePath -> Dict ( String, String ) Pkg.Name V.Version -> IO (Dict (List String) TypeCheck.Canonical FilePath)
+getAllModulePathsHelper : Pkg.Name -> List FilePath -> Dict ( String, String ) Pkg.Name V.Version -> Task Never (Dict (List String) TypeCheck.Canonical FilePath)
 getAllModulePathsHelper packageName packageSrcDirs deps =
     Utils.listTraverse recursiveFindFiles packageSrcDirs
         |> IO.bind
@@ -336,13 +337,13 @@ getAllModulePathsHelper packageName packageSrcDirs deps =
             )
 
 
-recursiveFindFiles : FilePath -> IO (List ( FilePath, FilePath ))
+recursiveFindFiles : FilePath -> Task Never (List ( FilePath, FilePath ))
 recursiveFindFiles root =
     recursiveFindFilesHelp root
         |> IO.fmap (List.map (Tuple.pair root))
 
 
-recursiveFindFilesHelp : FilePath -> IO (List FilePath)
+recursiveFindFilesHelp : FilePath -> Task Never (List FilePath)
 recursiveFindFilesHelp root =
     Utils.dirListDirectory root
         |> IO.bind
@@ -377,7 +378,7 @@ moduleNameFromFilePath root filePath =
         |> String.replace "/" "."
 
 
-resolvePackagePaths : Pkg.Name -> V.Version -> IO ( Pkg.Name, FilePath )
+resolvePackagePaths : Pkg.Name -> V.Version -> Task Never ( Pkg.Name, FilePath )
 resolvePackagePaths pkgName vsn =
     Stuff.getPackageCache
         |> IO.fmap (\packageCache -> ( pkgName, Stuff.package packageCache pkgName vsn ))

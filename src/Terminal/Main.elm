@@ -2,7 +2,8 @@ module Terminal.Main exposing (main)
 
 import Compiler.Elm.Version as V
 import Compiler.Reporting.Doc as D
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Terminal.Bump as Bump
 import Terminal.Diff as Diff
 import Terminal.Format as Format
@@ -34,7 +35,7 @@ main =
         )
 
 
-app : IO ()
+app : Task Never ()
 app =
     Terminal.app intro
         outro

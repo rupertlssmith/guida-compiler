@@ -17,7 +17,8 @@ module Terminal.Terminal.Chomp exposing
 
 import Basics.Extra exposing (flip)
 import Maybe.Extra as Maybe
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Terminal.Terminal.Internal exposing (ArgError(..), Error(..), Expectation(..), Flag(..), FlagError(..), Flags(..), Parser(..))
 
 
@@ -30,7 +31,7 @@ chomp :
     -> List String
     -> List (Suggest -> List Chunk -> ( Suggest, Result ArgError args ))
     -> Chomper FlagError flags
-    -> ( IO (List String), Result Error ( args, flags ) )
+    -> ( Task Never (List String), Result Error ( args, flags ) )
 chomp maybeIndex strings args (Chomper flagChomper) =
     case flagChomper (toSuggest maybeIndex) (toChunks strings) of
         ChomperOk suggest chunks flagValue ->
@@ -79,10 +80,10 @@ type Chunk
 type Suggest
     = NoSuggestion
     | Suggest Int
-    | Suggestions (IO (List String))
+    | Suggestions (Task Never (List String))
 
 
-makeSuggestion : Suggest -> (Int -> Maybe (IO (List String))) -> Suggest
+makeSuggestion : Suggest -> (Int -> Maybe (Task Never (List String))) -> Suggest
 makeSuggestion suggest maybeUpdate =
     case suggest of
         NoSuggestion ->
@@ -99,7 +100,7 @@ makeSuggestion suggest maybeUpdate =
 -- ARGS
 
 
-chompArgs : Suggest -> List Chunk -> List (Suggest -> List Chunk -> ( Suggest, Result ArgError a )) -> ( IO (List String), Result Error a )
+chompArgs : Suggest -> List Chunk -> List (Suggest -> List Chunk -> ( Suggest, Result ArgError a )) -> ( Task Never (List String), Result Error a )
 chompArgs suggest chunks completeArgsList =
     chompArgsHelp suggest chunks completeArgsList [] []
 
@@ -110,7 +111,7 @@ chompArgsHelp :
     -> List (Suggest -> List Chunk -> ( Suggest, Result ArgError a ))
     -> List Suggest
     -> List ArgError
-    -> ( IO (List String), Result Error a )
+    -> ( Task Never (List String), Result Error a )
 chompArgsHelp suggest chunks completeArgsList revSuggest revArgErrors =
     case completeArgsList of
         [] ->
@@ -129,7 +130,7 @@ chompArgsHelp suggest chunks completeArgsList revSuggest revArgErrors =
                     )
 
 
-addSuggest : IO (List String) -> Suggest -> IO (List String)
+addSuggest : Task Never (List String) -> Suggest -> Task Never (List String)
 addSuggest everything suggest =
     case suggest of
         NoSuggestion ->
@@ -218,7 +219,7 @@ chompArg numChunks ((Parser { singular, examples }) as parser) parserFn =
                             ChomperOk newSuggest otherChunks arg
 
 
-suggestArg : Parser -> Int -> Int -> Maybe (IO (List String))
+suggestArg : Parser -> Int -> Int -> Maybe (Task Never (List String))
 suggestArg (Parser { suggest }) numChunks targetIndex =
     if numChunks <= targetIndex then
         Just (suggest "")
@@ -382,7 +383,7 @@ checkForUnknownFlags flags =
                         (FlagUnknown unknownFlag flags)
 
 
-suggestFlag : List Chunk -> Flags -> Int -> Maybe (IO (List String))
+suggestFlag : List Chunk -> Flags -> Int -> Maybe (Task Never (List String))
 suggestFlag unknownFlags flags targetIndex =
     case unknownFlags of
         [] ->

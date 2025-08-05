@@ -10,7 +10,8 @@ import Compiler.Json.Encode as E
 import Compiler.Parse.Primitives as P
 import Json.Decode as Decode
 import Json.Encode as Encode
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Utils.Impure as Impure
 
 
@@ -19,7 +20,7 @@ main =
     IO.run app
 
 
-app : IO ()
+app : Task Never ()
 app =
     getArgs
         |> IO.bind
@@ -65,12 +66,12 @@ app =
             )
 
 
-getArgs : IO Args
+getArgs : Task Never Args
 getArgs =
     Impure.task "getArgs" [] Impure.EmptyBody (Impure.DecoderResolver argsDecoder)
 
 
-exitWithResponse : Encode.Value -> IO a
+exitWithResponse : Encode.Value -> Task Never a
 exitWithResponse value =
     Impure.task "exitWithResponse" [] (Impure.JsonBody value) Impure.Crash
 

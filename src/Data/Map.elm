@@ -1,9 +1,9 @@
 module Data.Map exposing
     ( Dict
     , empty, singleton, insert, update, remove
-    , isEmpty, member, get, size
+    , isEmpty, member, get, size, eq
     , keys, values, toList, fromList
-    , map, foldl, foldr, filter
+    , map, foldl, foldr, filter, partition
     , union, intersection, diff, merge
     )
 
@@ -33,7 +33,7 @@ for more information about this topic.
 
 # Query
 
-@docs isEmpty, member, get, size
+@docs isEmpty, member, get, size, eq
 
 
 # Lists
@@ -43,7 +43,7 @@ for more information about this topic.
 
 # Transform
 
-@docs map, foldl, foldr, filter
+@docs map, foldl, foldr, filter, partition
 
 
 # Combine
@@ -144,6 +144,30 @@ size (D dict) =
 isEmpty : Dict c k v -> Bool
 isEmpty (D dict) =
     Dict.isEmpty dict
+
+
+{-| Compare two dictionaries for equality, ignoring insertion order.
+Dictionaries are defined to be equal when they have identical key-value pairs
+where keys and values are compared using the built-in equality operator.
+
+You should almost never use the built-in equality operator to compare
+dictionaries from this module since association lists have no canonical form.
+
+    eq
+        (fromList [ ( "a", 1 ), ( "b", 2 ) ])
+        (fromList [ ( "b", 2 ), ( "a", 1 ) ])
+    --> True
+
+-}
+eq : Dict comparable k v -> Dict comparable k v -> Bool
+eq leftDict rightDict =
+    merge (\_ _ -> EQ)
+        (\_ _ _ -> False)
+        (\_ a b result -> result && a == b)
+        (\_ _ _ -> False)
+        leftDict
+        rightDict
+        True
 
 
 {-| Insert a key-value pair into a dictionary. Replaces value when there is
@@ -327,6 +351,19 @@ foldr keyComparison func initialResult dict =
 filter : (k -> v -> Bool) -> Dict comparable k v -> Dict comparable k v
 filter isGood (D dict) =
     D (Dict.filter (\_ ( key, value ) -> isGood key value) dict)
+
+
+{-| Partition a dictionary according to some test. The first dictionary
+contains all key-value pairs which passed the test, and the second contains
+the pairs that did not.
+-}
+partition : (k -> v -> Bool) -> Dict comparable k v -> ( Dict comparable k v, Dict comparable k v )
+partition isGood (D dict) =
+    let
+        ( good, bad ) =
+            Dict.partition (\_ ( key, value ) -> isGood key value) dict
+    in
+    ( D good, D bad )
 
 
 

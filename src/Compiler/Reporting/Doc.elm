@@ -12,7 +12,7 @@ module Compiler.Reporting.Doc exposing
     , stack, reflow, commaSep
     , toSimpleNote, toFancyNote, toSimpleHint, toFancyHint
     , link, fancyLink, reflowLink, makeLink, makeNakedLink
-    , args, ordinal, intToOrdinal, cycle
+    , args, moreArgs, ordinal, intToOrdinal, cycle
     )
 
 {-|
@@ -30,7 +30,7 @@ module Compiler.Reporting.Doc exposing
 @docs stack, reflow, commaSep
 @docs toSimpleNote, toFancyNote, toSimpleHint, toFancyHint
 @docs link, fancyLink, reflowLink, makeLink, makeNakedLink
-@docs args, ordinal, intToOrdinal, cycle
+@docs args, moreArgs, ordinal, intToOrdinal, cycle
 
 -}
 
@@ -42,7 +42,8 @@ import Compiler.Json.Encode as E
 import Maybe.Extra as Maybe
 import Prelude
 import System.Console.Ansi as Ansi
-import System.IO exposing (Handle, IO)
+import System.IO exposing (Handle)
+import Task exposing (Task)
 import Text.PrettyPrint.ANSI.Leijen as P
 
 
@@ -79,7 +80,7 @@ fromInt n =
 -- TO STRING
 
 
-toAnsi : Handle -> Doc -> IO ()
+toAnsi : Handle -> Doc -> Task Never ()
 toAnsi handle doc =
     P.displayIO handle (P.renderPretty 1 80 doc)
 
@@ -204,6 +205,18 @@ reflowLink before fileName after =
 args : Int -> String
 args n =
     String.fromInt n
+        ++ (if n == 1 then
+                " argument"
+
+            else
+                " arguments"
+           )
+
+
+moreArgs : Int -> String
+moreArgs n =
+    String.fromInt n
+        ++ " more"
         ++ (if n == 1 then
                 " argument"
 

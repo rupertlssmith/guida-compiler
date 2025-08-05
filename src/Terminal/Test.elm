@@ -16,7 +16,7 @@ import Builder.File as File
 import Builder.Generate as Generate
 import Builder.Reporting as Reporting
 import Builder.Reporting.Exit as Exit
-import Builder.Reporting.Task as Task
+import Builder.Reporting.Task as WasRepTask
 import Builder.Stuff as Stuff
 import Compiler.AST.Source as Src
 import Compiler.Data.Name exposing (Name)
@@ -32,8 +32,9 @@ import Json.Encode as Encode
 import Maybe.Extra as Maybe
 import Regex exposing (Regex)
 import System.Exit as Exit
-import System.IO as IO exposing (IO)
+import System.IO as IO
 import System.Process as Process
+import Task exposing (Task)
 import Terminal.Terminal.Internal exposing (Parser(..))
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils exposing (FilePath)
@@ -43,15 +44,11 @@ import Utils.Main as Utils exposing (FilePath)
 -- RUN
 
 
-type alias Task a =
-    Task.Task Exit.Test a
-
-
 type Flags
     = Flags (Maybe Int) (Maybe Int) (Maybe Report)
 
 
-run : List String -> Flags -> IO ()
+run : List String -> Flags -> Task Never ()
 run paths flags =
     Stuff.findRoot
         |> IO.bind
@@ -66,23 +63,23 @@ run paths flags =
             )
 
 
-runHelp : String -> List String -> Flags -> IO (Result Exit.Test ())
+runHelp : String -> List String -> Flags -> Task Never (Result Exit.Test ())
 runHelp root testFileGlobs flags =
     Stuff.withRootLock root <|
-        Task.run <|
+        WasRepTask.run <|
             (Utils.dirCreateDirectoryIfMissing True (Stuff.testDir root)
                 |> IO.bind (\_ -> Utils.nodeGetDirname)
-                |> Task.io
-                |> Task.bind
+                |> WasRepTask.io
+                |> WasRepTask.bind
                     (\nodeDirname ->
-                        Task.eio Exit.TestBadOutline (Outline.read root)
-                            |> Task.bind
+                        WasRepTask.eio Exit.TestBadOutline (Outline.read root)
+                            |> WasRepTask.bind
                                 (\baseOutline ->
-                                    Task.io (Utils.dirDoesDirectoryExist "tests")
-                                        |> Task.bind
+                                    WasRepTask.io (Utils.dirDoesDirectoryExist "tests")
+                                        |> WasRepTask.bind
                                             (\testsDirExists ->
-                                                Task.eio Exit.TestBadRegistry Solver.initEnv
-                                                    |> Task.bind
+                                                WasRepTask.eio Exit.TestBadRegistry Solver.initEnv
+                                                    |> WasRepTask.bind
                                                         (\env ->
                                                             let
                                                                 addOptionalTests : NE.Nonempty Outline.SrcDir -> NE.Nonempty Outline.SrcDir
@@ -113,25 +110,25 @@ runHelp root testFileGlobs flags =
                                                                 Outline.App (Outline.AppOutline elm srcDirs depsDirect depsTrans testDirect testTrans) ->
                                                                     Outline.AppOutline elm (newSrcDirs srcDirs) (Dict.union depsDirect testDirect) (Dict.union depsTrans testTrans) Dict.empty Dict.empty
                                                                         |> makeAppPlan env Pkg.core
-                                                                        |> Task.bind (makeAppPlan env Pkg.json)
-                                                                        |> Task.bind (makeAppPlan env Pkg.time)
-                                                                        |> Task.bind (makeAppPlan env Pkg.random)
+                                                                        |> WasRepTask.bind (makeAppPlan env Pkg.json)
+                                                                        |> WasRepTask.bind (makeAppPlan env Pkg.time)
+                                                                        |> WasRepTask.bind (makeAppPlan env Pkg.random)
                                                                         -- TODO changes should only be done to the `tests/elm.json` in case the top level `elm.json` had changes! This will improve performance!
-                                                                        |> Task.bind (attemptChanges root env)
+                                                                        |> WasRepTask.bind (attemptChanges root env)
 
                                                                 Outline.Pkg (Outline.PkgOutline _ _ _ _ _ deps test _) ->
                                                                     Outline.AppOutline V.elmCompiler (newSrcDirs (NE.singleton (Outline.RelativeSrcDir "src"))) Dict.empty Dict.empty Dict.empty Dict.empty
                                                                         |> makePkgPlan env (Dict.union deps test)
-                                                                        |> Task.bind (makeAppPlan env Pkg.core)
-                                                                        |> Task.bind (makeAppPlan env Pkg.json)
-                                                                        |> Task.bind (makeAppPlan env Pkg.time)
-                                                                        |> Task.bind (makeAppPlan env Pkg.random)
+                                                                        |> WasRepTask.bind (makeAppPlan env Pkg.core)
+                                                                        |> WasRepTask.bind (makeAppPlan env Pkg.json)
+                                                                        |> WasRepTask.bind (makeAppPlan env Pkg.time)
+                                                                        |> WasRepTask.bind (makeAppPlan env Pkg.random)
                                                                         -- TODO changes should only be done to the `tests/elm.json` in case the top level `elm.json` had changes! This will improve performance!
-                                                                        |> Task.bind (attemptChanges root env)
+                                                                        |> WasRepTask.bind (attemptChanges root env)
                                                         )
                                             )
                                 )
-                            |> Task.bind
+                            |> WasRepTask.bind
                                 (\_ ->
                                     let
                                         paths : List String
@@ -212,14 +209,14 @@ runHelp root testFileGlobs flags =
                                                                     )
                                                         )
                                             )
-                                        |> Task.io
+                                        |> WasRepTask.io
                                 )
-                            |> Task.fmap (\_ -> ())
+                            |> WasRepTask.fmap (\_ -> ())
                     )
             )
 
 
-interpret : FilePath -> String -> IO Exit.ExitCode
+interpret : FilePath -> String -> Task Never Exit.ExitCode
 interpret interpreter javascript =
     let
         createProcess : { cmdspec : Process.CmdSpec, std_out : Process.StdStream, std_err : Process.StdStream, std_in : Process.StdStream }
@@ -594,10 +591,10 @@ testGeneratedMain :
     -> List String
     -> List String
     -> Flags
-    -> IO String
+    -> Task Never String
 testGeneratedMain testModules testFileGlobs testFilePaths (Flags maybeSeed maybeRuns report) =
     let
-        seedIO : IO Int
+        seedIO : Task Never Int
         seedIO =
             case maybeSeed of
                 Just seedValue ->
@@ -699,7 +696,7 @@ style =
     Reporting.silent
 
 
-extractExposedPossiblyTests : String -> IO (Maybe ( String, List String ))
+extractExposedPossiblyTests : String -> Task Never (Maybe ( String, List String ))
 extractExposedPossiblyTests path =
     File.readUtf8 path
         |> IO.bind
@@ -745,7 +742,7 @@ type FileType
     | DoesNotExist
 
 
-stat : FilePath -> IO FileType
+stat : FilePath -> Task Never FileType
 stat path =
     Utils.dirDoesFileExist path
         |> IO.bind
@@ -775,7 +772,7 @@ type Error
     | NoElmFiles FilePath
 
 
-resolveFile : FilePath -> IO (Result Error (List FilePath))
+resolveFile : FilePath -> Task Never (Result Error (List FilePath))
 resolveFile path =
     stat path
         |> IO.bind
@@ -801,7 +798,7 @@ resolveFile path =
             )
 
 
-resolveElmFiles : List FilePath -> IO (Result (List Error) (List FilePath))
+resolveElmFiles : List FilePath -> Task Never (Result (List Error) (List FilePath))
 resolveElmFiles inputFiles =
     IO.mapM resolveFile inputFiles
         |> IO.fmap collectErrors
@@ -840,23 +837,23 @@ collectErrors =
 -- FILESYSTEM
 
 
-collectFiles : (a -> IO (List a)) -> a -> IO (List a)
+collectFiles : (a -> Task Never (List a)) -> a -> Task Never (List a)
 collectFiles children root =
     children root
         |> IO.bind (\xs -> IO.mapM (collectFiles children) xs)
         |> IO.fmap (\subChildren -> root :: List.concat subChildren)
 
 
-listDir : FilePath -> IO (List FilePath)
+listDir : FilePath -> Task Never (List FilePath)
 listDir path =
     Utils.dirListDirectory path
         |> IO.fmap (List.map (\file -> path ++ "/" ++ file))
 
 
-fileList : FilePath -> IO (List FilePath)
+fileList : FilePath -> Task Never (List FilePath)
 fileList =
     let
-        children : FilePath -> IO (List FilePath)
+        children : FilePath -> Task Never (List FilePath)
         children path =
             if isSkippable path then
                 IO.pure []
@@ -889,7 +886,7 @@ hasExtension ext path =
     ext == Utils.fpTakeExtension path
 
 
-findAllGuidaAndElmFiles : FilePath -> IO (List FilePath)
+findAllGuidaAndElmFiles : FilePath -> Task Never (List FilePath)
 findAllGuidaAndElmFiles inputFile =
     fileList inputFile
         |> IO.fmap (List.filter (\path -> hasExtension ".guida" path || hasExtension ".elm" path))
@@ -908,9 +905,9 @@ hasFilename name path =
 -- ATTEMPT CHANGES
 
 
-attemptChanges : FilePath -> Solver.Env -> Outline.AppOutline -> Task ()
+attemptChanges : FilePath -> Solver.Env -> Outline.AppOutline -> Task Exit.Test ()
 attemptChanges root env appOutline =
-    Task.eio Exit.TestBadDetails <|
+    WasRepTask.eio Exit.TestBadDetails <|
         BW.withScope
             (\scope ->
                 let
@@ -927,16 +924,16 @@ attemptChanges root env appOutline =
 -- MAKE APP PLAN
 
 
-makeAppPlan : Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task Outline.AppOutline
+makeAppPlan : Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task Exit.Test Outline.AppOutline
 makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline elmVersion sourceDirs direct indirect testDirect testIndirect) as outline) =
     if Dict.member identity pkg direct then
-        Task.pure outline
+        WasRepTask.pure outline
 
     else
         -- is it already indirect?
         case Dict.get identity pkg indirect of
             Just vsn ->
-                Task.pure <|
+                WasRepTask.pure <|
                     Outline.AppOutline elmVersion
                         sourceDirs
                         (Dict.insert identity pkg vsn direct)
@@ -948,7 +945,7 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline el
                 -- is it already a test dependency?
                 case Dict.get identity pkg testDirect of
                     Just vsn ->
-                        Task.pure <|
+                        WasRepTask.pure <|
                             Outline.AppOutline elmVersion
                                 sourceDirs
                                 (Dict.insert identity pkg vsn direct)
@@ -960,7 +957,7 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline el
                         -- is it already an indirect test dependency?
                         case Dict.get identity pkg testIndirect of
                             Just vsn ->
-                                Task.pure <|
+                                WasRepTask.pure <|
                                     Outline.AppOutline elmVersion
                                         sourceDirs
                                         (Dict.insert identity pkg vsn direct)
@@ -974,27 +971,27 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline el
                                     Err suggestions ->
                                         case connection of
                                             Solver.Online _ ->
-                                                Task.throw (Exit.TestUnknownPackageOnline pkg suggestions)
+                                                WasRepTask.throw (Exit.TestUnknownPackageOnline pkg suggestions)
 
                                             Solver.Offline ->
-                                                Task.throw (Exit.TestUnknownPackageOffline pkg suggestions)
+                                                WasRepTask.throw (Exit.TestUnknownPackageOffline pkg suggestions)
 
                                     Ok _ ->
-                                        Task.io (Solver.addToApp cache connection registry pkg outline False)
-                                            |> Task.bind
+                                        WasRepTask.io (Solver.addToApp cache connection registry pkg outline False)
+                                            |> WasRepTask.bind
                                                 (\result ->
                                                     case result of
                                                         Solver.SolverOk (Solver.AppSolution _ _ app) ->
-                                                            Task.pure app
+                                                            WasRepTask.pure app
 
                                                         Solver.NoSolution ->
-                                                            Task.throw (Exit.TestNoOnlineAppSolution pkg)
+                                                            WasRepTask.throw (Exit.TestNoOnlineAppSolution pkg)
 
                                                         Solver.NoOfflineSolution ->
-                                                            Task.throw (Exit.TestNoOfflineAppSolution pkg)
+                                                            WasRepTask.throw (Exit.TestNoOfflineAppSolution pkg)
 
                                                         Solver.SolverErr exit ->
-                                                            Task.throw (Exit.TestHadSolverTrouble exit)
+                                                            WasRepTask.throw (Exit.TestHadSolverTrouble exit)
                                                 )
 
 
@@ -1002,33 +999,33 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline el
 -- MAKE PACKAGE PLAN
 
 
-makePkgPlan : Solver.Env -> Dict ( String, String ) Pkg.Name C.Constraint -> Outline.AppOutline -> Task Outline.AppOutline
+makePkgPlan : Solver.Env -> Dict ( String, String ) Pkg.Name C.Constraint -> Outline.AppOutline -> Task Exit.Test Outline.AppOutline
 makePkgPlan env cons outline =
     makePkgPlanHelp env (Dict.toList Pkg.compareName cons) outline
 
 
-makePkgPlanHelp : Solver.Env -> List ( Pkg.Name, C.Constraint ) -> Outline.AppOutline -> Task Outline.AppOutline
+makePkgPlanHelp : Solver.Env -> List ( Pkg.Name, C.Constraint ) -> Outline.AppOutline -> Task Exit.Test Outline.AppOutline
 makePkgPlanHelp ((Solver.Env cache _ connection registry) as env) cons outline =
     case cons of
         [] ->
-            Task.pure outline
+            WasRepTask.pure outline
 
         ( pkg, con ) :: remainingCons ->
-            Task.io (Solver.addToTestApp cache connection registry pkg con outline)
-                |> Task.bind
+            WasRepTask.io (Solver.addToTestApp cache connection registry pkg con outline)
+                |> WasRepTask.bind
                     (\result ->
                         case result of
                             Solver.SolverOk (Solver.AppSolution _ _ app) ->
                                 makePkgPlanHelp env remainingCons app
 
                             Solver.NoSolution ->
-                                Task.throw (Exit.TestNoOnlinePkgSolution pkg)
+                                WasRepTask.throw (Exit.TestNoOnlinePkgSolution pkg)
 
                             Solver.NoOfflineSolution ->
-                                Task.throw (Exit.TestNoOfflinePkgSolution pkg)
+                                WasRepTask.throw (Exit.TestNoOfflinePkgSolution pkg)
 
                             Solver.SolverErr exit ->
-                                Task.throw (Exit.TestHadSolverTrouble exit)
+                                WasRepTask.throw (Exit.TestHadSolverTrouble exit)
                     )
 
 
@@ -1036,7 +1033,7 @@ makePkgPlanHelp ((Solver.Env cache _ connection registry) as env) cons outline =
 -- GET INTERPRETER
 
 
-getInterpreter : IO FilePath
+getInterpreter : Task Never FilePath
 getInterpreter =
     getInterpreterHelp "node` or `nodejs" <|
         (Utils.dirFindExecutable "node"
@@ -1048,7 +1045,7 @@ getInterpreter =
         )
 
 
-getInterpreterHelp : String -> IO (Maybe FilePath) -> IO FilePath
+getInterpreterHelp : String -> Task Never (Maybe FilePath) -> Task Never FilePath
 getInterpreterHelp name findExe =
     findExe
         |> IO.bind
@@ -1075,16 +1072,16 @@ exeNotFound name =
 
 {-| FROM MAKE
 -}
-runMake : String -> String -> IO (Result Exit.Test String)
+runMake : String -> String -> Task Never (Result Exit.Test String)
 runMake root path =
     BW.withScope
         (\scope ->
-            Task.run <|
-                (Task.eio Exit.TestBadDetails (Details.load style scope root)
-                    |> Task.bind
+            WasRepTask.run <|
+                (WasRepTask.eio Exit.TestBadDetails (Details.load style scope root)
+                    |> WasRepTask.bind
                         (\details ->
                             buildPaths root details (NE.Nonempty path [])
-                                |> Task.bind
+                                |> WasRepTask.bind
                                     (\artifacts ->
                                         toBuilder 0 root details artifacts
                                     )
@@ -1093,9 +1090,9 @@ runMake root path =
         )
 
 
-buildPaths : FilePath -> Details.Details -> NE.Nonempty FilePath -> Task Build.Artifacts
+buildPaths : FilePath -> Details.Details -> NE.Nonempty FilePath -> Task Exit.Test Build.Artifacts
 buildPaths root details paths =
-    Task.eio Exit.TestCannotBuild <|
+    WasRepTask.eio Exit.TestCannotBuild <|
         Build.fromPaths style root details paths
 
 
@@ -1103,9 +1100,9 @@ buildPaths root details paths =
 -- TO BUILDER
 
 
-toBuilder : Int -> FilePath -> Details.Details -> Build.Artifacts -> Task String
+toBuilder : Int -> FilePath -> Details.Details -> Build.Artifacts -> Task Exit.Test String
 toBuilder leadingLines root details artifacts =
-    Task.mapError Exit.TestBadGenerate <|
+    WasRepTask.mapError Exit.TestBadGenerate <|
         Generate.dev False leadingLines root details artifacts
 
 

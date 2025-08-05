@@ -13,7 +13,7 @@ import Builder.Http as Http
 import Builder.Reporting as Reporting
 import Builder.Reporting.Exit as Exit
 import Builder.Reporting.Exit.Help as Help
-import Builder.Reporting.Task as Task
+import Builder.Reporting.Task as WasRepTask
 import Builder.Stuff as Stuff
 import Compiler.Data.NonEmptyList as NE
 import Compiler.Elm.Docs as Docs
@@ -25,8 +25,9 @@ import Compiler.Json.String as Json
 import Compiler.Reporting.Doc as D
 import List.Extra as List
 import System.Exit as Exit
-import System.IO as IO exposing (IO)
+import System.IO as IO
 import System.Process as Process
+import Task exposing (Task)
 import Utils.Main as Utils exposing (FilePath)
 
 
@@ -37,10 +38,10 @@ import Utils.Main as Utils exposing (FilePath)
 {-| TODO mandate no "exposing (..)" in packages to make
 optimization to skip builds in Elm.Details always valid
 -}
-run : () -> () -> IO ()
+run : () -> () -> Task Never ()
 run () () =
     Reporting.attempt Exit.publishToReport <|
-        Task.run (Task.bind publish getEnv)
+        WasRepTask.run (WasRepTask.bind publish getEnv)
 
 
 
@@ -51,22 +52,22 @@ type Env
     = Env FilePath Stuff.PackageCache Http.Manager Registry.Registry Outline.Outline
 
 
-getEnv : Task.Task Exit.Publish Env
+getEnv : Task Exit.Publish Env
 getEnv =
-    Task.mio Exit.PublishNoOutline Stuff.findRoot
-        |> Task.bind
+    WasRepTask.mio Exit.PublishNoOutline Stuff.findRoot
+        |> WasRepTask.bind
             (\root ->
-                Task.io Stuff.getPackageCache
-                    |> Task.bind
+                WasRepTask.io Stuff.getPackageCache
+                    |> WasRepTask.bind
                         (\cache ->
-                            Task.io Http.getManager
-                                |> Task.bind
+                            WasRepTask.io Http.getManager
+                                |> WasRepTask.bind
                                     (\manager ->
-                                        Task.eio Exit.PublishMustHaveLatestRegistry (Registry.latest manager cache)
-                                            |> Task.bind
+                                        WasRepTask.eio Exit.PublishMustHaveLatestRegistry (Registry.latest manager cache)
+                                            |> WasRepTask.bind
                                                 (\registry ->
-                                                    Task.eio Exit.PublishBadOutline (Outline.read root)
-                                                        |> Task.fmap
+                                                    WasRepTask.eio Exit.PublishBadOutline (Outline.read root)
+                                                        |> WasRepTask.fmap
                                                             (\outline ->
                                                                 Env root cache manager registry outline
                                                             )
@@ -80,11 +81,11 @@ getEnv =
 -- PUBLISH
 
 
-publish : Env -> Task.Task Exit.Publish ()
+publish : Env -> Task Exit.Publish ()
 publish ((Env root _ manager registry outline) as env) =
     case outline of
         Outline.App _ ->
-            Task.throw Exit.PublishApplication
+            WasRepTask.throw Exit.PublishApplication
 
         Outline.Pkg (Outline.PkgOutline pkg summary _ vsn exposed _ _ _) ->
             let
@@ -93,43 +94,43 @@ publish ((Env root _ manager registry outline) as env) =
                     Registry.getVersions pkg registry
             in
             reportPublishStart pkg vsn maybeKnownVersions
-                |> Task.bind
+                |> WasRepTask.bind
                     (\_ ->
                         if noExposed exposed then
-                            Task.throw Exit.PublishNoExposed
+                            WasRepTask.throw Exit.PublishNoExposed
 
                         else
-                            Task.pure ()
+                            WasRepTask.pure ()
                     )
-                |> Task.bind
+                |> WasRepTask.bind
                     (\_ ->
                         if badSummary summary then
-                            Task.throw Exit.PublishNoSummary
+                            WasRepTask.throw Exit.PublishNoSummary
 
                         else
-                            Task.pure ()
+                            WasRepTask.pure ()
                     )
-                |> Task.bind (\_ -> verifyReadme root)
-                |> Task.bind (\_ -> verifyLicense root)
-                |> Task.bind (\_ -> verifyBuild root)
-                |> Task.bind
+                |> WasRepTask.bind (\_ -> verifyReadme root)
+                |> WasRepTask.bind (\_ -> verifyLicense root)
+                |> WasRepTask.bind (\_ -> verifyBuild root)
+                |> WasRepTask.bind
                     (\docs ->
                         verifyVersion env pkg vsn docs maybeKnownVersions
-                            |> Task.bind (\_ -> getGit)
-                            |> Task.bind
+                            |> WasRepTask.bind (\_ -> getGit)
+                            |> WasRepTask.bind
                                 (\git ->
                                     verifyTag git manager pkg vsn
-                                        |> Task.bind
+                                        |> WasRepTask.bind
                                             (\commitHash ->
                                                 verifyNoChanges git commitHash vsn
-                                                    |> Task.bind
+                                                    |> WasRepTask.bind
                                                         (\_ ->
                                                             verifyZip env pkg vsn
-                                                                |> Task.bind
+                                                                |> WasRepTask.bind
                                                                     (\zipHash ->
-                                                                        Task.io (IO.putStrLn "")
-                                                                            |> Task.bind (\_ -> register manager pkg vsn docs commitHash zipHash)
-                                                                            |> Task.bind (\_ -> Task.io (IO.putStrLn "Success!"))
+                                                                        WasRepTask.io (IO.putStrLn "")
+                                                                            |> WasRepTask.bind (\_ -> register manager pkg vsn docs commitHash zipHash)
+                                                                            |> WasRepTask.bind (\_ -> WasRepTask.io (IO.putStrLn "Success!"))
                                                                     )
                                                         )
                                             )
@@ -160,7 +161,7 @@ noExposed exposed =
 -- VERIFY README
 
 
-verifyReadme : String -> Task.Task Exit.Publish ()
+verifyReadme : String -> Task Exit.Publish ()
 verifyReadme root =
     let
         readmePath : String
@@ -192,7 +193,7 @@ verifyReadme root =
 -- VERIFY LICENSE
 
 
-verifyLicense : String -> Task.Task Exit.Publish ()
+verifyLicense : String -> Task Exit.Publish ()
 verifyLicense root =
     let
         licensePath : String
@@ -216,29 +217,29 @@ verifyLicense root =
 -- VERIFY BUILD
 
 
-verifyBuild : String -> Task.Task Exit.Publish Docs.Documentation
+verifyBuild : String -> Task Exit.Publish Docs.Documentation
 verifyBuild root =
     reportBuildCheck <|
         BW.withScope <|
             \scope ->
-                Task.run
-                    (Task.eio Exit.PublishBadDetails
+                WasRepTask.run
+                    (WasRepTask.eio Exit.PublishBadDetails
                         (Details.load Reporting.silent scope root)
-                        |> Task.bind
+                        |> WasRepTask.bind
                             (\((Details.Details _ outline _ _ _ _) as details) ->
                                 (case outline of
                                     Details.ValidApp _ ->
-                                        Task.throw Exit.PublishApplication
+                                        WasRepTask.throw Exit.PublishApplication
 
                                     Details.ValidPkg _ [] _ ->
-                                        Task.throw Exit.PublishNoExposed
+                                        WasRepTask.throw Exit.PublishNoExposed
 
                                     Details.ValidPkg _ (e :: es) _ ->
-                                        Task.pure (NE.Nonempty e es)
+                                        WasRepTask.pure (NE.Nonempty e es)
                                 )
-                                    |> Task.bind
+                                    |> WasRepTask.bind
                                         (\exposed ->
-                                            Task.eio Exit.PublishBuildProblem <|
+                                            WasRepTask.eio Exit.PublishBuildProblem <|
                                                 Build.fromExposed Docs.bytesDecoder Docs.bytesEncoder Reporting.silent root details Build.keepDocs exposed
                                         )
                             )
@@ -250,20 +251,20 @@ verifyBuild root =
 
 
 type Git
-    = Git (List String -> IO Exit.ExitCode)
+    = Git (List String -> Task Never Exit.ExitCode)
 
 
-getGit : Task.Task Exit.Publish Git
+getGit : Task Exit.Publish Git
 getGit =
-    Task.io (Utils.dirFindExecutable "git")
-        |> Task.bind
+    WasRepTask.io (Utils.dirFindExecutable "git")
+        |> WasRepTask.bind
             (\maybeGit ->
                 case maybeGit of
                     Nothing ->
-                        Task.throw Exit.PublishNoGit
+                        WasRepTask.throw Exit.PublishNoGit
 
                     Just git ->
-                        Task.pure <|
+                        WasRepTask.pure <|
                             Git
                                 (\args ->
                                     let
@@ -290,7 +291,7 @@ getGit =
 -- VERIFY GITHUB TAG
 
 
-verifyTag : Git -> Http.Manager -> Pkg.Name -> V.Version -> Task.Task Exit.Publish String
+verifyTag : Git -> Http.Manager -> Pkg.Name -> V.Version -> Task Exit.Publish String
 verifyTag (Git run_) manager pkg vsn =
     reportTagCheck vsn
         -- https://stackoverflow.com/questions/1064499/how-to-list-all-git-tags
@@ -333,7 +334,7 @@ commitHashDecoder =
 -- VERIFY NO LOCAL CHANGES SINCE TAG
 
 
-verifyNoChanges : Git -> String -> V.Version -> Task.Task Exit.Publish ()
+verifyNoChanges : Git -> String -> V.Version -> Task Exit.Publish ()
 verifyNoChanges (Git run_) commitHash vsn =
     reportLocalChangesCheck <|
         -- https://stackoverflow.com/questions/3878624/how-do-i-programmatically-determine-if-there-are-uncommited-changes
@@ -354,7 +355,7 @@ verifyNoChanges (Git run_) commitHash vsn =
 -- VERIFY THAT ZIP BUILDS / COMPUTE HASH
 
 
-verifyZip : Env -> Pkg.Name -> V.Version -> Task.Task Exit.Publish Http.Sha
+verifyZip : Env -> Pkg.Name -> V.Version -> Task Exit.Publish Http.Sha
 verifyZip (Env root _ manager _ _) pkg vsn =
     withPrepublishDir root <|
         \prepublishDir ->
@@ -370,16 +371,16 @@ verifyZip (Env root _ manager _ _) pkg vsn =
                     (Exit.PublishCannotDecodeZip url)
                     (IO.pure << Ok)
                 )
-                |> Task.bind
+                |> WasRepTask.bind
                     (\( sha, archive ) ->
-                        Task.io (File.writePackage prepublishDir archive)
-                            |> Task.bind
+                        WasRepTask.io (File.writePackage prepublishDir archive)
+                            |> WasRepTask.bind
                                 (\_ ->
                                     reportZipBuildCheck <|
                                         Utils.dirWithCurrentDirectory prepublishDir <|
                                             verifyZipBuild prepublishDir
                                 )
-                            |> Task.fmap (\_ -> sha)
+                            |> WasRepTask.fmap (\_ -> sha)
                     )
 
 
@@ -388,44 +389,44 @@ toZipUrl pkg vsn =
     "https://github.com/" ++ Pkg.toUrl pkg ++ "/zipball/" ++ V.toChars vsn ++ "/"
 
 
-withPrepublishDir : String -> (String -> Task.Task x a) -> Task.Task x a
+withPrepublishDir : String -> (String -> Task x a) -> Task x a
 withPrepublishDir root callback =
     let
         dir : String
         dir =
             Stuff.prepublishDir root
     in
-    Task.eio identity <|
+    WasRepTask.eio identity <|
         Utils.bracket_
             (Utils.dirCreateDirectoryIfMissing True dir)
             (Utils.dirRemoveDirectoryRecursive dir)
-            (Task.run (callback dir))
+            (WasRepTask.run (callback dir))
 
 
-verifyZipBuild : FilePath -> IO (Result Exit.Publish ())
+verifyZipBuild : FilePath -> Task Never (Result Exit.Publish ())
 verifyZipBuild root =
     BW.withScope
         (\scope ->
-            Task.run
-                (Task.eio Exit.PublishZipBadDetails
+            WasRepTask.run
+                (WasRepTask.eio Exit.PublishZipBadDetails
                     (Details.load Reporting.silent scope root)
-                    |> Task.bind
+                    |> WasRepTask.bind
                         (\((Details.Details _ outline _ _ _ _) as details) ->
                             (case outline of
                                 Details.ValidApp _ ->
-                                    Task.throw Exit.PublishZipApplication
+                                    WasRepTask.throw Exit.PublishZipApplication
 
                                 Details.ValidPkg _ [] _ ->
-                                    Task.throw Exit.PublishZipNoExposed
+                                    WasRepTask.throw Exit.PublishZipNoExposed
 
                                 Details.ValidPkg _ (e :: es) _ ->
-                                    Task.pure (NE.Nonempty e es)
+                                    WasRepTask.pure (NE.Nonempty e es)
                             )
-                                |> Task.bind
+                                |> WasRepTask.bind
                                     (\exposed ->
-                                        Task.eio Exit.PublishZipBuildProblem
+                                        WasRepTask.eio Exit.PublishZipBuildProblem
                                             (Build.fromExposed Docs.bytesDecoder Docs.bytesEncoder Reporting.silent root details Build.keepDocs exposed)
-                                            |> Task.fmap (\_ -> ())
+                                            |> WasRepTask.fmap (\_ -> ())
                                     )
                         )
                 )
@@ -441,7 +442,7 @@ type GoodVersion
     | GoodBump V.Version M.Magnitude
 
 
-verifyVersion : Env -> Pkg.Name -> V.Version -> Docs.Documentation -> Maybe Registry.KnownVersions -> Task.Task Exit.Publish ()
+verifyVersion : Env -> Pkg.Name -> V.Version -> Docs.Documentation -> Maybe Registry.KnownVersions -> Task Exit.Publish ()
 verifyVersion env pkg vsn newDocs publishedVersions =
     reportSemverCheck vsn <|
         case publishedVersions of
@@ -460,7 +461,7 @@ verifyVersion env pkg vsn newDocs publishedVersions =
                     verifyBump env pkg vsn newDocs knownVersions
 
 
-verifyBump : Env -> Pkg.Name -> V.Version -> Docs.Documentation -> Registry.KnownVersions -> IO (Result Exit.Publish GoodVersion)
+verifyBump : Env -> Pkg.Name -> V.Version -> Docs.Documentation -> Registry.KnownVersions -> Task Never (Result Exit.Publish GoodVersion)
 verifyBump (Env _ cache manager _ _) pkg vsn newDocs ((Registry.KnownVersions latest _) as knownVersions) =
     case List.find (\( _, new, _ ) -> vsn == new) (Bump.getPossibilities knownVersions) of
         Nothing ->
@@ -499,7 +500,7 @@ verifyBump (Env _ cache manager _ _) pkg vsn newDocs ((Registry.KnownVersions la
 -- REGISTER PACKAGES
 
 
-register : Http.Manager -> Pkg.Name -> V.Version -> Docs.Documentation -> String -> Http.Sha -> Task.Task Exit.Publish ()
+register : Http.Manager -> Pkg.Name -> V.Version -> Docs.Documentation -> String -> Http.Sha -> Task Exit.Publish ()
 register manager pkg vsn docs commitHash sha =
     Website.route "/register"
         [ ( "name", Pkg.toChars pkg )
@@ -516,16 +517,16 @@ register manager pkg vsn docs commitHash sha =
                     , Http.stringPart "github-hash" (Http.shaToChars sha)
                     ]
             )
-        |> Task.eio Exit.PublishCannotRegister
+        |> WasRepTask.eio Exit.PublishCannotRegister
 
 
 
 -- REPORTING
 
 
-reportPublishStart : Pkg.Name -> V.Version -> Maybe Registry.KnownVersions -> Task.Task x ()
+reportPublishStart : Pkg.Name -> V.Version -> Maybe Registry.KnownVersions -> Task x ()
 reportPublishStart pkg vsn maybeKnownVersions =
-    Task.io <|
+    WasRepTask.io <|
         case maybeKnownVersions of
             Nothing ->
                 IO.putStrLn <| Exit.newPackageOverview ++ "\nI will now verify that everything is in order...\n"
@@ -538,7 +539,7 @@ reportPublishStart pkg vsn maybeKnownVersions =
 -- REPORTING PHASES
 
 
-reportReadmeCheck : IO (Result x a) -> Task.Task x a
+reportReadmeCheck : Task Never (Result x a) -> Task x a
 reportReadmeCheck =
     reportCheck
         "Looking for README.md"
@@ -546,7 +547,7 @@ reportReadmeCheck =
         "Problem with your README.md"
 
 
-reportLicenseCheck : IO (Result x a) -> Task.Task x a
+reportLicenseCheck : Task Never (Result x a) -> Task x a
 reportLicenseCheck =
     reportCheck
         "Looking for LICENSE"
@@ -554,7 +555,7 @@ reportLicenseCheck =
         "Problem with your LICENSE"
 
 
-reportBuildCheck : IO (Result x a) -> Task.Task x a
+reportBuildCheck : Task Never (Result x a) -> Task x a
 reportBuildCheck =
     reportCheck
         "Verifying documentation..."
@@ -562,7 +563,7 @@ reportBuildCheck =
         "Problem with documentation"
 
 
-reportSemverCheck : V.Version -> IO (Result x GoodVersion) -> Task.Task x ()
+reportSemverCheck : V.Version -> Task Never (Result x GoodVersion) -> Task x ()
 reportSemverCheck version work =
     let
         vsn : String
@@ -594,10 +595,10 @@ reportSemverCheck version work =
                         ++ vsn
                         ++ ")"
     in
-    Task.void <| reportCustomCheck waiting success failure work
+    WasRepTask.void <| reportCustomCheck waiting success failure work
 
 
-reportTagCheck : V.Version -> IO (Result x a) -> Task.Task x a
+reportTagCheck : V.Version -> Task Never (Result x a) -> Task x a
 reportTagCheck vsn =
     reportCheck
         ("Is version " ++ V.toChars vsn ++ " tagged on GitHub?")
@@ -605,7 +606,7 @@ reportTagCheck vsn =
         ("Version " ++ V.toChars vsn ++ " is not tagged on GitHub!")
 
 
-reportDownloadCheck : IO (Result x a) -> Task.Task x a
+reportDownloadCheck : Task Never (Result x a) -> Task x a
 reportDownloadCheck =
     reportCheck
         "Downloading code from GitHub..."
@@ -613,7 +614,7 @@ reportDownloadCheck =
         "Could not download code from GitHub!"
 
 
-reportLocalChangesCheck : IO (Result x a) -> Task.Task x a
+reportLocalChangesCheck : Task Never (Result x a) -> Task x a
 reportLocalChangesCheck =
     reportCheck
         "Checking for uncommitted changes..."
@@ -621,7 +622,7 @@ reportLocalChangesCheck =
         "Your local code is different than the code tagged on GitHub"
 
 
-reportZipBuildCheck : IO (Result x a) -> Task.Task x a
+reportZipBuildCheck : Task Never (Result x a) -> Task x a
 reportZipBuildCheck =
     reportCheck
         "Verifying downloaded code..."
@@ -629,15 +630,15 @@ reportZipBuildCheck =
         "Cannot compile downloaded code!"
 
 
-reportCheck : String -> String -> String -> IO (Result x a) -> Task.Task x a
+reportCheck : String -> String -> String -> Task Never (Result x a) -> Task x a
 reportCheck waiting success failure work =
     reportCustomCheck waiting (\_ -> success) failure work
 
 
-reportCustomCheck : String -> (a -> String) -> String -> IO (Result x a) -> Task.Task x a
+reportCustomCheck : String -> (a -> String) -> String -> Task Never (Result x a) -> Task x a
 reportCustomCheck waiting success failure work =
     let
-        putFlush : D.Doc -> IO ()
+        putFlush : D.Doc -> Task Never ()
         putFlush doc =
             Help.toStdout doc |> IO.bind (\_ -> IO.hFlush IO.stdout)
 
@@ -645,7 +646,7 @@ reportCustomCheck waiting success failure work =
         padded message =
             message ++ String.repeat (String.length waiting - String.length message) " "
     in
-    Task.eio identity
+    WasRepTask.eio identity
         (putFlush (D.append (D.fromChars "  ") waitingMark |> D.plus (D.fromChars waiting))
             |> IO.bind
                 (\_ ->

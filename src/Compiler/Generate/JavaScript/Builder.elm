@@ -7,6 +7,7 @@ module Compiler.Generate.JavaScript.Builder exposing
     , Mapping(..)
     , PrefixOp(..)
     , Stmt(..)
+    , addByteString
     , addKernel
     , emptyBuilder
     , exprToBuilder

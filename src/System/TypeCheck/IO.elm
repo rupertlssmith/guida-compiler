@@ -1,7 +1,7 @@
 module System.TypeCheck.IO exposing
     ( unsafePerformIO
     , IO, State, pure, apply, fmap, bind, foldrM, foldM, traverseMap, traverseMapWithKey, forM_, mapM_
-    , foldMDict, indexedForA, mapM, traverseIndexed, traverseList, traverseTuple
+    , foldMDict, indexedForA, mapM, traverseIndexed, traverseList, traverseMaybe, traverseTuple
     , Step(..), loop
     , Point(..), PointInfo(..)
     , Descriptor(..), Content(..), SuperType(..), Mark(..), Variable, FlatType(..)
@@ -16,7 +16,7 @@ module System.TypeCheck.IO exposing
 # The IO monad
 
 @docs IO, State, pure, apply, fmap, bind, foldrM, foldM, traverseMap, traverseMapWithKey, forM_, mapM_
-@docs foldMDict, indexedForA, mapM, traverseIndexed, traverseList, traverseTuple
+@docs foldMDict, indexedForA, mapM, traverseIndexed, traverseList, traverseMaybe, traverseTuple
 
 
 # Loop
@@ -204,6 +204,16 @@ traverseList f =
 traverseTuple : (b -> IO c) -> ( a, b ) -> IO ( a, c )
 traverseTuple f ( a, b ) =
     fmap (Tuple.pair a) (f b)
+
+
+traverseMaybe : (a -> IO b) -> Maybe a -> IO (Maybe b)
+traverseMaybe f a =
+    case Maybe.map f a of
+        Just b ->
+            fmap Just b
+
+        Nothing ->
+            pure Nothing
 
 
 mapM : (a -> IO b) -> List a -> IO (List b)

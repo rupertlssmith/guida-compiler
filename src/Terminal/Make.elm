@@ -18,14 +18,15 @@ import Builder.File as File
 import Builder.Generate as Generate
 import Builder.Reporting as Reporting
 import Builder.Reporting.Exit as Exit
-import Builder.Reporting.Task as Task
+import Builder.Reporting.Task as WasRepTask
 import Builder.Stuff as Stuff
 import Compiler.AST.Optimized as Opt
 import Compiler.Data.NonEmptyList as NE
 import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Generate.Html as Html
 import Maybe.Extra as Maybe
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Terminal.Terminal.Internal exposing (Parser(..))
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
@@ -54,11 +55,7 @@ type ReportType
 -- RUN
 
 
-type alias Task a =
-    Task.Task Exit.Make a
-
-
-run : List String -> Flags -> IO ()
+run : List String -> Flags -> Task Never ()
 run paths ((Flags _ _ _ _ report _) as flags) =
     getStyle report
         |> IO.bind
@@ -77,68 +74,68 @@ run paths ((Flags _ _ _ _ report _) as flags) =
             )
 
 
-runHelp : String -> List String -> Reporting.Style -> Flags -> IO (Result Exit.Make ())
+runHelp : String -> List String -> Reporting.Style -> Flags -> Task Never (Result Exit.Make ())
 runHelp root paths style (Flags debug optimize withSourceMaps maybeOutput _ maybeDocs) =
     BW.withScope
         (\scope ->
             Stuff.withRootLock root <|
-                Task.run <|
+                WasRepTask.run <|
                     (getMode debug optimize
-                        |> Task.bind
+                        |> WasRepTask.bind
                             (\desiredMode ->
-                                Task.eio Exit.MakeBadDetails (Details.load style scope root)
-                                    |> Task.bind
+                                WasRepTask.eio Exit.MakeBadDetails (Details.load style scope root)
+                                    |> WasRepTask.bind
                                         (\details ->
                                             case paths of
                                                 [] ->
                                                     getExposed details
-                                                        |> Task.bind (\exposed -> buildExposed style root details maybeDocs exposed)
+                                                        |> WasRepTask.bind (\exposed -> buildExposed style root details maybeDocs exposed)
 
                                                 p :: ps ->
                                                     buildPaths style root details (NE.Nonempty p ps)
-                                                        |> Task.bind
+                                                        |> WasRepTask.bind
                                                             (\artifacts ->
                                                                 case maybeOutput of
                                                                     Nothing ->
                                                                         case getMains artifacts of
                                                                             [] ->
-                                                                                Task.pure ()
+                                                                                WasRepTask.pure ()
 
                                                                             [ name ] ->
                                                                                 toBuilder withSourceMaps Html.leadingLines root details desiredMode artifacts
-                                                                                    |> Task.bind
+                                                                                    |> WasRepTask.bind
                                                                                         (\builder ->
                                                                                             generate style "index.html" (Html.sandwich name builder) (NE.Nonempty name [])
                                                                                         )
 
                                                                             name :: names ->
                                                                                 toBuilder withSourceMaps 0 root details desiredMode artifacts
-                                                                                    |> Task.bind
+                                                                                    |> WasRepTask.bind
                                                                                         (\builder ->
                                                                                             generate style "elm.js" builder (NE.Nonempty name names)
                                                                                         )
 
                                                                     Just DevNull ->
-                                                                        Task.pure ()
+                                                                        WasRepTask.pure ()
 
                                                                     Just (JS target) ->
                                                                         case getNoMains artifacts of
                                                                             [] ->
                                                                                 toBuilder withSourceMaps 0 root details desiredMode artifacts
-                                                                                    |> Task.bind
+                                                                                    |> WasRepTask.bind
                                                                                         (\builder ->
                                                                                             generate style target builder (Build.getRootNames artifacts)
                                                                                         )
 
                                                                             name :: names ->
-                                                                                Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
+                                                                                WasRepTask.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
 
                                                                     Just (Html target) ->
                                                                         hasOneMain artifacts
-                                                                            |> Task.bind
+                                                                            |> WasRepTask.bind
                                                                                 (\name ->
                                                                                     toBuilder withSourceMaps Html.leadingLines root details desiredMode artifacts
-                                                                                        |> Task.bind
+                                                                                        |> WasRepTask.bind
                                                                                             (\builder ->
                                                                                                 generate style target (Html.sandwich name builder) (NE.Nonempty name [])
                                                                                             )
@@ -154,7 +151,7 @@ runHelp root paths style (Flags debug optimize withSourceMaps maybeOutput _ mayb
 -- GET INFORMATION
 
 
-getStyle : Maybe ReportType -> IO Reporting.Style
+getStyle : Maybe ReportType -> Task Never Reporting.Style
 getStyle report =
     case report of
         Nothing ->
@@ -164,49 +161,49 @@ getStyle report =
             IO.pure Reporting.json
 
 
-getMode : Bool -> Bool -> Task DesiredMode
+getMode : Bool -> Bool -> Task Exit.Make DesiredMode
 getMode debug optimize =
     case ( debug, optimize ) of
         ( True, True ) ->
-            Task.throw Exit.MakeCannotOptimizeAndDebug
+            WasRepTask.throw Exit.MakeCannotOptimizeAndDebug
 
         ( True, False ) ->
-            Task.pure Debug
+            WasRepTask.pure Debug
 
         ( False, False ) ->
-            Task.pure Dev
+            WasRepTask.pure Dev
 
         ( False, True ) ->
-            Task.pure Prod
+            WasRepTask.pure Prod
 
 
-getExposed : Details.Details -> Task (NE.Nonempty ModuleName.Raw)
+getExposed : Details.Details -> Task Exit.Make (NE.Nonempty ModuleName.Raw)
 getExposed (Details.Details _ validOutline _ _ _ _) =
     case validOutline of
         Details.ValidApp _ ->
-            Task.throw Exit.MakeAppNeedsFileNames
+            WasRepTask.throw Exit.MakeAppNeedsFileNames
 
         Details.ValidPkg _ exposed _ ->
             case exposed of
                 [] ->
-                    Task.throw Exit.MakePkgNeedsExposing
+                    WasRepTask.throw Exit.MakePkgNeedsExposing
 
                 m :: ms ->
-                    Task.pure (NE.Nonempty m ms)
+                    WasRepTask.pure (NE.Nonempty m ms)
 
 
 
 -- BUILD PROJECTS
 
 
-buildExposed : Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath -> NE.Nonempty ModuleName.Raw -> Task ()
+buildExposed : Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath -> NE.Nonempty ModuleName.Raw -> Task Exit.Make ()
 buildExposed style root details maybeDocs exposed =
     let
         docsGoal : Build.DocsGoal ()
         docsGoal =
             Maybe.unwrap Build.ignoreDocs Build.writeDocs maybeDocs
     in
-    Task.eio Exit.MakeCannotBuild <|
+    WasRepTask.eio Exit.MakeCannotBuild <|
         Build.fromExposed BD.unit
             BE.unit
             style
@@ -216,9 +213,9 @@ buildExposed style root details maybeDocs exposed =
             exposed
 
 
-buildPaths : Reporting.Style -> FilePath -> Details.Details -> NE.Nonempty FilePath -> Task Build.Artifacts
+buildPaths : Reporting.Style -> FilePath -> Details.Details -> NE.Nonempty FilePath -> Task Exit.Make Build.Artifacts
 buildPaths style root details paths =
-    Task.eio Exit.MakeCannotBuild <|
+    WasRepTask.eio Exit.MakeCannotBuild <|
         Build.fromPaths style root details paths
 
 
@@ -260,14 +257,14 @@ isMain targetName modul =
 -- HAS ONE MAIN
 
 
-hasOneMain : Build.Artifacts -> Task ModuleName.Raw
+hasOneMain : Build.Artifacts -> Task Exit.Make ModuleName.Raw
 hasOneMain (Build.Artifacts _ _ roots modules) =
     case roots of
         NE.Nonempty root [] ->
-            Task.mio Exit.MakeNoMain (IO.pure <| getMain modules root)
+            WasRepTask.mio Exit.MakeNoMain (IO.pure <| getMain modules root)
 
         NE.Nonempty _ (_ :: _) ->
-            Task.throw Exit.MakeMultipleFilesIntoHtml
+            WasRepTask.throw Exit.MakeMultipleFilesIntoHtml
 
 
 
@@ -302,9 +299,9 @@ getNoMain modules root =
 -- GENERATE
 
 
-generate : Reporting.Style -> FilePath -> String -> NE.Nonempty ModuleName.Raw -> Task ()
+generate : Reporting.Style -> FilePath -> String -> NE.Nonempty ModuleName.Raw -> Task Exit.Make ()
 generate style target builder names =
-    Task.io
+    WasRepTask.io
         (Utils.dirCreateDirectoryIfMissing True (Utils.fpTakeDirectory target)
             |> IO.bind (\_ -> File.writeUtf8 target builder)
             |> IO.bind (\_ -> Reporting.reportGenerate style names target)
@@ -321,9 +318,9 @@ type DesiredMode
     | Prod
 
 
-toBuilder : Bool -> Int -> FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task String
+toBuilder : Bool -> Int -> FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task Exit.Make String
 toBuilder withSourceMaps leadingLines root details desiredMode artifacts =
-    Task.mapError Exit.MakeBadGenerate <|
+    WasRepTask.mapError Exit.MakeBadGenerate <|
         case desiredMode of
             Debug ->
                 Generate.debug withSourceMaps leadingLines root details artifacts
