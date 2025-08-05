@@ -1,7 +1,5 @@
 module Browser.Make exposing
     ( Flags(..)
-    , Output(..)
-    , ReportType(..)
     , run
     )
 
@@ -29,16 +27,6 @@ import Utils.Main exposing (FilePath)
 
 type Flags
     = Flags Bool Bool Bool
-
-
-type Output
-    = JS String
-    | Html String
-    | DevNull
-
-
-type ReportType
-    = Json
 
 
 

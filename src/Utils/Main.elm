@@ -1,6 +1,5 @@
 module Utils.Main exposing
-    ( AsyncException(..)
-    , ChItem
+    ( ChItem
     , Chan
     , FilePath
     , HttpExceptionContent(..)
@@ -15,8 +14,6 @@ module Utils.Main exposing
     , ReplSettings(..)
     , SomeException(..)
     , ThreadId
-    , ZipArchive(..)
-    , ZipEntry(..)
     , binaryDecodeFileOrFail
     , binaryEncodeFile
     , bracket_
@@ -911,21 +908,6 @@ envGetArgs =
 
 
 
--- Codec.Archive.Zip
-
-
-type ZipArchive
-    = ZipArchive (List ZipEntry)
-
-
-type ZipEntry
-    = ZipEntry
-        { eRelativePath : FilePath
-        , eData : String
-        }
-
-
-
 -- Network.HTTP.Client
 
 
@@ -976,10 +958,6 @@ type HttpStatus
 
 type SomeException
     = SomeException
-
-
-type AsyncException
-    = UserInterrupt
 
 
 bracket : IO a -> (a -> IO b) -> (a -> IO c) -> IO c
