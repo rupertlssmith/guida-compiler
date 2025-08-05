@@ -23,7 +23,8 @@ import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
 import Prelude
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 import Utils.Main as Utils
@@ -91,7 +92,7 @@ toArtifactPath root name ext =
 -- ROOT
 
 
-findRoot : IO (Maybe String)
+findRoot : Task Never (Maybe String)
 findRoot =
     Utils.dirGetCurrentDirectory
         |> IO.bind
@@ -100,7 +101,7 @@ findRoot =
             )
 
 
-findRootHelp : List String -> IO (Maybe String)
+findRootHelp : List String -> Task Never (Maybe String)
 findRootHelp dirs =
     case dirs of
         [] ->
@@ -122,7 +123,7 @@ findRootHelp dirs =
 -- LOCKS
 
 
-withRootLock : String -> IO a -> IO a
+withRootLock : String -> Task Never a -> Task Never a
 withRootLock root work =
     let
         dir : String
@@ -136,7 +137,7 @@ withRootLock root work =
             )
 
 
-withRegistryLock : PackageCache -> IO a -> IO a
+withRegistryLock : PackageCache -> Task Never a -> Task Never a
 withRegistryLock (PackageCache dir) work =
     Utils.lockWithFileLock (dir ++ "/lock") Utils.LockExclusive (\_ -> work)
 
@@ -149,7 +150,7 @@ type PackageCache
     = PackageCache String
 
 
-getPackageCache : IO PackageCache
+getPackageCache : Task Never PackageCache
 getPackageCache =
     IO.fmap PackageCache (getCacheDir "packages")
 
@@ -168,12 +169,12 @@ package (PackageCache dir) name version =
 -- CACHE
 
 
-getReplCache : IO String
+getReplCache : Task Never String
 getReplCache =
     getCacheDir "repl"
 
 
-getCacheDir : String -> IO String
+getCacheDir : String -> Task Never String
 getCacheDir projectName =
     getElmHome
         |> IO.bind
@@ -188,7 +189,7 @@ getCacheDir projectName =
             )
 
 
-getElmHome : IO String
+getElmHome : Task Never String
 getElmHome =
     Utils.envLookupEnv "GUIDA_HOME"
         |> IO.bind

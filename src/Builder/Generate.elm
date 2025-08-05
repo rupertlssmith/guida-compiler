@@ -1,6 +1,5 @@
 module Builder.Generate exposing
-    ( Task
-    , debug
+    ( debug
     , dev
     , prod
     , repl
@@ -11,7 +10,7 @@ import Builder.Elm.Details as Details
 import Builder.Elm.Outline as Outline
 import Builder.File as File
 import Builder.Reporting.Exit as Exit
-import Builder.Reporting.Task as Task
+import Builder.Reporting.Task as WasRepTask
 import Builder.Stuff as Stuff
 import Compiler.AST.Optimized as Opt
 import Compiler.Data.Name as N
@@ -24,8 +23,9 @@ import Compiler.Generate.JavaScript as JS
 import Compiler.Generate.Mode as Mode
 import Compiler.Nitpick.Debug as Nitpick
 import Data.Map as Dict exposing (Dict)
-import System.IO as IO exposing (IO)
+import System.IO as IO
 import System.TypeCheck.IO as TypeCheck
+import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Main as Utils exposing (FilePath, MVar)
 
@@ -37,20 +37,16 @@ import Utils.Main as Utils exposing (FilePath, MVar)
 -- GENERATORS
 
 
-type alias Task a =
-    Task.Task Exit.Generate a
-
-
-debug : Bool -> Int -> FilePath -> Details.Details -> Build.Artifacts -> Task String
+debug : Bool -> Int -> FilePath -> Details.Details -> Build.Artifacts -> Task Exit.Generate String
 debug withSourceMaps leadingLines root details (Build.Artifacts pkg ifaces roots modules) =
     loadObjects root details modules
-        |> Task.bind
+        |> WasRepTask.bind
             (\loading ->
                 loadTypes root ifaces modules
-                    |> Task.bind
+                    |> WasRepTask.bind
                         (\types ->
                             finalizeObjects loading
-                                |> Task.bind
+                                |> WasRepTask.bind
                                     (\objects ->
                                         let
                                             mode : Mode.Mode
@@ -66,16 +62,16 @@ debug withSourceMaps leadingLines root details (Build.Artifacts pkg ifaces roots
                                                 gatherMains pkg objects roots
                                         in
                                         prepareSourceMaps withSourceMaps root
-                                            |> Task.fmap (\sourceMaps -> JS.generate sourceMaps leadingLines mode graph mains)
+                                            |> WasRepTask.fmap (\sourceMaps -> JS.generate sourceMaps leadingLines mode graph mains)
                                     )
                         )
             )
 
 
-dev : Bool -> Int -> FilePath -> Details.Details -> Build.Artifacts -> Task String
+dev : Bool -> Int -> FilePath -> Details.Details -> Build.Artifacts -> Task Exit.Generate String
 dev withSourceMaps leadingLines root details (Build.Artifacts pkg _ roots modules) =
-    Task.bind finalizeObjects (loadObjects root details modules)
-        |> Task.bind
+    WasRepTask.bind finalizeObjects (loadObjects root details modules)
+        |> WasRepTask.bind
             (\objects ->
                 let
                     mode : Mode.Mode
@@ -91,17 +87,17 @@ dev withSourceMaps leadingLines root details (Build.Artifacts pkg _ roots module
                         gatherMains pkg objects roots
                 in
                 prepareSourceMaps withSourceMaps root
-                    |> Task.fmap (\sourceMaps -> JS.generate sourceMaps leadingLines mode graph mains)
+                    |> WasRepTask.fmap (\sourceMaps -> JS.generate sourceMaps leadingLines mode graph mains)
             )
 
 
-prod : Bool -> Int -> FilePath -> Details.Details -> Build.Artifacts -> Task String
+prod : Bool -> Int -> FilePath -> Details.Details -> Build.Artifacts -> Task Exit.Generate String
 prod withSourceMaps leadingLines root details (Build.Artifacts pkg _ roots modules) =
-    Task.bind finalizeObjects (loadObjects root details modules)
-        |> Task.bind
+    WasRepTask.bind finalizeObjects (loadObjects root details modules)
+        |> WasRepTask.bind
             (\objects ->
                 checkForDebugUses objects
-                    |> Task.bind
+                    |> WasRepTask.bind
                         (\_ ->
                             let
                                 graph : Opt.GlobalGraph
@@ -117,27 +113,27 @@ prod withSourceMaps leadingLines root details (Build.Artifacts pkg _ roots modul
                                     gatherMains pkg objects roots
                             in
                             prepareSourceMaps withSourceMaps root
-                                |> Task.fmap (\sourceMaps -> JS.generate sourceMaps leadingLines mode graph mains)
+                                |> WasRepTask.fmap (\sourceMaps -> JS.generate sourceMaps leadingLines mode graph mains)
                         )
             )
 
 
-prepareSourceMaps : Bool -> FilePath -> Task JS.SourceMaps
+prepareSourceMaps : Bool -> FilePath -> Task Exit.Generate JS.SourceMaps
 prepareSourceMaps withSourceMaps root =
     if withSourceMaps then
         Outline.getAllModulePaths root
             |> IO.bind (Utils.mapTraverse ModuleName.toComparableCanonical ModuleName.compareCanonical File.readUtf8)
             |> IO.fmap JS.SourceMaps
-            |> Task.io
+            |> WasRepTask.io
 
     else
-        Task.pure JS.NoSourceMaps
+        WasRepTask.pure JS.NoSourceMaps
 
 
-repl : FilePath -> Details.Details -> Bool -> Build.ReplArtifacts -> N.Name -> Task String
+repl : FilePath -> Details.Details -> Bool -> Build.ReplArtifacts -> N.Name -> Task Exit.Generate String
 repl root details ansi (Build.ReplArtifacts home modules localizer annotations) name =
-    Task.bind finalizeObjects (loadObjects root details modules)
-        |> Task.fmap
+    WasRepTask.bind finalizeObjects (loadObjects root details modules)
+        |> WasRepTask.fmap
             (\objects ->
                 let
                     graph : Opt.GlobalGraph
@@ -152,14 +148,14 @@ repl root details ansi (Build.ReplArtifacts home modules localizer annotations) 
 -- CHECK FOR DEBUG
 
 
-checkForDebugUses : Objects -> Task ()
+checkForDebugUses : Objects -> Task Exit.Generate ()
 checkForDebugUses (Objects _ locals) =
     case Dict.keys compare (Dict.filter (\_ -> Nitpick.hasDebugUses) locals) of
         [] ->
-            Task.pure ()
+            WasRepTask.pure ()
 
         m :: ms ->
-            Task.throw (Exit.GenerateCannotOptimizeDebugValues m ms)
+            WasRepTask.throw (Exit.GenerateCannotOptimizeDebugValues m ms)
 
 
 
@@ -194,9 +190,9 @@ type LoadingObjects
     = LoadingObjects (MVar (Maybe Opt.GlobalGraph)) (Dict String ModuleName.Raw (MVar (Maybe Opt.LocalGraph)))
 
 
-loadObjects : FilePath -> Details.Details -> List Build.Module -> Task LoadingObjects
+loadObjects : FilePath -> Details.Details -> List Build.Module -> Task Exit.Generate LoadingObjects
 loadObjects root details modules =
-    Task.io
+    WasRepTask.io
         (Details.loadObjects root details
             |> IO.bind
                 (\mvar ->
@@ -209,7 +205,7 @@ loadObjects root details modules =
         )
 
 
-loadObject : FilePath -> Build.Module -> IO ( ModuleName.Raw, MVar (Maybe Opt.LocalGraph) )
+loadObject : FilePath -> Build.Module -> Task Never ( ModuleName.Raw, MVar (Maybe Opt.LocalGraph) )
 loadObject root modul =
     case modul of
         Build.Fresh name _ graph ->
@@ -233,9 +229,9 @@ type Objects
     = Objects Opt.GlobalGraph (Dict String ModuleName.Raw Opt.LocalGraph)
 
 
-finalizeObjects : LoadingObjects -> Task Objects
+finalizeObjects : LoadingObjects -> Task Exit.Generate Objects
 finalizeObjects (LoadingObjects mvar mvars) =
-    Task.eio identity
+    WasRepTask.eio identity
         (Utils.readMVar (BD.maybe Opt.globalGraphDecoder) mvar
             |> IO.bind
                 (\result ->
@@ -262,9 +258,9 @@ objectsToGlobalGraph (Objects globals locals) =
 -- LOAD TYPES
 
 
-loadTypes : FilePath -> Dict (List String) TypeCheck.Canonical I.DependencyInterface -> List Build.Module -> Task Extract.Types
+loadTypes : FilePath -> Dict (List String) TypeCheck.Canonical I.DependencyInterface -> List Build.Module -> Task Exit.Generate Extract.Types
 loadTypes root ifaces modules =
-    Task.eio identity
+    WasRepTask.eio identity
         (Utils.listTraverse (loadTypesHelp root) modules
             |> IO.bind
                 (\mvars ->
@@ -287,7 +283,7 @@ loadTypes root ifaces modules =
         )
 
 
-loadTypesHelp : FilePath -> Build.Module -> IO (MVar (Maybe Extract.Types))
+loadTypesHelp : FilePath -> Build.Module -> Task Never (MVar (Maybe Extract.Types))
 loadTypesHelp root modul =
     case modul of
         Build.Fresh name iface _ ->

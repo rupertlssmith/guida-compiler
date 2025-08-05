@@ -27,7 +27,8 @@ import Compiler.Elm.Version as V
 import Compiler.Json.Encode as Encode
 import Compiler.Reporting.Doc as D
 import System.Exit as Exit
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 import Utils.Main as Utils exposing (Chan, MVar)
@@ -53,7 +54,7 @@ json =
     Json
 
 
-terminal : IO Style
+terminal : Task Never Style
 terminal =
     IO.fmap Terminal (Utils.newMVar (\_ -> BE.bool True) ())
 
@@ -62,7 +63,7 @@ terminal =
 -- ATTEMPT
 
 
-attempt : (x -> Help.Report) -> IO (Result x a) -> IO a
+attempt : (x -> Help.Report) -> Task Never (Result x a) -> Task Never a
 attempt toReport work =
     work
         -- |> IO.catch reportExceptionsNicely
@@ -78,7 +79,7 @@ attempt toReport work =
             )
 
 
-attemptWithStyle : Style -> (x -> Help.Report) -> IO (Result x a) -> IO a
+attemptWithStyle : Style -> (x -> Help.Report) -> Task Never (Result x a) -> Task Never a
 attemptWithStyle style toReport work =
     work
         -- |> IO.catch reportExceptionsNicely
@@ -141,10 +142,10 @@ isWindows =
 
 
 type Key msg
-    = Key (msg -> IO ())
+    = Key (msg -> Task Never ())
 
 
-report : Key msg -> msg -> IO ()
+report : Key msg -> msg -> Task Never ()
 report (Key send) msg =
     send msg
 
@@ -158,13 +159,13 @@ ignorer =
 -- ASK
 
 
-ask : D.Doc -> IO Bool
+ask : D.Doc -> Task Never Bool
 ask doc =
     Help.toStdout doc
         |> IO.bind (\_ -> askHelp)
 
 
-askHelp : IO Bool
+askHelp : Task Never Bool
 askHelp =
     IO.hFlush IO.stdout
         |> IO.bind (\_ -> IO.getLine)
@@ -197,7 +198,7 @@ type alias DKey =
     Key DMsg
 
 
-trackDetails : Style -> (DKey -> IO a) -> IO a
+trackDetails : Style -> (DKey -> Task Never a) -> Task Never a
 trackDetails style callback =
     case style of
         Silent ->
@@ -232,7 +233,7 @@ trackDetails style callback =
                     )
 
 
-detailsLoop : Chan (Maybe DMsg) -> DState -> IO ()
+detailsLoop : Chan (Maybe DMsg) -> DState -> Task Never ()
 detailsLoop chan ((DState total _ _ _ _ built _) as state) =
     Utils.readChan (BD.maybe dMsgDecoder) chan
         |> IO.bind
@@ -268,7 +269,7 @@ type DMsg
     | DBroken
 
 
-detailsStep : DMsg -> DState -> IO DState
+detailsStep : DMsg -> DState -> Task Never DState
 detailsStep msg (DState total cached rqst rcvd failed built broken) =
     case msg of
         DStart numDependencies ->
@@ -301,7 +302,7 @@ detailsStep msg (DState total cached rqst rcvd failed built broken) =
             putBuilt (DState total cached rqst rcvd failed built (broken + 1))
 
 
-putDownload : D.Doc -> Pkg.Name -> V.Version -> IO ()
+putDownload : D.Doc -> Pkg.Name -> V.Version -> Task Never ()
 putDownload mark pkg vsn =
     Help.toStdout
         (D.indent 2
@@ -313,7 +314,7 @@ putDownload mark pkg vsn =
         )
 
 
-putTransition : DState -> IO DState
+putTransition : DState -> Task Never DState
 putTransition ((DState total cached _ rcvd failed built broken) as state) =
     if cached + rcvd + failed < total then
         IO.pure state
@@ -332,7 +333,7 @@ putTransition ((DState total cached _ rcvd failed built broken) as state) =
             |> IO.fmap (\_ -> state)
 
 
-putBuilt : DState -> IO DState
+putBuilt : DState -> Task Never DState
 putBuilt ((DState total cached _ rcvd failed built broken) as state) =
     (if total == cached + rcvd + failed then
         putStrFlush (String.cons '\u{000D}' (toBuildProgress (built + broken + failed) total))
@@ -368,7 +369,7 @@ type alias BResult a =
     Result Exit.BuildProblem a
 
 
-trackBuild : BD.Decoder a -> (a -> BE.Encoder) -> Style -> (BKey -> IO (BResult a)) -> IO (BResult a)
+trackBuild : BD.Decoder a -> (a -> BE.Encoder) -> Style -> (BKey -> Task Never (BResult a)) -> Task Never (BResult a)
 trackBuild decoder encoder style callback =
     case style of
         Silent ->
@@ -405,7 +406,7 @@ type BMsg
     = BDone
 
 
-buildLoop : BD.Decoder a -> Chan (Result BMsg (BResult a)) -> Int -> IO ()
+buildLoop : BD.Decoder a -> Chan (Result BMsg (BResult a)) -> Int -> Task Never ()
 buildLoop decoder chan done =
     Utils.readChan (BD.result bMsgDecoder (bResultDecoder decoder)) chan
         |> IO.bind
@@ -471,7 +472,7 @@ toFinalMessage done result =
 -- GENERATE
 
 
-reportGenerate : Style -> NE.Nonempty ModuleName.Raw -> String -> IO ()
+reportGenerate : Style -> NE.Nonempty ModuleName.Raw -> String -> Task Never ()
 reportGenerate style names output =
     case style of
         Silent ->
@@ -559,7 +560,7 @@ vbottom =
 --
 
 
-putStrFlush : String -> IO ()
+putStrFlush : String -> Task Never ()
 putStrFlush str =
     IO.hPutStr IO.stdout str
         |> IO.bind (\_ -> IO.hFlush IO.stdout)

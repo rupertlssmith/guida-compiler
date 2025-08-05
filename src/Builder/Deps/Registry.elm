@@ -22,7 +22,8 @@ import Compiler.Elm.Version as V
 import Compiler.Json.Decode as D
 import Compiler.Parse.Primitives as P
 import Data.Map as Dict exposing (Dict)
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 
@@ -43,7 +44,7 @@ type KnownVersions
 -- READ
 
 
-read : Stuff.PackageCache -> IO (Maybe Registry)
+read : Stuff.PackageCache -> Task Never (Maybe Registry)
 read cache =
     File.readBinary registryDecoder (Stuff.registry cache)
 
@@ -52,7 +53,7 @@ read cache =
 -- FETCH
 
 
-fetch : Http.Manager -> Stuff.PackageCache -> IO (Result Exit.RegistryProblem Registry)
+fetch : Http.Manager -> Stuff.PackageCache -> Task Never (Result Exit.RegistryProblem Registry)
 fetch manager cache =
     post manager "/all-packages" allPkgsDecoder <|
         \versions ->
@@ -105,7 +106,7 @@ allPkgsDecoder =
 -- UPDATE
 
 
-update : Http.Manager -> Stuff.PackageCache -> Registry -> IO (Result Exit.RegistryProblem Registry)
+update : Http.Manager -> Stuff.PackageCache -> Registry -> Task Never (Result Exit.RegistryProblem Registry)
 update manager cache ((Registry size packages) as oldRegistry) =
     post manager ("/all-packages/since/" ++ String.fromInt size) (D.list newPkgDecoder) <|
         \news ->
@@ -175,7 +176,7 @@ bail _ _ =
 -- LATEST
 
 
-latest : Http.Manager -> Stuff.PackageCache -> IO (Result Exit.RegistryProblem Registry)
+latest : Http.Manager -> Stuff.PackageCache -> Task Never (Result Exit.RegistryProblem Registry)
 latest manager cache =
     read cache
         |> IO.bind
@@ -212,7 +213,7 @@ getVersions_ name (Registry _ versions) =
 -- POST
 
 
-post : Http.Manager -> String -> D.Decoder x a -> (a -> IO b) -> IO (Result Exit.RegistryProblem b)
+post : Http.Manager -> String -> D.Decoder x a -> (a -> Task Never b) -> Task Never (Result Exit.RegistryProblem b)
 post manager path decoder callback =
     Website.route path []
         |> IO.bind

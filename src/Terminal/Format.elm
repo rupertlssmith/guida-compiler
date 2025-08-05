@@ -12,7 +12,8 @@ import ElmSyntaxPrint
 import Json.Encode as Encode
 import Result.Extra as Result
 import System.Exit as Exit
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Utils.Main as Utils exposing (FilePath)
 
 
@@ -24,7 +25,7 @@ type Flags
     = Flags (Maybe FilePath) Bool Bool Bool
 
 
-run : List String -> Flags -> IO ()
+run : List String -> Flags -> Task Never ()
 run paths ((Flags _ autoYes _ _) as flags) =
     resolveElmFiles paths
         |> IO.bind
@@ -177,7 +178,7 @@ format input =
     Result.map render (parseModule input)
 
 
-doIt : Bool -> WhatToDo -> IO Bool
+doIt : Bool -> WhatToDo -> Task Never Bool
 doIt autoYes whatToDo =
     case whatToDo of
         Validate validateMode ->
@@ -322,13 +323,13 @@ type FileType
     | DoesNotExist
 
 
-readUtf8FileWithPath : FilePath -> IO ( FilePath, String )
+readUtf8FileWithPath : FilePath -> Task Never ( FilePath, String )
 readUtf8FileWithPath filePath =
     File.readUtf8 filePath
         |> IO.fmap (Tuple.pair filePath)
 
 
-stat : FilePath -> IO FileType
+stat : FilePath -> Task Never FileType
 stat path =
     Utils.dirDoesFileExist path
         |> IO.bind
@@ -349,7 +350,7 @@ stat path =
             )
 
 
-getYesOrNo : IO Bool
+getYesOrNo : Task Never Bool
 getYesOrNo =
     IO.hFlush IO.stdout
         |> IO.bind
@@ -380,7 +381,7 @@ type ValidateMode
 -- INFO FORMATTER
 
 
-approve : Bool -> PromptMessage -> IO Bool
+approve : Bool -> PromptMessage -> Task Never Bool
 approve autoYes prompt =
     if autoYes then
         IO.pure True
@@ -390,7 +391,7 @@ approve autoYes prompt =
             |> IO.bind (\_ -> getYesOrNo)
 
 
-putStrLn : Bool -> String -> IO ()
+putStrLn : Bool -> String -> Task Never ()
 putStrLn usingStdout =
     -- we log to stdout unless it is being used for file output (in that case, we log to stderr)
     if usingStdout then
@@ -442,7 +443,7 @@ toConsoleError error =
             path ++ ": Directory does not contain any *.elm files"
 
 
-resolveFile : FilePath -> IO (Result Error (List FilePath))
+resolveFile : FilePath -> Task Never (Result Error (List FilePath))
 resolveFile path =
     stat path
         |> IO.bind
@@ -468,7 +469,7 @@ resolveFile path =
             )
 
 
-resolveElmFiles : List FilePath -> IO (Result (List Error) (List FilePath))
+resolveElmFiles : List FilePath -> Task Never (Result (List Error) (List FilePath))
 resolveElmFiles inputFiles =
     IO.mapM resolveFile inputFiles
         |> IO.fmap collectErrors
@@ -512,7 +513,7 @@ type TranformFilesResult a
     | Changed FilePath a
 
 
-updateFile : TranformFilesResult String -> IO ()
+updateFile : TranformFilesResult String -> Task Never ()
 updateFile result =
     case result of
         NoChange _ _ ->
@@ -522,7 +523,7 @@ updateFile result =
             File.writeUtf8 outputFile outputText
 
 
-readStdin : IO ( FilePath, String )
+readStdin : Task Never ( FilePath, String )
 readStdin =
     File.readStdin
         |> IO.fmap (Tuple.pair "<STDIN>")
@@ -537,7 +538,7 @@ checkChange ( inputFile, inputText ) outputText =
         Changed inputFile outputText
 
 
-readFromFile : (FilePath -> IO ()) -> FilePath -> IO ( FilePath, String )
+readFromFile : (FilePath -> Task Never ()) -> FilePath -> Task Never ( FilePath, String )
 readFromFile onProcessingFile filePath =
     onProcessingFile filePath
         |> IO.bind (\_ -> readUtf8FileWithPath filePath)
@@ -551,7 +552,7 @@ type TransformMode
     | FilesInPlace FilePath (List FilePath)
 
 
-applyTransformation : (FilePath -> InfoMessage) -> Bool -> (List FilePath -> PromptMessage) -> (( FilePath, String ) -> Result InfoMessage String) -> TransformMode -> IO Bool
+applyTransformation : (FilePath -> InfoMessage) -> Bool -> (List FilePath -> PromptMessage) -> (( FilePath, String ) -> Result InfoMessage String) -> TransformMode -> Task Never Bool
 applyTransformation processingFile autoYes confirmPrompt transform mode =
     let
         usesStdout : Bool
@@ -572,7 +573,7 @@ applyTransformation processingFile autoYes confirmPrompt transform mode =
                 FilesInPlace _ _ ->
                     False
 
-        onInfo : InfoMessage -> IO ()
+        onInfo : InfoMessage -> Task Never ()
         onInfo info =
             if usesStdout then
                 IO.hPutStrLn IO.stderr (toConsoleInfoMessage info)
@@ -599,7 +600,7 @@ applyTransformation processingFile autoYes confirmPrompt transform mode =
 
         FilesInPlace first rest ->
             let
-                formatFile : FilePath -> IO Bool
+                formatFile : FilePath -> Task Never Bool
                 formatFile file =
                     readFromFile (onInfo << processingFile) file
                         |> IO.bind (\i -> logErrorOr onInfo updateFile <| Result.map (checkChange i) (transform i))
@@ -616,7 +617,7 @@ applyTransformation processingFile autoYes confirmPrompt transform mode =
                     )
 
 
-validateNoChanges : ValidateMode -> IO Bool
+validateNoChanges : ValidateMode -> Task Never Bool
 validateNoChanges mode =
     let
         newValidate : FilePath -> String -> Result (Maybe String) ()
@@ -644,7 +645,7 @@ validateNoChanges mode =
 
         ValidateFiles first rest ->
             let
-                validateFile : FilePath -> IO (Result (Maybe String) ())
+                validateFile : FilePath -> Task Never (Result (Maybe String) ())
                 validateFile filePath =
                     File.readUtf8 filePath
                         |> IO.fmap (newValidate filePath)
@@ -657,7 +658,7 @@ validateNoChanges mode =
                     )
 
 
-logErrorOr : (error -> IO ()) -> (a -> IO ()) -> Result error a -> IO Bool
+logErrorOr : (error -> Task Never ()) -> (a -> Task Never ()) -> Result error a -> Task Never Bool
 logErrorOr onInfo fn result =
     case result of
         Err message ->
@@ -683,23 +684,23 @@ render modul =
 -- FILESYSTEM
 
 
-collectFiles : (a -> IO (List a)) -> a -> IO (List a)
+collectFiles : (a -> Task Never (List a)) -> a -> Task Never (List a)
 collectFiles children root =
     children root
         |> IO.bind (\xs -> IO.mapM (collectFiles children) xs)
         |> IO.fmap (\subChildren -> root :: List.concat subChildren)
 
 
-listDir : FilePath -> IO (List FilePath)
+listDir : FilePath -> Task Never (List FilePath)
 listDir path =
     Utils.dirListDirectory path
         |> IO.fmap (List.map (\file -> path ++ "/" ++ file))
 
 
-fileList : FilePath -> IO (List FilePath)
+fileList : FilePath -> Task Never (List FilePath)
 fileList =
     let
-        children : FilePath -> IO (List FilePath)
+        children : FilePath -> Task Never (List FilePath)
         children path =
             if isSkippable path then
                 IO.pure []
@@ -732,7 +733,7 @@ hasExtension ext path =
     ext == Utils.fpTakeExtension path
 
 
-findAllElmFiles : FilePath -> IO (List FilePath)
+findAllElmFiles : FilePath -> Task Never (List FilePath)
 findAllElmFiles inputFile =
     fileList inputFile
         |> IO.fmap (List.filter (hasExtension ".elm"))
