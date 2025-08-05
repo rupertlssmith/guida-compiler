@@ -16,7 +16,8 @@ import Compiler.Elm.Version as V
 import Compiler.Parse.Primitives as P
 import Compiler.Reporting.Suggest as Suggest
 import Data.Map as Dict
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Terminal.Terminal.Internal exposing (Parser(..))
 import Utils.Main as Utils exposing (FilePath)
 
@@ -45,7 +46,7 @@ parseVersion chars =
             Nothing
 
 
-suggestVersion : String -> IO (List String)
+suggestVersion : String -> Task Never (List String)
 suggestVersion _ =
     IO.pure []
 
@@ -106,7 +107,7 @@ parseGuidaOrElmFile chars =
             Nothing
 
 
-exampleGuidaOrElmFiles : String -> IO (List String)
+exampleGuidaOrElmFiles : String -> Task Never (List String)
 exampleGuidaOrElmFiles _ =
     IO.pure [ "Main.guida", "src/Main.guida", "Main.elm" ]
 
@@ -130,7 +131,7 @@ parseFilePath =
     Just
 
 
-exampleFilePaths : String -> IO (List String)
+exampleFilePaths : String -> Task Never (List String)
 exampleFilePaths _ =
     IO.pure [ "Main.elm", "src" ]
 
@@ -159,7 +160,7 @@ parsePackage chars =
             Nothing
 
 
-suggestPackages : String -> IO (List String)
+suggestPackages : String -> Task Never (List String)
 suggestPackages given =
     Stuff.getPackageCache
         |> IO.bind
@@ -178,7 +179,7 @@ suggestPackages given =
             )
 
 
-examplePackages : String -> IO (List String)
+examplePackages : String -> Task Never (List String)
 examplePackages given =
     Stuff.getPackageCache
         |> IO.bind

@@ -48,8 +48,9 @@ import Compiler.Reporting.Render.Type.Localizer as L
 import Data.Graph as Graph
 import Data.Map as Dict exposing (Dict)
 import Data.Set as EverySet
-import System.IO as IO exposing (IO)
+import System.IO as IO
 import System.TypeCheck.IO as TypeCheck
+import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 import Utils.Crash exposing (crash)
@@ -64,7 +65,7 @@ type Env
     = Env Reporting.BKey String Parse.ProjectType (List AbsoluteSrcDir) Details.BuildID (Dict String ModuleName.Raw Details.Local) (Dict String ModuleName.Raw Details.Foreign)
 
 
-makeEnv : Reporting.BKey -> FilePath -> Details.Details -> IO Env
+makeEnv : Reporting.BKey -> FilePath -> Details.Details -> Task Never Env
 makeEnv key root (Details.Details _ validOutline buildID locals foreigns _) =
     case validOutline of
         Details.ValidApp givenSrcDirs ->
@@ -84,7 +85,7 @@ type AbsoluteSrcDir
     = AbsoluteSrcDir FilePath
 
 
-toAbsoluteSrcDir : FilePath -> Outline.SrcDir -> IO AbsoluteSrcDir
+toAbsoluteSrcDir : FilePath -> Outline.SrcDir -> Task Never AbsoluteSrcDir
 toAbsoluteSrcDir root srcDir =
     IO.fmap AbsoluteSrcDir
         (Utils.dirCanonicalizePath
@@ -111,7 +112,7 @@ addRelative (AbsoluteSrcDir srcDir) path =
 described in Chapter 13 of Parallel and Concurrent Programming in Haskell by Simon Marlow
 <https://www.oreilly.com/library/view/parallel-and-concurrent/9781449335939/ch13.html#sec_conc-par-overhead>
 -}
-fork : (a -> BE.Encoder) -> IO a -> IO (MVar a)
+fork : (a -> BE.Encoder) -> Task Never a -> Task Never (MVar a)
 fork encoder work =
     Utils.newEmptyMVar
         |> IO.bind
@@ -121,7 +122,7 @@ fork encoder work =
             )
 
 
-forkWithKey : (k -> comparable) -> (k -> k -> Order) -> (b -> BE.Encoder) -> (k -> a -> IO b) -> Dict comparable k a -> IO (Dict comparable k (MVar b))
+forkWithKey : (k -> comparable) -> (k -> k -> Order) -> (b -> BE.Encoder) -> (k -> a -> Task Never b) -> Dict comparable k a -> Task Never (Dict comparable k (MVar b))
 forkWithKey toComparable keyComparison encoder func dict =
     Utils.mapTraverseWithKey toComparable keyComparison (\k v -> fork encoder (func k v)) dict
 
@@ -130,7 +131,7 @@ forkWithKey toComparable keyComparison encoder func dict =
 -- FROM EXPOSED
 
 
-fromExposed : BD.Decoder docs -> (docs -> BE.Encoder) -> Reporting.Style -> FilePath -> Details.Details -> DocsGoal docs -> NE.Nonempty ModuleName.Raw -> IO (Result Exit.BuildProblem docs)
+fromExposed : BD.Decoder docs -> (docs -> BE.Encoder) -> Reporting.Style -> FilePath -> Details.Details -> DocsGoal docs -> NE.Nonempty ModuleName.Raw -> Task Never (Result Exit.BuildProblem docs)
 fromExposed docsDecoder docsEncoder style root details docsGoal ((NE.Nonempty e es) as exposed) =
     Reporting.trackBuild docsDecoder docsEncoder style <|
         \key ->
@@ -218,7 +219,7 @@ type alias Dependencies =
     Dict (List String) TypeCheck.Canonical I.DependencyInterface
 
 
-fromPaths : Reporting.Style -> FilePath -> Details.Details -> NE.Nonempty FilePath -> IO (Result Exit.BuildProblem Artifacts)
+fromPaths : Reporting.Style -> FilePath -> Details.Details -> NE.Nonempty FilePath -> Task Never (Result Exit.BuildProblem Artifacts)
 fromPaths style root details paths =
     Reporting.trackBuild artifactsDecoder artifactsEncoder style <|
         \key ->
@@ -329,10 +330,10 @@ type Status
     | SKernel
 
 
-crawlDeps : Env -> MVar StatusDict -> List ModuleName.Raw -> a -> IO a
+crawlDeps : Env -> MVar StatusDict -> List ModuleName.Raw -> a -> Task Never a
 crawlDeps env mvar deps blockedValue =
     let
-        crawlNew : ModuleName.Raw -> () -> IO (MVar Status)
+        crawlNew : ModuleName.Raw -> () -> Task Never (MVar Status)
         crawlNew name () =
             fork statusEncoder (crawlModule env mvar (DocsNeed False) name)
     in
@@ -361,7 +362,7 @@ crawlDeps env mvar deps blockedValue =
             )
 
 
-crawlModule : Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> IO Status
+crawlModule : Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> Task Never Status
 crawlModule ((Env _ root projectType srcDirs buildID locals foreigns) as env) mvar ((DocsNeed needsDocs) as docsNeed) name =
     let
         guidaFileName : String
@@ -437,7 +438,7 @@ crawlModule ((Env _ root projectType srcDirs buildID locals foreigns) as env) mv
             )
 
 
-crawlFile : Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> FilePath -> File.Time -> Details.BuildID -> IO Status
+crawlFile : Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> FilePath -> File.Time -> Details.BuildID -> Task Never Status
 crawlFile ((Env _ root projectType _ buildID _ _) as env) mvar docsNeed expectedName path time lastChange =
     File.readUtf8 (Utils.fpCombine root path)
         |> IO.bind
@@ -499,7 +500,7 @@ type CachedInterface
     | Corrupted
 
 
-checkModule : Env -> Dependencies -> MVar ResultDict -> ModuleName.Raw -> Status -> IO BResult
+checkModule : Env -> Dependencies -> MVar ResultDict -> ModuleName.Raw -> Status -> Task Never BResult
 checkModule ((Env _ root projectType _ _ _ _) as env) foreigns resultsMVar name status =
     case status of
         SCached ((Details.Local path time deps hasMain lastChange lastCompile) as local) ->
@@ -617,7 +618,7 @@ type DepsStatus
     | DepsNotFound (NE.Nonempty ( ModuleName.Raw, Import.Problem ))
 
 
-checkDeps : FilePath -> ResultDict -> List ModuleName.Raw -> Details.BuildID -> IO DepsStatus
+checkDeps : FilePath -> ResultDict -> List ModuleName.Raw -> Details.BuildID -> Task Never DepsStatus
 checkDeps root results deps lastCompile =
     checkDepsHelp root results deps [] [] [] [] False 0 lastCompile
 
@@ -630,7 +631,7 @@ type alias CDep =
     ( ModuleName.Raw, MVar CachedInterface )
 
 
-checkDepsHelp : FilePath -> ResultDict -> List ModuleName.Raw -> List Dep -> List Dep -> List CDep -> List ( ModuleName.Raw, Import.Problem ) -> Bool -> Details.BuildID -> Details.BuildID -> IO DepsStatus
+checkDepsHelp : FilePath -> ResultDict -> List ModuleName.Raw -> List Dep -> List Dep -> List CDep -> List ( ModuleName.Raw, Import.Problem ) -> Bool -> Details.BuildID -> Details.BuildID -> Task Never DepsStatus
 checkDepsHelp root results deps new same cached importProblems isBlocked lastDepChange lastCompile =
     case deps of
         dep :: otherDeps ->
@@ -724,7 +725,7 @@ toImportErrors (Env _ _ _ _ _ locals foreigns) results imports problems =
 -- LOAD CACHED INTERFACES
 
 
-loadInterfaces : FilePath -> List Dep -> List CDep -> IO (Maybe (Dict String ModuleName.Raw I.Interface))
+loadInterfaces : FilePath -> List Dep -> List CDep -> Task Never (Maybe (Dict String ModuleName.Raw I.Interface))
 loadInterfaces root same cached =
     Utils.listTraverse (fork maybeDepEncoder << loadInterface root) cached
         |> IO.bind
@@ -742,7 +743,7 @@ loadInterfaces root same cached =
             )
 
 
-loadInterface : FilePath -> CDep -> IO (Maybe Dep)
+loadInterface : FilePath -> CDep -> Task Never (Maybe Dep)
 loadInterface root ( name, ciMvar ) =
     Utils.takeMVar cachedInterfaceDecoder ciMvar
         |> IO.bind
@@ -776,7 +777,7 @@ loadInterface root ( name, ciMvar ) =
 -- CHECK PROJECT
 
 
-checkMidpoint : MVar (Maybe Dependencies) -> Dict String ModuleName.Raw Status -> IO (Result Exit.BuildProjectProblem Dependencies)
+checkMidpoint : MVar (Maybe Dependencies) -> Dict String ModuleName.Raw Status -> Task Never (Result Exit.BuildProjectProblem Dependencies)
 checkMidpoint dmvar statuses =
     case checkForCycles statuses of
         Nothing ->
@@ -796,7 +797,7 @@ checkMidpoint dmvar statuses =
                 |> IO.fmap (\_ -> Err (Exit.BP_Cycle name names))
 
 
-checkMidpointAndRoots : MVar (Maybe Dependencies) -> Dict String ModuleName.Raw Status -> NE.Nonempty RootStatus -> IO (Result Exit.BuildProjectProblem Dependencies)
+checkMidpointAndRoots : MVar (Maybe Dependencies) -> Dict String ModuleName.Raw Status -> NE.Nonempty RootStatus -> Task Never (Result Exit.BuildProjectProblem Dependencies)
 checkMidpointAndRoots dmvar statuses sroots =
     case checkForCycles statuses of
         Nothing ->
@@ -962,7 +963,7 @@ checkInside name p1 status =
 -- COMPILE MODULE
 
 
-compile : Env -> DocsNeed -> Details.Local -> String -> Dict String ModuleName.Raw I.Interface -> Src.Module -> IO BResult
+compile : Env -> DocsNeed -> Details.Local -> String -> Dict String ModuleName.Raw I.Interface -> Src.Module -> Task Never BResult
 compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path time deps main lastChange _) source ifaces modul =
     let
         pkg : Pkg.Name
@@ -1071,7 +1072,7 @@ projectTypeToPkg projectType =
 -- WRITE DETAILS
 
 
-writeDetails : FilePath -> Details.Details -> Dict String ModuleName.Raw BResult -> IO ()
+writeDetails : FilePath -> Details.Details -> Dict String ModuleName.Raw BResult -> Task Never ()
 writeDetails root (Details.Details time outline buildID locals foreigns extras) results =
     File.writeBinary Details.detailsEncoder (Stuff.details root) <|
         Details.Details time outline buildID (Dict.foldr compare addNewLocal locals results) foreigns extras
@@ -1109,7 +1110,7 @@ addNewLocal name result locals =
 -- FINALIZE EXPOSED
 
 
-finalizeExposed : FilePath -> DocsGoal docs -> NE.Nonempty ModuleName.Raw -> Dict String ModuleName.Raw BResult -> IO (Result Exit.BuildProblem docs)
+finalizeExposed : FilePath -> DocsGoal docs -> NE.Nonempty ModuleName.Raw -> Dict String ModuleName.Raw BResult -> Task Never (Result Exit.BuildProblem docs)
 finalizeExposed root docsGoal exposed results =
     case List.foldr (addImportProblems results) [] (NE.toList exposed) of
         p :: ps ->
@@ -1186,7 +1187,7 @@ addImportProblems results name problems =
 
 type DocsGoal docs
     = KeepDocs (Dict String ModuleName.Raw BResult -> docs)
-    | WriteDocs (Dict String ModuleName.Raw BResult -> IO docs)
+    | WriteDocs (Dict String ModuleName.Raw BResult -> Task Never docs)
     | IgnoreDocs docs
 
 
@@ -1236,7 +1237,7 @@ makeDocs (DocsNeed isNeeded) modul =
         Ok Nothing
 
 
-finalizeDocs : DocsGoal docs -> Dict String ModuleName.Raw BResult -> IO docs
+finalizeDocs : DocsGoal docs -> Dict String ModuleName.Raw BResult -> Task Never docs
 finalizeDocs goal results =
     case goal of
         KeepDocs f ->
@@ -1288,7 +1289,7 @@ type ReplArtifacts
     = ReplArtifacts TypeCheck.Canonical (List Module) L.Localizer (Dict String Name.Name Can.Annotation)
 
 
-fromRepl : FilePath -> Details.Details -> String -> IO (Result Exit.Repl ReplArtifacts)
+fromRepl : FilePath -> Details.Details -> String -> Task Never (Result Exit.Repl ReplArtifacts)
 fromRepl root details source =
     makeEnv Reporting.ignorer root details
         |> IO.bind
@@ -1356,14 +1357,14 @@ fromRepl root details source =
             )
 
 
-finalizeReplArtifacts : Env -> String -> Src.Module -> DepsStatus -> ResultDict -> Dict String ModuleName.Raw BResult -> IO (Result Exit.Repl ReplArtifacts)
+finalizeReplArtifacts : Env -> String -> Src.Module -> DepsStatus -> ResultDict -> Dict String ModuleName.Raw BResult -> Task Never (Result Exit.Repl ReplArtifacts)
 finalizeReplArtifacts ((Env _ root projectType _ _ _ _) as env) source ((Src.Module _ _ _ _ imports _ _ _ _ _) as modul) depsStatus resultMVars results =
     let
         pkg : Pkg.Name
         pkg =
             projectTypeToPkg projectType
 
-        compileInput : Dict String ModuleName.Raw I.Interface -> IO (Result Exit.Repl ReplArtifacts)
+        compileInput : Dict String ModuleName.Raw I.Interface -> Task Never (Result Exit.Repl ReplArtifacts)
         compileInput ifaces =
             Compile.compile pkg ifaces modul
                 |> IO.fmap
@@ -1435,7 +1436,7 @@ type RootLocation
     | LOutside FilePath
 
 
-findRoots : Env -> NE.Nonempty FilePath -> IO (Result Exit.BuildProjectProblem (NE.Nonempty RootLocation))
+findRoots : Env -> NE.Nonempty FilePath -> Task Never (Result Exit.BuildProjectProblem (NE.Nonempty RootLocation))
 findRoots env paths =
     Utils.nonEmptyListTraverse (fork resultBuildProjectProblemRootInfoEncoder << getRootInfo env) paths
         |> IO.bind
@@ -1478,7 +1479,7 @@ type RootInfo
     = RootInfo FilePath FilePath RootLocation
 
 
-getRootInfo : Env -> FilePath -> IO (Result Exit.BuildProjectProblem RootInfo)
+getRootInfo : Env -> FilePath -> Task Never (Result Exit.BuildProjectProblem RootInfo)
 getRootInfo env path =
     File.exists path
         |> IO.bind
@@ -1491,7 +1492,7 @@ getRootInfo env path =
             )
 
 
-getRootInfoHelp : Env -> FilePath -> FilePath -> IO (Result Exit.BuildProjectProblem RootInfo)
+getRootInfoHelp : Env -> FilePath -> FilePath -> Task Never (Result Exit.BuildProjectProblem RootInfo)
 getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
     let
         ( dirs, file ) =
@@ -1546,7 +1547,7 @@ getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
         IO.pure <| Err <| Exit.BP_WithBadExtension path
 
 
-isInsideSrcDirByName : List String -> String -> AbsoluteSrcDir -> IO Bool
+isInsideSrcDirByName : List String -> String -> AbsoluteSrcDir -> Task Never Bool
 isInsideSrcDirByName names extension srcDir =
     File.exists (addRelative srcDir (Utils.fpJoinPath names ++ extension))
 
@@ -1607,7 +1608,7 @@ type RootStatus
     | SOutsideErr Error.Module
 
 
-crawlRoot : Env -> MVar StatusDict -> RootLocation -> IO RootStatus
+crawlRoot : Env -> MVar StatusDict -> RootLocation -> Task Never RootStatus
 crawlRoot ((Env _ _ projectType _ buildID _ _) as env) mvar root =
     case root of
         LInside name ->
@@ -1665,7 +1666,7 @@ type RootResult
     | ROutsideBlocked
 
 
-checkRoot : Env -> ResultDict -> RootStatus -> IO RootResult
+checkRoot : Env -> ResultDict -> RootStatus -> Task Never RootResult
 checkRoot ((Env _ root _ _ _ _ _) as env) results rootStatus =
     case rootStatus of
         SInside name ->
@@ -1705,7 +1706,7 @@ checkRoot ((Env _ root _ _ _ _ _) as env) results rootStatus =
                     )
 
 
-compileOutside : Env -> Details.Local -> String -> Dict String ModuleName.Raw I.Interface -> Src.Module -> IO RootResult
+compileOutside : Env -> Details.Local -> String -> Dict String ModuleName.Raw I.Interface -> Src.Module -> Task Never RootResult
 compileOutside (Env key _ projectType _ _ _ _) (Details.Local path time _ _ _ _) source ifaces modul =
     let
         pkg : Pkg.Name

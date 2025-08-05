@@ -27,7 +27,8 @@ import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
 import Compiler.Json.Decode as D
 import Data.Map as Dict exposing (Dict)
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 import Utils.Crash exposing (crash)
@@ -39,7 +40,7 @@ import Utils.Main as Utils
 
 
 type Solver a
-    = Solver (State -> IO (InnerSolver a))
+    = Solver (State -> Task Never (InnerSolver a))
 
 
 type InnerSolver a
@@ -80,7 +81,7 @@ type Details
     = Details V.Version (Dict ( String, String ) Pkg.Name C.Constraint)
 
 
-verify : Stuff.PackageCache -> Connection -> Registry.Registry -> Dict ( String, String ) Pkg.Name C.Constraint -> IO (SolverResult (Dict ( String, String ) Pkg.Name Details))
+verify : Stuff.PackageCache -> Connection -> Registry.Registry -> Dict ( String, String ) Pkg.Name C.Constraint -> Task Never (SolverResult (Dict ( String, String ) Pkg.Name Details))
 verify cache connection registry constraints =
     Stuff.withRegistryLock cache <|
         case try constraints of
@@ -159,7 +160,7 @@ getTransitive constraints solution unvisited visited =
 -- ADD TO APP - used in Install
 
 
-addToApp : Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> Outline.AppOutline -> Bool -> IO (SolverResult AppSolution)
+addToApp : Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> Outline.AppOutline -> Bool -> Task Never (SolverResult AppSolution)
 addToApp cache connection registry pkg (Outline.AppOutline elm srcDirs direct indirect testDirect testIndirect) forTest =
     Stuff.withRegistryLock cache <|
         let
@@ -233,7 +234,7 @@ addToApp cache connection registry pkg (Outline.AppOutline elm srcDirs direct in
 -- ADD TO APP - used in Test
 
 
-addToTestApp : Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> C.Constraint -> Outline.AppOutline -> IO (SolverResult AppSolution)
+addToTestApp : Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> C.Constraint -> Outline.AppOutline -> Task Never (SolverResult AppSolution)
 addToTestApp cache connection registry pkg con (Outline.AppOutline elm srcDirs direct indirect testDirect testIndirect) =
     Stuff.withRegistryLock cache <|
         let
@@ -299,7 +300,7 @@ addToTestApp cache connection registry pkg con (Outline.AppOutline elm srcDirs d
 -- REMOVE FROM APP - used in Uninstall
 
 
-removeFromApp : Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> Outline.AppOutline -> IO (SolverResult AppSolution)
+removeFromApp : Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> Outline.AppOutline -> Task Never (SolverResult AppSolution)
 removeFromApp cache connection registry pkg (Outline.AppOutline elm srcDirs direct indirect testDirect testIndirect) =
     Stuff.withRegistryLock cache <|
         let
@@ -570,7 +571,7 @@ type Env
     = Env Stuff.PackageCache Http.Manager Connection Registry.Registry
 
 
-initEnv : IO (Result Exit.RegistryProblem Env)
+initEnv : Task Never (Result Exit.RegistryProblem Env)
 initEnv =
     Utils.newEmptyMVar
         |> IO.bind

@@ -5,7 +5,8 @@ module Builder.BackgroundWriter exposing
     )
 
 import Builder.File as File
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 import Utils.Main as Utils
@@ -19,7 +20,7 @@ type Scope
     = Scope (Utils.MVar (List (Utils.MVar ())))
 
 
-withScope : (Scope -> IO a) -> IO a
+withScope : (Scope -> Task Never a) -> Task Never a
 withScope callback =
     Utils.newMVar (BE.list (\_ -> BE.unit ())) []
         |> IO.bind
@@ -37,7 +38,7 @@ withScope callback =
             )
 
 
-writeBinary : (a -> BE.Encoder) -> Scope -> String -> a -> IO ()
+writeBinary : (a -> BE.Encoder) -> Scope -> String -> a -> Task Never ()
 writeBinary toEncoder (Scope workList) path value =
     Utils.newEmptyMVar
         |> IO.bind

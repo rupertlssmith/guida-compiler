@@ -5,7 +5,8 @@ module Compiler.Data.Map.Utils exposing
     )
 
 import Data.Map as Dict exposing (Dict)
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Utils.Main as Utils
 
 
@@ -18,7 +19,7 @@ fromKeys toValue keys =
     Dict.fromList identity (List.map (\k -> ( k, toValue k )) keys)
 
 
-fromKeysA : (k -> comparable) -> (k -> IO v) -> List k -> IO (Dict comparable k v)
+fromKeysA : (k -> comparable) -> (k -> Task Never v) -> List k -> Task Never (Dict comparable k v)
 fromKeysA toComparable toValue keys =
     IO.fmap (Dict.fromList toComparable) (Utils.listTraverse (\k -> IO.fmap (Tuple.pair k) (toValue k)) keys)
 

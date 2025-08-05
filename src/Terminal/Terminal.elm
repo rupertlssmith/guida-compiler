@@ -18,7 +18,8 @@ import Compiler.Elm.Version as V
 import Compiler.Reporting.Doc as D
 import List.Extra as List
 import System.Exit as Exit
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Terminal.Terminal.Error as Error
 import Terminal.Terminal.Internal exposing (Args(..), Command(..), CompleteArgs(..), Flag(..), Flags(..), Parser, RequiredArgs(..), toName)
 import Utils.Main as Utils
@@ -28,7 +29,7 @@ import Utils.Main as Utils
 -- APP
 
 
-app : D.Doc -> D.Doc -> List Command -> IO ()
+app : D.Doc -> D.Doc -> List Command -> Task Never ()
 app intro outro commands =
     Utils.envGetArgs
         |> IO.bind

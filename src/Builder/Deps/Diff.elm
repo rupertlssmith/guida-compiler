@@ -25,7 +25,8 @@ import Compiler.Json.Decode as D
 import Data.Map as Dict exposing (Dict)
 import Data.Set as EverySet
 import List
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Utils.Main as Utils
 
 
@@ -395,7 +396,7 @@ changeMagnitude (Changes added changed removed) =
 -- GET DOCS
 
 
-getDocs : Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Result Exit.DocsProblem Docs.Documentation)
+getDocs : Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> Task Never (Result Exit.DocsProblem Docs.Documentation)
 getDocs cache manager name version =
     let
         home : String

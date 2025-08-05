@@ -12,7 +12,8 @@ module Control.Monad.State.Strict exposing
 
 import Json.Decode as Decode
 import Json.Encode as Encode
-import System.IO as IO exposing (IO)
+import System.IO as IO
+import Task exposing (Task)
 import Utils.Impure as Impure
 
 
@@ -29,15 +30,15 @@ Ref.: <https://hackage.haskell.org/package/transformers-0.6.1.2/docs/Control-Mon
 
 -}
 type StateT s a
-    = StateT (s -> IO ( a, s ))
+    = StateT (s -> Task Never ( a, s ))
 
 
-evalStateT : StateT s a -> s -> IO a
+evalStateT : StateT s a -> s -> Task Never a
 evalStateT (StateT f) =
     f >> IO.fmap Tuple.first
 
 
-liftIO : IO a -> StateT s a
+liftIO : Task Never a -> StateT s a
 liftIO io =
     StateT (\s -> IO.fmap (\a -> ( a, s )) io)
 
@@ -81,7 +82,7 @@ get =
         )
 
 
-put : IO.ReplState -> IO ()
+put : IO.ReplState -> Task Never ()
 put (IO.ReplState imports types decls) =
     Impure.task "putStateT"
         []
