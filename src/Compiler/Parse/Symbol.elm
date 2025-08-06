@@ -7,8 +7,10 @@ module Compiler.Parse.Symbol exposing
     )
 
 import Compiler.Data.Name exposing (Name)
-import Compiler.Parse.Primitives as P exposing (Col, Parser, Row)
-import Data.Set as EverySet exposing (EverySet)
+import Compiler.Parse.NewPrimitives as P
+import Data.Set as Set
+import Parser exposing (..)
+import Parser.Advanced as Advanced
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 
@@ -25,70 +27,49 @@ type BadOperator
     | BadHasType
 
 
-operator : (Row -> Col -> x) -> (BadOperator -> Row -> Col -> x) -> Parser x Name
+operator : (P.Row -> P.Col -> x) -> (BadOperator -> P.Row -> P.Col -> x) -> P.Parser x Name
 operator toExpectation toError =
-    P.Parser <|
-        \(P.State src pos end indent row col) ->
-            let
-                newPos : Int
-                newPos =
-                    chompOps src pos end
-            in
-            if pos == newPos then
-                P.Eerr row col toExpectation
+    let
+        op =
+            getChompedString (chompWhile isBinopCharHelp)
+    in
+    op
+        |> andThen
+            (\opString ->
+                case opString of
+                    "" ->
+                        problem ()
 
-            else
-                case String.slice pos newPos src of
+                    -- Mapped to toExpectation by mapError
                     "." ->
-                        P.Eerr row col (toError BadDot)
+                        Advanced.problem (toError BadDot)
 
                     "|" ->
-                        P.Cerr row col (toError BadPipe)
+                        Advanced.problem (toError BadPipe)
 
                     "->" ->
-                        P.Cerr row col (toError BadArrow)
+                        Advanced.problem (toError BadArrow)
 
                     "=" ->
-                        P.Cerr row col (toError BadEquals)
+                        Advanced.problem (toError BadEquals)
 
                     ":" ->
-                        P.Cerr row col (toError BadHasType)
+                        Advanced.problem (toError BadHasType)
 
-                    op ->
-                        let
-                            newCol : Col
-                            newCol =
-                                col + (newPos - pos)
-
-                            newState : P.State
-                            newState =
-                                P.State src newPos end indent row newCol
-                        in
-                        P.Cok op newState
-
-
-chompOps : String -> Int -> Int -> Int
-chompOps src pos end =
-    if pos < end && isBinopCharHelp (P.unsafeIndex src pos) then
-        chompOps src (pos + 1) end
-
-    else
-        pos
+                    _ ->
+                        succeed opString
+            )
+        |> Advanced.mapError (\r c _ -> toExpectation r c)
 
 
 isBinopCharHelp : Char -> Bool
 isBinopCharHelp char =
-    let
-        code : Int
-        code =
-            Char.toCode char
-    in
-    EverySet.member identity code binopCharSet
+    Set.member char binopCharSet
 
 
-binopCharSet : EverySet Int Int
+binopCharSet : Set.Set Char
 binopCharSet =
-    EverySet.fromList identity (List.map Char.toCode (String.toList "+-/*=.<>:&|^?%!"))
+    Set.fromList (String.toList "+-/*=.<>:&|^?%!")
 
 
 

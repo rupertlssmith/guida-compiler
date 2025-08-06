@@ -3,417 +3,176 @@ module Compiler.Parse.String exposing
     , string
     )
 
-import Compiler.Elm.String as ES
-import Compiler.Parse.Number as Number
-import Compiler.Parse.Primitives as P exposing (Col, Parser(..), Row)
+import Compiler.Parse.NewPrimitives as P
 import Compiler.Reporting.Error.Syntax as E
+import Parser exposing (..)
+import Parser.Advanced as Advanced
 
 
 
--- CHARACTER
+-- PUBLIC
 
 
-character : (Row -> Col -> x) -> (E.Char -> Row -> Col -> x) -> Parser x String
+character : (P.Row -> P.Col -> x) -> (E.Char -> P.Row -> P.Col -> x) -> P.Parser x String
 character toExpectation toError =
-    Parser
-        (\(P.State src pos end indent row col) ->
-            if pos >= end || P.unsafeIndex src pos /= '\'' then
-                P.Eerr row col toExpectation
+    let
+        charParser =
+            Advanced.symbol "'" (\_ r c -> toExpectation r c)
+                |> andThen
+                    (\_ ->
+                        loop [] (charContentHelp toError)
+                            |> andThen
+                                (\chars ->
+                                    case chars of
+                                        [ c ] ->
+                                            succeed (String.fromChar c)
 
-            else
-                case chompChar src (pos + 1) end row (col + 1) 0 placeholder of
-                    Good newPos newCol numChars mostRecent ->
-                        if numChars /= 1 then
-                            P.Cerr row col (toError (E.CharNotString (newCol - col)))
-
-                        else
-                            let
-                                newState : P.State
-                                newState =
-                                    P.State src newPos end indent row newCol
-
-                                char : String
-                                char =
-                                    ES.fromChunks src [ mostRecent ]
-                            in
-                            P.Cok char newState
-
-                    CharEndless newCol ->
-                        P.Cerr row newCol (toError E.CharEndless)
-
-                    CharEscape r c escape ->
-                        P.Cerr r c (toError (E.CharEscape escape))
-        )
+                                        _ ->
+                                            Advanced.problem (toError (E.CharNotString (List.length chars)))
+                                )
+                    )
+                |> andThen (\s -> Advanced.symbol "'" (\_ r c -> toError E.CharEndless r c) |> andThen (\_ -> succeed s))
+    in
+    charParser
 
 
-type CharResult
-    = Good Int Col Int ES.Chunk
-    | CharEndless Col
-    | CharEscape Row Col E.Escape
-
-
-chompChar : String -> Int -> Int -> Row -> Col -> Int -> ES.Chunk -> CharResult
-chompChar src pos end row col numChars mostRecent =
-    if pos >= end then
-        CharEndless col
-
-    else
-        let
-            word : Char
-            word =
-                P.unsafeIndex src pos
-        in
-        if word == '\'' then
-            Good (pos + 1) (col + 1) numChars mostRecent
-
-        else if word == '\n' then
-            CharEndless col
-
-        else if word == '"' then
-            chompChar src (pos + 1) end row (col + 1) (numChars + 1) doubleQuote
-
-        else if word == '\\' then
-            case eatEscape src (pos + 1) end row col of
-                EscapeNormal ->
-                    chompChar src (pos + 2) end row (col + 2) (numChars + 1) (ES.Slice pos 2)
-
-                EscapeUnicode delta code ->
-                    chompChar src (pos + delta) end row (col + delta) (numChars + 1) (ES.CodePoint code)
-
-                EscapeProblem r c badEscape ->
-                    CharEscape r c badEscape
-
-                EscapeEndOfFile ->
-                    CharEndless col
-
-        else
-            let
-                width : Int
-                width =
-                    P.getCharWidth word
-
-                newPos : Int
-                newPos =
-                    pos + width
-            in
-            chompChar src newPos end row (col + 1) (numChars + 1) (ES.Slice pos width)
+string : (P.Row -> P.Col -> x) -> (E.String_ -> P.Row -> P.Col -> x) -> P.Parser x String
+string toExpectation toError =
+    oneOf
+        [ multiLineString toError
+        , singleLineString toExpectation toError
+        ]
 
 
 
 -- STRINGS
 
 
-string : (Row -> Col -> x) -> (E.String_ -> Row -> Col -> x) -> Parser x String
-string toExpectation toError =
-    Parser
-        (\(P.State src pos end indent row col) ->
-            if isDoubleQuote src pos end then
-                let
-                    pos1 : Int
-                    pos1 =
-                        pos + 1
-                in
-                case
-                    if isDoubleQuote src pos1 end then
-                        let
-                            pos2 : Int
-                            pos2 =
-                                pos + 2
-                        in
-                        if isDoubleQuote src pos2 end then
-                            let
-                                pos3 : Int
-                                pos3 =
-                                    pos + 3
-
-                                col3 : Col
-                                col3 =
-                                    col + 3
-                            in
-                            multiString src pos3 end row col3 pos3 row col []
-
-                        else
-                            SROk pos2 row (col + 2) ""
-
-                    else
-                        singleString src pos1 end row (col + 1) pos1 []
-                of
-                    SROk newPos newRow newCol utf8 ->
-                        let
-                            newState : P.State
-                            newState =
-                                P.State src newPos end indent newRow newCol
-                        in
-                        P.Cok utf8 newState
-
-                    SRErr r c x ->
-                        P.Cerr r c (toError x)
-
-            else
-                P.Eerr row col toExpectation
-        )
+singleLineString : (P.Row -> P.Col -> x) -> (E.String_ -> P.Row -> P.Col -> x) -> P.Parser x String
+singleLineString toExpectation toError =
+    Advanced.symbol "\"" (\_ r c -> toExpectation r c)
+        |> andThen
+            (\_ ->
+                loop [] (stringContentHelp "\"" (\e -> toError (E.StringEscape e)) (toError E.StringEndless_Single))
+            )
 
 
-isDoubleQuote : String -> Int -> Int -> Bool
-isDoubleQuote src pos end =
-    pos < end && P.unsafeIndex src pos == '"'
-
-
-type StringResult
-    = SROk Int Row Col String
-    | SRErr Row Col E.String_
-
-
-finalize : String -> Int -> Int -> List ES.Chunk -> String
-finalize src start end revChunks =
-    ES.fromChunks src <|
-        List.reverse <|
-            if start == end then
-                revChunks
-
-            else
-                -- String.fromList (List.map (P.unsafeIndex src) (List.range start (end - 1))) ++ revChunks
-                ES.Slice start (end - start) :: revChunks
-
-
-addEscape : ES.Chunk -> Int -> Int -> List ES.Chunk -> List ES.Chunk
-addEscape chunk start end revChunks =
-    if start == end then
-        chunk :: revChunks
-
-    else
-        chunk :: ES.Slice start (end - start) :: revChunks
+multiLineString : (E.String_ -> P.Row -> P.Col -> x) -> P.Parser x String
+multiLineString toError =
+    Advanced.symbol "\"\"\"" (\_ r c -> toError E.StringEndless_Multi r c)
+        |> andThen
+            (\_ ->
+                loop [] (stringContentHelp "\"\"\"" (\e -> toError (E.StringEscape e)) (toError E.StringEndless_Multi))
+            )
 
 
 
--- SINGLE STRINGS
+-- CONTENT
 
 
-singleString : String -> Int -> Int -> Row -> Col -> Int -> List ES.Chunk -> StringResult
-singleString src pos end row col initialPos revChunks =
-    if pos >= end then
-        SRErr row col E.StringEndless_Single
-
-    else
-        let
-            word : Char
-            word =
-                P.unsafeIndex src pos
-        in
-        if word == '"' then
-            SROk (pos + 1) row (col + 1) <|
-                finalize src initialPos pos revChunks
-
-        else if word == '\n' then
-            SRErr row col E.StringEndless_Single
-
-        else if word == '\'' then
-            let
-                newPos : Int
-                newPos =
-                    pos + 1
-            in
-            singleString src newPos end row (col + 1) newPos <|
-                addEscape singleQuote initialPos pos revChunks
-
-        else if word == '\\' then
-            case eatEscape src (pos + 1) end row col of
-                EscapeNormal ->
-                    singleString src (pos + 2) end row (col + 2) initialPos revChunks
-
-                EscapeUnicode delta code ->
-                    let
-                        newPos : Int
-                        newPos =
-                            pos + delta
-                    in
-                    singleString src newPos end row (col + delta) newPos <|
-                        addEscape (ES.CodePoint code) initialPos pos revChunks
-
-                EscapeProblem r c x ->
-                    SRErr r c (E.StringEscape x)
-
-                EscapeEndOfFile ->
-                    SRErr row (col + 1) E.StringEndless_Single
-
-        else
-            let
-                newPos : Int
-                newPos =
-                    pos + P.getCharWidth word
-            in
-            singleString src newPos end row (col + 1) initialPos revChunks
+stringContentHelp : String -> (E.Escape -> x) -> x -> List Char -> Parser x (Step (List Char) String)
+stringContentHelp close toBadEscape toEndless revChars =
+    oneOf
+        [ Advanced.symbol close (\_ _ _ -> toEndless)
+            |> andThen (\_ -> succeed (Done (String.fromList (List.reverse revChars))))
+        , chompIf (\c -> c == '\n') 1
+            |> andThen (\_ -> Advanced.problem toEndless)
+        , succeed identity
+            |> andMap (escapedChar toBadEscape)
+            |> andThen (\c -> succeed (Loop (c :: revChars)))
+        , chompIf (\c -> c /= '\\' && c /= '"' && c /= '\n' && c /= '\'') 1
+            |> andThen (\c -> succeed (Loop (c :: revChars)))
+        ]
 
 
-
--- MULTI STRINGS
-
-
-multiString : String -> Int -> Int -> Row -> Col -> Int -> Row -> Col -> List ES.Chunk -> StringResult
-multiString src pos end row col initialPos sr sc revChunks =
-    if pos >= end then
-        SRErr sr sc E.StringEndless_Multi
-
-    else
-        let
-            word : Char
-            word =
-                P.unsafeIndex src pos
-        in
-        if word == '"' && isDoubleQuote src (pos + 1) end && isDoubleQuote src (pos + 2) end then
-            SROk (pos + 3) row (col + 3) <|
-                finalize src initialPos pos revChunks
-
-        else if word == '\'' then
-            let
-                pos1 : Int
-                pos1 =
-                    pos + 1
-            in
-            multiString src pos1 end row (col + 1) pos1 sr sc <|
-                addEscape singleQuote initialPos pos revChunks
-
-        else if word == '\n' then
-            let
-                pos1 : Int
-                pos1 =
-                    pos + 1
-            in
-            multiString src pos1 end (row + 1) 1 pos1 sr sc <|
-                addEscape newline initialPos pos revChunks
-
-        else if word == '\u{000D}' then
-            let
-                pos1 : Int
-                pos1 =
-                    pos + 1
-            in
-            multiString src pos1 end row col pos1 sr sc <|
-                addEscape carriageReturn initialPos pos revChunks
-
-        else if word == '\\' then
-            case eatEscape src (pos + 1) end row col of
-                EscapeNormal ->
-                    multiString src (pos + 2) end row (col + 2) initialPos sr sc revChunks
-
-                EscapeUnicode delta code ->
-                    let
-                        newPos : Int
-                        newPos =
-                            pos + delta
-                    in
-                    multiString src newPos end row (col + delta) newPos sr sc <|
-                        addEscape (ES.CodePoint code) initialPos pos revChunks
-
-                EscapeProblem r c x ->
-                    SRErr r c (E.StringEscape x)
-
-                EscapeEndOfFile ->
-                    SRErr sr sc E.StringEndless_Multi
-
-        else
-            let
-                newPos : Int
-                newPos =
-                    pos + P.getCharWidth word
-            in
-            multiString src newPos end row (col + 1) initialPos sr sc revChunks
+charContentHelp : (E.Char -> x) -> List Char -> Parser x (Step (List Char) (List Char))
+charContentHelp toError revChars =
+    oneOf
+        [ symbol "'"
+            |> andThen (\_ -> succeed (Done revChars))
+        , chompIf (\c -> c == '\n') 1
+            |> andThen (\_ -> Advanced.problem (toError E.CharEndless))
+        , succeed identity
+            |> andMap (escapedChar (\e -> toError (E.CharEscape e)))
+            |> andThen (\c -> succeed (Loop (c :: revChars)))
+        , chompIf (\c -> c /= '\\' && c /= '\'' && c /= '\n') 1
+            |> andThen (\c -> succeed (Loop (c :: revChars)))
+        ]
 
 
 
 -- ESCAPE CHARACTERS
 
 
-type Escape
-    = EscapeNormal
-    | EscapeUnicode Int Int
-    | EscapeEndOfFile
-    | EscapeProblem Row Col E.Escape
+escapedChar : (E.Escape -> x) -> Parser x Char
+escapedChar toError =
+    Advanced.symbol "\\" (\_ r c -> toError E.EscapeUnknown r c)
+        |> andThen
+            (\_ ->
+                oneOf
+                    [ map2 (\_ c -> c) (chompChar 'n') (succeed '\n')
+                    , map2 (\_ c -> c) (chompChar 'r') (succeed '\u{000D}')
+                    , map2 (\_ c -> c) (chompChar 't') (succeed '\t')
+                    , map2 (\_ c -> c) (chompChar '"') (succeed '"')
+                    , map2 (\_ c -> c) (chompChar '\'') (succeed '\'')
+                    , map2 (\_ c -> c) (chompChar '\\') (succeed '\\')
+                    , unicodeEscape toError
+                    ]
+            )
 
 
-eatEscape : String -> Int -> Int -> Row -> Col -> Escape
-eatEscape src pos end row col =
-    if pos >= end then
-        EscapeEndOfFile
+unicodeEscape : (E.Escape -> x) -> Parser x Char
+unicodeEscape toError =
+    chompChar 'u'
+        |> andThen (\_ -> chompChar '{')
+        |> andThen (\_ -> getChompedString (chompWhile Char.isHexDigit))
+        |> andThen
+            (\hex ->
+                case hexToInt hex of
+                    Just code ->
+                        if code > 0x0010FFFF then
+                            Advanced.problem (toError E.BadUnicodeCode)
 
-    else
-        case P.unsafeIndex src pos of
-            'n' ->
-                EscapeNormal
+                        else if String.length hex < 4 || String.length hex > 6 then
+                            Advanced.problem (toError (E.BadUnicodeLength (String.length hex + 3) (String.length hex) code))
 
-            'r' ->
-                EscapeNormal
+                        else
+                            succeed (Char.fromCode code)
 
-            't' ->
-                EscapeNormal
-
-            '"' ->
-                EscapeNormal
-
-            '\'' ->
-                EscapeNormal
-
-            '\\' ->
-                EscapeNormal
-
-            'u' ->
-                eatUnicode src (pos + 1) end row col
-
-            _ ->
-                EscapeProblem row col E.EscapeUnknown
+                    Nothing ->
+                        Advanced.problem (toError E.BadUnicodeFormat)
+            )
+        |> andThen (\c -> chompChar '}' |> andThen (\_ -> succeed c))
 
 
-eatUnicode : String -> Int -> Int -> Row -> Col -> Escape
-eatUnicode src pos end row col =
-    if pos >= end || P.unsafeIndex src pos /= '{' then
-        EscapeProblem row col (E.BadUnicodeFormat 2)
 
-    else
-        let
-            digitPos : Int
-            digitPos =
-                pos + 1
-
-            ( newPos, code ) =
-                Number.chompHex src digitPos end
-
-            numDigits : Int
-            numDigits =
-                newPos - digitPos
-        in
-        if newPos >= end || P.unsafeIndex src newPos /= '}' then
-            EscapeProblem row col (E.BadUnicodeFormat (2 + numDigits))
-
-        else if code < 0 || code > 0x0010FFFF then
-            EscapeProblem row col (E.BadUnicodeCode (3 + numDigits))
-
-        else if numDigits < 4 || numDigits > 6 then
-            EscapeProblem row col (E.BadUnicodeLength (3 + numDigits) numDigits code)
-
-        else
-            EscapeUnicode (numDigits + 4) code
+-- HEX
 
 
-singleQuote : ES.Chunk
-singleQuote =
-    ES.Escape '\''
+hexToInt : String -> Maybe Int
+hexToInt s =
+    String.foldl
+        (\c acc ->
+            case acc of
+                Nothing ->
+                    Nothing
 
+                Just n ->
+                    let
+                        digit =
+                            if '0' <= c && c <= '9' then
+                                Just (Char.toCode c - Char.toCode '0')
 
-doubleQuote : ES.Chunk
-doubleQuote =
-    ES.Escape '"'
+                            else if 'a' <= c && c <= 'f' then
+                                Just (Char.toCode c - Char.toCode 'a' + 10)
 
+                            else if 'A' <= c && c <= 'F' then
+                                Just (Char.toCode c - Char.toCode 'A' + 10)
 
-newline : ES.Chunk
-newline =
-    ES.Escape 'n'
-
-
-carriageReturn : ES.Chunk
-carriageReturn =
-    ES.Escape 'r'
-
-
-placeholder : ES.Chunk
-placeholder =
-    ES.CodePoint 0xFFFD
+                            else
+                                Nothing
+                    in
+                    Maybe.map (\d -> n * 16 + d) digit
+        )
+        (Just 0)
+        s

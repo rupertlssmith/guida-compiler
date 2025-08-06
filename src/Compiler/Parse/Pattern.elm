@@ -6,14 +6,16 @@ module Compiler.Parse.Pattern exposing
 import Compiler.AST.Source as Src
 import Compiler.Data.Name as Name
 import Compiler.Parse.Keyword as Keyword
+import Compiler.Parse.NewPrimitives as P
 import Compiler.Parse.Number as Number
-import Compiler.Parse.Primitives as P
 import Compiler.Parse.Space as Space
 import Compiler.Parse.String as String
 import Compiler.Parse.SyntaxVersion as SV exposing (SyntaxVersion)
 import Compiler.Parse.Variable as Var
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Error.Syntax as E
+import Parser exposing (..)
+import Parser.Advanced as Advanced
 
 
 
@@ -22,72 +24,53 @@ import Compiler.Reporting.Error.Syntax as E
 
 term : SyntaxVersion -> P.Parser E.Pattern Src.Pattern
 term syntaxVersion =
+    oneOf
+        [ P.located (wildcard syntaxVersion |> map Src.PAnything)
+        , P.located (Var.lower E.PStart |> map Src.PVar)
+        , P.located (constructor syntaxVersion)
+        , P.located (Number.number E.PStart E.PNumber |> andThen numberToPattern)
+        , P.located (String.string E.PStart E.PString |> map Src.PStr)
+        , P.located (String.character E.PStart E.PChar |> map Src.PChr)
+        , record
+        , tuple syntaxVersion
+        , list syntaxVersion
+        ]
+
+
+constructor : SyntaxVersion -> P.Parser E.Pattern Src.Pattern_
+constructor syntaxVersion =
     P.getPosition
-        |> P.bind
+        |> andThen
             (\start ->
-                P.oneOf E.PStart
-                    [ record start
-                    , tuple syntaxVersion start
-                    , list syntaxVersion start
-                    , termHelp syntaxVersion start
-                    ]
+                Var.foreignUpper E.PStart
+                    |> andThen
+                        (\upper ->
+                            P.getPosition
+                                |> andThen
+                                    (\end ->
+                                        let
+                                            region =
+                                                A.Region start end
+                                        in
+                                        case upper of
+                                            Var.Unqualified name ->
+                                                succeed (Src.PCtor region name [])
+
+                                            Var.Qualified home name ->
+                                                succeed (Src.PCtorQual region home name [])
+                                    )
+                        )
             )
 
 
-termHelp : SyntaxVersion -> A.Position -> P.Parser E.Pattern Src.Pattern
-termHelp syntaxVersion start =
-    P.oneOf E.PStart
-        [ wildcard syntaxVersion
-            |> P.bind (\name -> P.addEnd start (Src.PAnything name))
-        , Var.lower E.PStart
-            |> P.bind (\name -> P.addEnd start (Src.PVar name))
-        , Var.foreignUpper E.PStart
-            |> P.bind
-                (\upper ->
-                    P.getPosition
-                        |> P.fmap
-                            (\end ->
-                                let
-                                    region : A.Region
-                                    region =
-                                        A.Region start end
-                                in
-                                A.at start end <|
-                                    case upper of
-                                        Var.Unqualified name ->
-                                            Src.PCtor region name []
+numberToPattern : Number.Number -> P.Parser E.Pattern Src.Pattern_
+numberToPattern number =
+    case number of
+        Number.Int int ->
+            succeed (Src.PInt int)
 
-                                        Var.Qualified home name ->
-                                            Src.PCtorQual region home name []
-                            )
-                )
-        , Number.number E.PStart E.PNumber
-            |> P.bind
-                (\number ->
-                    P.getPosition
-                        |> P.bind
-                            (\end ->
-                                case number of
-                                    Number.Int int ->
-                                        P.pure (A.at start end (Src.PInt int))
-
-                                    Number.Float float ->
-                                        P.Parser <|
-                                            \(P.State _ _ _ _ row col) ->
-                                                let
-                                                    width : Int
-                                                    width =
-                                                        String.fromFloat float
-                                                            |> String.length
-                                                in
-                                                P.Cerr row (col - width) (E.PFloat width)
-                            )
-                )
-        , String.string E.PStart E.PString
-            |> P.bind (\str -> P.addEnd start (Src.PStr str))
-        , String.character E.PStart E.PChar
-            |> P.bind (\chr -> P.addEnd start (Src.PChr chr))
-        ]
+        Number.Float float ->
+            Advanced.problem (E.PFloat (String.fromFloat float |> String.length))
 
 
 
@@ -96,96 +79,43 @@ termHelp syntaxVersion start =
 
 wildcard : SyntaxVersion -> P.Parser E.Pattern Name.Name
 wildcard syntaxVersion =
-    P.Parser <|
-        \(P.State src pos end indent row col) ->
-            if pos == end || P.unsafeIndex src pos /= '_' then
-                P.Eerr row col E.PStart
-
-            else
-                let
-                    newPos : Int
-                    newPos =
-                        pos + 1
-
-                    newCol : P.Col
-                    newCol =
-                        col + 1
-                in
-                if Var.getInnerWidth src newPos end > 0 then
-                    case syntaxVersion of
-                        SV.Elm ->
-                            let
-                                ( badPos, badCol ) =
-                                    Var.chompInnerChars src newPos end newCol
-                            in
-                            P.Cerr row col (E.PWildcardNotVar (Name.fromPtr src pos badPos) (badCol - col))
-
-                        SV.Guida ->
-                            let
-                                ( lowerPos, lowerCol ) =
-                                    Var.chompLower src newPos end newCol
-
-                                name : String
-                                name =
-                                    Name.fromPtr src newPos lowerPos
-                            in
-                            if Var.isReservedWord name then
-                                P.Cerr row col (E.PWildcardReservedWord (Name.fromPtr src newPos lowerPos) (lowerCol - col))
-
-                            else
-                                let
-                                    newState : P.State
-                                    newState =
-                                        P.State src lowerPos end indent row lowerCol
-                                in
-                                P.Cok name newState
-
-                else
-                    let
-                        newState : P.State
-                        newState =
-                            P.State src newPos end indent row newCol
-                    in
-                    P.Cok "" newState
+    Advanced.symbol "_" E.PStart
+        |> andThen
+            (\_ ->
+                oneOf
+                    [ -- Guida-style wildcard with name
+                      P.getPosition |> andThen (\_ -> Var.lower E.PWildcardNotVar)
+                    , -- Plain wildcard
+                      succeed ""
+                    ]
+            )
 
 
 
 -- RECORDS
 
 
-record : A.Position -> P.Parser E.Pattern Src.Pattern
-record start =
-    P.inContext E.PRecord (P.word1 '{' E.PStart) <|
-        (Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentOpen
-            |> P.bind
+record : P.Parser E.Pattern Src.Pattern
+record =
+    P.located
+        (Advanced.symbol "{" E.PStart
+            |> andThen
                 (\_ ->
-                    P.oneOf E.PRecordOpen
-                        [ P.addLocation (Var.lower E.PRecordField)
-                            |> P.bind
-                                (\var ->
-                                    Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
-                                        |> P.bind (\_ -> recordHelp start [ var ])
-                                )
-                        , P.word1 '}' E.PRecordEnd
-                            |> P.bind (\_ -> P.addEnd start (Src.PRecord []))
+                    oneOf
+                        [ Advanced.symbol "}" E.PStart |> andThen (\_ -> succeed [])
+                        , loop [] recordFieldHelp
                         ]
                 )
+            |> map Src.PRecord
         )
 
 
-recordHelp : A.Position -> List (A.Located Name.Name) -> P.Parser E.PRecord Src.Pattern
-recordHelp start vars =
-    P.oneOf E.PRecordEnd
-        [ P.word1 ',' E.PRecordEnd
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentField)
-            |> P.bind (\_ -> P.addLocation (Var.lower E.PRecordField))
-            |> P.bind
-                (\var ->
-                    Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
-                        |> P.bind (\_ -> recordHelp start (var :: vars))
-                )
-        , P.word1 '}' E.PRecordEnd
-            |> P.bind (\_ -> P.addEnd start (Src.PRecord vars))
+recordFieldHelp : List (A.Located Name.Name) -> P.Parser E.PRecord (Step (List (A.Located Name.Name)) (List (A.Located Name.Name)))
+recordFieldHelp revFields =
+    oneOf
+        [ P.located (Var.lower E.PRecordField) |> andThen (\var -> succeed (Loop (var :: revFields)))
+        , Advanced.symbol "," E.PRecordEnd |> andThen (\_ -> succeed (Loop revFields))
+        , Advanced.symbol "}" E.PRecordEnd |> andThen (\_ -> succeed (Done (List.reverse revFields)))
         ]
 
 
@@ -193,47 +123,49 @@ recordHelp start vars =
 -- TUPLES
 
 
-tuple : SyntaxVersion -> A.Position -> P.Parser E.Pattern Src.Pattern
-tuple syntaxVersion start =
-    P.inContext E.PTuple (P.word1 '(' E.PStart) <|
-        (Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentExpr1
-            |> P.bind
+tuple : SyntaxVersion -> P.Parser E.Pattern Src.Pattern
+tuple syntaxVersion =
+    P.located
+        (Advanced.symbol "(" E.PStart
+            |> andThen
                 (\_ ->
-                    P.oneOf E.PTupleOpen
-                        [ P.specialize E.PTupleExpr (expression syntaxVersion)
-                            |> P.bind
-                                (\( pattern, end ) ->
-                                    Space.checkIndent end E.PTupleIndentEnd
-                                        |> P.bind (\_ -> tupleHelp syntaxVersion start pattern [])
-                                )
-                        , P.word1 ')' E.PTupleEnd
-                            |> P.bind (\_ -> P.addEnd start Src.PUnit)
+                    oneOf
+                        [ Advanced.symbol ")" E.PStart |> andThen (\_ -> succeed Src.PUnit)
+                        , tupleHelp syntaxVersion
                         ]
                 )
         )
 
 
-tupleHelp : SyntaxVersion -> A.Position -> Src.Pattern -> List Src.Pattern -> P.Parser E.PTuple Src.Pattern
-tupleHelp syntaxVersion start firstPattern revPatterns =
-    P.oneOf E.PTupleEnd
-        [ P.word1 ',' E.PTupleEnd
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentExprN)
-            |> P.bind (\_ -> P.specialize E.PTupleExpr (expression syntaxVersion))
-            |> P.bind
-                (\( pattern, end ) ->
-                    Space.checkIndent end E.PTupleIndentEnd
-                        |> P.bind (\_ -> tupleHelp syntaxVersion start firstPattern (pattern :: revPatterns))
-                )
-        , P.word1 ')' E.PTupleEnd
-            |> P.bind
-                (\_ ->
-                    case List.reverse revPatterns of
-                        [] ->
-                            P.pure firstPattern
+tupleHelp : SyntaxVersion -> P.Parser E.Pattern Src.Pattern_
+tupleHelp syntaxVersion =
+    expression syntaxVersion
+        |> andThen
+            (\( first, _ ) ->
+                loop [ first ] (tupleRestHelp syntaxVersion)
+                    |> andThen
+                        (\patterns ->
+                            case patterns of
+                                [ p ] ->
+                                    succeed (A.toValue p)
 
-                        secondPattern :: otherPatterns ->
-                            P.addEnd start (Src.PTuple firstPattern secondPattern otherPatterns)
-                )
+                                p1 :: p2 :: rest ->
+                                    succeed (Src.PTuple p1 p2 rest)
+
+                                [] ->
+                                    -- This should not happen
+                                    Advanced.problem E.PTupleOpen
+                        )
+            )
+
+
+tupleRestHelp : SyntaxVersion -> List Src.Pattern -> P.Parser E.PTuple (Step (List Src.Pattern) (List Src.Pattern))
+tupleRestHelp syntaxVersion revPatterns =
+    oneOf
+        [ Advanced.symbol "," E.PTupleEnd
+            |> andThen (\_ -> expression syntaxVersion |> andThen (\( p, _ ) -> succeed (Loop (p :: revPatterns))))
+        , Advanced.symbol ")" E.PTupleEnd
+            |> andThen (\_ -> succeed (Done (List.reverse revPatterns)))
         ]
 
 
@@ -241,39 +173,27 @@ tupleHelp syntaxVersion start firstPattern revPatterns =
 -- LIST
 
 
-list : SyntaxVersion -> A.Position -> P.Parser E.Pattern Src.Pattern
-list syntaxVersion start =
-    P.inContext E.PList (P.word1 '[' E.PStart) <|
-        (Space.chompAndCheckIndent E.PListSpace E.PListIndentOpen
-            |> P.bind
+list : SyntaxVersion -> P.Parser E.Pattern Src.Pattern
+list syntaxVersion =
+    P.located
+        (Advanced.symbol "[" E.PStart
+            |> andThen
                 (\_ ->
-                    P.oneOf E.PListOpen
-                        [ P.specialize E.PListExpr (expression syntaxVersion)
-                            |> P.bind
-                                (\( pattern, end ) ->
-                                    Space.checkIndent end E.PListIndentEnd
-                                        |> P.bind (\_ -> listHelp syntaxVersion start [ pattern ])
-                                )
-                        , P.word1 ']' E.PListEnd
-                            |> P.bind (\_ -> P.addEnd start (Src.PList []))
+                    oneOf
+                        [ Advanced.symbol "]" E.PStart |> andThen (\_ -> succeed [])
+                        , loop [] (listElmHelp syntaxVersion)
                         ]
                 )
+            |> map Src.PList
         )
 
 
-listHelp : SyntaxVersion -> A.Position -> List Src.Pattern -> P.Parser E.PList Src.Pattern
-listHelp syntaxVersion start patterns =
-    P.oneOf E.PListEnd
-        [ P.word1 ',' E.PListEnd
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.PListSpace E.PListIndentExpr)
-            |> P.bind (\_ -> P.specialize E.PListExpr (expression syntaxVersion))
-            |> P.bind
-                (\( pattern, end ) ->
-                    Space.checkIndent end E.PListIndentEnd
-                        |> P.bind (\_ -> listHelp syntaxVersion start (pattern :: patterns))
-                )
-        , P.word1 ']' E.PListEnd
-            |> P.bind (\_ -> P.addEnd start (Src.PList (List.reverse patterns)))
+listElmHelp : SyntaxVersion -> List Src.Pattern -> P.Parser E.PList (Step (List Src.Pattern) (List Src.Pattern))
+listElmHelp syntaxVersion revPatterns =
+    oneOf
+        [ expression syntaxVersion |> andThen (\( p, _ ) -> succeed (Loop (p :: revPatterns)))
+        , Advanced.symbol "," E.PListEnd |> andThen (\_ -> succeed (Loop revPatterns))
+        , Advanced.symbol "]" E.PListEnd |> andThen (\_ -> succeed (Done (List.reverse revPatterns)))
         ]
 
 
@@ -284,10 +204,10 @@ listHelp syntaxVersion start patterns =
 expression : SyntaxVersion -> Space.Parser E.Pattern Src.Pattern
 expression syntaxVersion =
     P.getPosition
-        |> P.bind
+        |> andThen
             (\start ->
                 exprPart syntaxVersion
-                    |> P.bind
+                    |> andThen
                         (\ePart ->
                             exprHelp syntaxVersion start [] ePart
                         )
@@ -296,43 +216,32 @@ expression syntaxVersion =
 
 exprHelp : SyntaxVersion -> A.Position -> List Src.Pattern -> ( Src.Pattern, A.Position ) -> Space.Parser E.Pattern Src.Pattern
 exprHelp syntaxVersion start revPatterns ( pattern, end ) =
-    P.oneOfWithFallback
+    oneOf
         [ Space.checkIndent end E.PIndentStart
-            |> P.bind (\_ -> P.word2 ':' ':' E.PStart)
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.PSpace E.PIndentStart)
-            |> P.bind (\_ -> exprPart syntaxVersion)
-            |> P.bind (\ePart -> exprHelp syntaxVersion start (pattern :: revPatterns) ePart)
+            |> andThen (\_ -> Advanced.symbol "::" E.PStart)
+            |> andThen (\_ -> Space.chompAndCheckIndent E.PSpace E.PIndentStart)
+            |> andThen (\_ -> exprPart syntaxVersion)
+            |> andThen (\ePart -> exprHelp syntaxVersion start (pattern :: revPatterns) ePart)
         , Space.checkIndent end E.PIndentStart
-            |> P.bind (\_ -> Keyword.as_ E.PStart)
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.PSpace E.PIndentAlias)
-            |> P.bind (\_ -> P.getPosition)
-            |> P.bind
-                (\nameStart ->
-                    Var.lower E.PAlias
-                        |> P.bind
-                            (\name ->
-                                P.getPosition
-                                    |> P.bind
-                                        (\newEnd ->
-                                            Space.chomp E.PSpace
-                                                |> P.fmap
-                                                    (\_ ->
-                                                        let
-                                                            alias_ : A.Located Name.Name
-                                                            alias_ =
-                                                                A.at nameStart newEnd name
-                                                        in
-                                                        ( A.at start newEnd (Src.PAlias (List.foldl cons pattern revPatterns) alias_)
-                                                        , newEnd
-                                                        )
-                                                    )
+            |> andThen (\_ -> Keyword.as_ E.PStart)
+            |> andThen (\_ -> Space.chompAndCheckIndent E.PSpace E.PIndentAlias)
+            |> andThen (\_ -> P.located (Var.lower E.PAlias))
+            |> andThen
+                (\alias_ ->
+                    P.getPosition
+                        |> andThen
+                            (\newEnd ->
+                                Space.chomp E.PSpace
+                                    |> map
+                                        (\_ ->
+                                            ( A.at start newEnd (Src.PAlias (List.foldl cons pattern revPatterns) alias_)
+                                            , newEnd
+                                            )
                                         )
                             )
                 )
         ]
-        ( List.foldl cons pattern revPatterns
-        , end
-        )
+        |> oneOfWithFallback ( List.foldl cons pattern revPatterns, end )
 
 
 cons : Src.Pattern -> Src.Pattern -> Src.Pattern
@@ -346,47 +255,37 @@ cons hd tl =
 
 exprPart : SyntaxVersion -> Space.Parser E.Pattern Src.Pattern
 exprPart syntaxVersion =
-    P.oneOf E.PStart
-        [ P.getPosition
-            |> P.bind
-                (\start ->
-                    Var.foreignUpper E.PStart
-                        |> P.bind
-                            (\upper ->
-                                P.getPosition
-                                    |> P.bind (\end -> exprTermHelp syntaxVersion (A.Region start end) upper start [])
-                            )
-                )
-        , term syntaxVersion
-            |> P.bind
-                (\((A.At (A.Region _ end) _) as eterm) ->
-                    Space.chomp E.PSpace
-                        |> P.fmap (\_ -> ( eterm, end ))
-                )
+    oneOf
+        [ P.located (constructorWithArgs syntaxVersion)
+        , term syntaxVersion |> andThen (\t -> P.getPosition |> andThen (\p -> succeed ( t, p )))
         ]
 
 
-exprTermHelp : SyntaxVersion -> A.Region -> Var.Upper -> A.Position -> List Src.Pattern -> Space.Parser E.Pattern Src.Pattern
-exprTermHelp syntaxVersion region upper start revArgs =
+constructorWithArgs : SyntaxVersion -> P.Parser E.Pattern Src.Pattern_
+constructorWithArgs syntaxVersion =
     P.getPosition
-        |> P.bind
-            (\end ->
-                Space.chomp E.PSpace
-                    |> P.bind
-                        (\_ ->
-                            P.oneOfWithFallback
-                                [ Space.checkIndent end E.PIndentStart
-                                    |> P.bind (\_ -> term syntaxVersion)
-                                    |> P.bind (\arg -> exprTermHelp syntaxVersion region upper start (arg :: revArgs))
-                                ]
-                                ( A.at start end <|
-                                    case upper of
-                                        Var.Unqualified name ->
-                                            Src.PCtor region name (List.reverse revArgs)
+        |> andThen
+            (\start ->
+                Var.foreignUpper E.PStart
+                    |> andThen
+                        (\upper ->
+                            loop [] (term syntaxVersion |> andThen (\arg -> succeed (Loop [ arg ])))
+                                |> andThen
+                                    (\args ->
+                                        P.getPosition
+                                            |> andThen
+                                                (\end ->
+                                                    let
+                                                        region =
+                                                            A.Region start end
+                                                    in
+                                                    case upper of
+                                                        Var.Unqualified name ->
+                                                            succeed (Src.PCtor region name args)
 
-                                        Var.Qualified home name ->
-                                            Src.PCtorQual region home name (List.reverse revArgs)
-                                , end
-                                )
+                                                        Var.Qualified home name ->
+                                                            succeed (Src.PCtorQual region home name args)
+                                                )
+                                    )
                         )
             )

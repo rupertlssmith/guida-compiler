@@ -2,12 +2,14 @@ module Compiler.Parse.Shader exposing (shader)
 
 import Compiler.AST.Source as Src
 import Compiler.AST.Utils.Shader as Shader
-import Compiler.Parse.Primitives as P exposing (Col, Parser, Row)
+import Compiler.Parse.NewPrimitives as P
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Error.Syntax as E
 import Data.Map as Dict
 import Language.GLSL.Parser as GLP
 import Language.GLSL.Syntax as GLS
+import Parser exposing (..)
+import Parser.Advanced as Advanced
 import Utils.Crash as Crash
 
 
@@ -15,117 +17,45 @@ import Utils.Crash as Crash
 -- SHADER
 
 
-shader : A.Position -> Parser E.Expr Src.Expr
-shader ((A.Position row col) as start) =
-    parseBlock
-        |> P.bind
-            (\block ->
-                parseGlsl row col block
-                    |> P.bind
-                        (\shdr ->
-                            P.getPosition
-                                |> P.fmap
-                                    (\end ->
-                                        A.at start end (Src.Shader (Shader.fromString block) shdr)
-                                    )
-                        )
-            )
+shader : P.Parser E.Expr Src.Expr
+shader =
+    P.located
+        (parseBlock
+            |> andThen
+                (\( block, startRow, startCol ) ->
+                    parseGlsl startRow startCol block
+                        |> map (\shdr -> Src.Shader (Shader.fromString block) shdr)
+                )
+        )
 
 
 
 -- BLOCK
 
 
-parseBlock : Parser E.Expr String
+parseBlock : P.Parser E.Expr ( String, Int, Int )
 parseBlock =
-    P.Parser <|
-        \(P.State src pos end indent row col) ->
-            let
-                pos6 : Int
-                pos6 =
-                    pos + 6
-            in
-            if
-                (pos6 <= end)
-                    && (P.unsafeIndex src pos == '[')
-                    && (P.unsafeIndex src (pos + 1) == 'g')
-                    && (P.unsafeIndex src (pos + 2) == 'l')
-                    && (P.unsafeIndex src (pos + 3) == 's')
-                    && (P.unsafeIndex src (pos + 4) == 'l')
-                    && (P.unsafeIndex src (pos + 5) == '|')
-            then
-                let
-                    ( ( status, newPos ), ( newRow, newCol ) ) =
-                        eatShader src pos6 end row (col + 6)
-                in
-                case status of
-                    Good ->
-                        let
-                            off : Int
-                            off =
-                                pos6
-
-                            len : Int
-                            len =
-                                newPos - pos6
-
-                            block : String
-                            block =
-                                String.left len (String.dropLeft off src)
-
-                            newState : P.State
-                            newState =
-                                P.State src (newPos + 2) end indent newRow (newCol + 2)
-                        in
-                        P.Cok block newState
-
-                    Unending ->
-                        P.Cerr row col E.EndlessShader
-
-            else
-                P.Eerr row col E.Start
-
-
-type Status
-    = Good
-    | Unending
-
-
-eatShader : String -> Int -> Int -> Row -> Col -> ( ( Status, Int ), ( Row, Col ) )
-eatShader src pos end row col =
-    if pos >= end then
-        ( ( Unending, pos ), ( row, col ) )
-
-    else
-        let
-            word : Char
-            word =
-                P.unsafeIndex src pos
-        in
-        if word == '|' && P.isWord src (pos + 1) end ']' then
-            ( ( Good, pos ), ( row, col ) )
-
-        else if word == '\n' then
-            eatShader src (pos + 1) end (row + 1) 1
-
-        else
-            let
-                newPos : Int
-                newPos =
-                    pos + P.getCharWidth word
-            in
-            eatShader src newPos end row (col + 1)
+    Advanced.symbol "[glsl|" E.Start
+        |> andThen
+            (\_ ->
+                P.getPosition
+                    |> andThen
+                        (\(A.Position row col) ->
+                            getChompedString (chompUntil "|]")
+                                |> andThen (\block -> succeed ( block, row, col ))
+                        )
+            )
 
 
 
 -- GLSL
 
 
-parseGlsl : Row -> Col -> String -> Parser E.Expr Shader.Types
+parseGlsl : Int -> Int -> String -> P.Parser E.Expr Shader.Types
 parseGlsl startRow startCol src =
     case GLP.parse src of
         Ok (GLS.TranslationUnit decls) ->
-            P.pure (List.foldr addInput emptyTypes (List.concatMap extractInputs decls))
+            succeed (List.foldr addInput emptyTypes (List.concatMap extractInputs decls))
 
         Err { position, messages } ->
             -- FIXME this should be moved into guida-lang/glsl
@@ -168,11 +98,9 @@ showErrorMessages msgs =
         String.join "\n" msgs
 
 
-failure : Row -> Col -> String -> Parser E.Expr a
+failure : Int -> Int -> String -> P.Parser E.Expr a
 failure row col msg =
-    P.Parser <|
-        \_ ->
-            P.Cerr row col (E.ShaderProblem msg)
+    Advanced.problem (E.ShaderProblem msg)
 
 
 
@@ -188,13 +116,13 @@ addInput : ( GLS.StorageQualifier, Shader.Type, String ) -> Shader.Types -> Shad
 addInput ( qual, tipe, name ) (Shader.Types attribute uniform varying) =
     case qual of
         GLS.Attribute ->
-            Shader.Types (Dict.insert identity name tipe attribute) uniform varying
+            Shader.Types (Dict.insert name tipe attribute) uniform varying
 
         GLS.Uniform ->
-            Shader.Types attribute (Dict.insert identity name tipe uniform) varying
+            Shader.Types attribute (Dict.insert name tipe uniform) varying
 
         GLS.Varying ->
-            Shader.Types attribute uniform (Dict.insert identity name tipe varying)
+            Shader.Types attribute uniform (Dict.insert name tipe varying)
 
         _ ->
             Crash.crash "Should never happen due to `extractInputs` function"

@@ -5,11 +5,13 @@ module Compiler.Parse.Type exposing
 
 import Compiler.AST.Source as Src
 import Compiler.Data.Name exposing (Name)
-import Compiler.Parse.Primitives as P
+import Compiler.Parse.NewPrimitives as P
 import Compiler.Parse.Space as Space
 import Compiler.Parse.Variable as Var
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Error.Syntax as E
+import Parser exposing (..)
+import Parser.Advanced as Advanced
 
 
 
@@ -18,108 +20,142 @@ import Compiler.Reporting.Error.Syntax as E
 
 term : P.Parser E.Type Src.Type
 term =
-    P.getPosition
-        |> P.bind
-            (\start ->
-                P.oneOf E.TStart
-                    [ -- types with no arguments (Int, Float, etc.)
-                      Var.foreignUpper E.TStart
-                        |> P.bind
-                            (\upper ->
-                                P.getPosition
-                                    |> P.fmap
-                                        (\end ->
-                                            let
-                                                region : A.Region
-                                                region =
-                                                    A.Region start end
-                                            in
-                                            A.At region <|
-                                                case upper of
-                                                    Var.Unqualified name ->
-                                                        Src.TType region name []
+    oneOf
+        [ P.located (Var.lower E.TStart |> map Src.TVar)
+        , P.located constructor
+        , tuple
+        , record
+        ]
 
-                                                    Var.Qualified home name ->
-                                                        Src.TTypeQual region home name []
+
+constructor : P.Parser E.Type Src.Type_
+constructor =
+    P.getPosition
+        |> andThen
+            (\start ->
+                Var.foreignUpper E.TStart
+                    |> andThen
+                        (\upper ->
+                            P.getPosition
+                                |> andThen
+                                    (\end ->
+                                        let
+                                            region =
+                                                A.Region start end
+                                        in
+                                        case upper of
+                                            Var.Unqualified name ->
+                                                succeed (Src.TType region name [])
+
+                                            Var.Qualified home name ->
+                                                succeed (Src.TTypeQual region home name [])
+                                    )
+                        )
+            )
+
+
+tuple : P.Parser E.Type Src.Type
+tuple =
+    P.located
+        (Advanced.symbol "(" E.TStart
+            |> andThen
+                (\_ ->
+                    oneOf
+                        [ Advanced.symbol ")" E.TStart |> andThen (\_ -> succeed Src.TUnit)
+                        , tupleHelp
+                        ]
+                )
+        )
+
+
+tupleHelp : P.Parser E.Type Src.Type_
+tupleHelp =
+    expression
+        |> andThen
+            (\( first, _ ) ->
+                loop [ first ] tupleRestHelp
+                    |> andThen
+                        (\patterns ->
+                            case patterns of
+                                [ p ] ->
+                                    succeed (A.toValue p)
+
+                                p1 :: p2 :: rest ->
+                                    succeed (Src.TTuple p1 p2 rest)
+
+                                [] ->
+                                    -- This should not happen
+                                    Advanced.problem E.TTupleOpen
+                        )
+            )
+
+
+tupleRestHelp : List Src.Type -> P.Parser E.TTuple (Step (List Src.Type) (List Src.Type))
+tupleRestHelp revPatterns =
+    oneOf
+        [ Advanced.symbol "," E.TTupleEnd
+            |> andThen (\_ -> expression |> andThen (\( p, _ ) -> succeed (Loop (p :: revPatterns))))
+        , Advanced.symbol ")" E.TTupleEnd
+            |> andThen (\_ -> succeed (Done (List.reverse revPatterns)))
+        ]
+
+
+record : P.Parser E.Type Src.Type
+record =
+    P.located
+        (Advanced.symbol "{" E.TStart
+            |> andThen
+                (\_ ->
+                    oneOf
+                        [ Advanced.symbol "}" E.TRecordEnd |> andThen (\_ -> succeed (Src.TRecord [] Nothing))
+                        , recordHelp
+                        ]
+                )
+        )
+
+
+recordHelp : P.Parser E.Type Src.Type_
+recordHelp =
+    P.located (Var.lower E.TRecordField)
+        |> andThen
+            (\name ->
+                oneOf
+                    [ Advanced.symbol "|" E.TRecordColon
+                        |> andThen
+                            (\_ ->
+                                loop [] recordFieldHelp
+                                    |> andThen (\fields -> succeed (Src.TRecord fields (Just name)))
+                            )
+                    , Advanced.symbol ":" E.TRecordColon
+                        |> andThen
+                            (\_ ->
+                                expression
+                                    |> andThen
+                                        (\( tipe, _ ) ->
+                                            loop [ ( name, tipe ) ] recordRestHelp
+                                                |> andThen (\fields -> succeed (Src.TRecord fields Nothing))
                                         )
                             )
-                    , -- type variables
-                      Var.lower E.TStart
-                        |> P.bind
-                            (\var ->
-                                P.addEnd start (Src.TVar var)
-                            )
-                    , -- tuples
-                      P.inContext E.TTuple (P.word1 '(' E.TStart) <|
-                        P.oneOf E.TTupleOpen
-                            [ P.word1 ')' E.TTupleOpen
-                                |> P.bind (\_ -> P.addEnd start Src.TUnit)
-                            , Space.chompAndCheckIndent E.TTupleSpace E.TTupleIndentType1
-                                |> P.bind
-                                    (\_ ->
-                                        P.specialize E.TTupleType expression
-                                            |> P.bind
-                                                (\( tipe, end ) ->
-                                                    Space.checkIndent end E.TTupleIndentEnd
-                                                        |> P.bind (\_ -> chompTupleEnd start tipe [])
-                                                )
-                                    )
-                            ]
-                    , -- records
-                      P.inContext E.TRecord (P.word1 '{' E.TStart) <|
-                        (Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentOpen
-                            |> P.bind
-                                (\_ ->
-                                    P.oneOf E.TRecordOpen
-                                        [ P.word1 '}' E.TRecordEnd
-                                            |> P.bind (\_ -> P.addEnd start (Src.TRecord [] Nothing))
-                                        , P.addLocation (Var.lower E.TRecordField)
-                                            |> P.bind
-                                                (\name ->
-                                                    Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
-                                                        |> P.bind
-                                                            (\_ ->
-                                                                P.oneOf E.TRecordColon
-                                                                    [ P.word1 '|' E.TRecordColon
-                                                                        |> P.bind
-                                                                            (\_ ->
-                                                                                Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
-                                                                                    |> P.bind
-                                                                                        (\_ ->
-                                                                                            chompField
-                                                                                                |> P.bind
-                                                                                                    (\field ->
-                                                                                                        chompRecordEnd [ field ]
-                                                                                                            |> P.bind (\fields -> P.addEnd start (Src.TRecord fields (Just name)))
-                                                                                                    )
-                                                                                        )
-                                                                            )
-                                                                    , P.word1 ':' E.TRecordColon
-                                                                        |> P.bind
-                                                                            (\_ ->
-                                                                                Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
-                                                                                    |> P.bind
-                                                                                        (\_ ->
-                                                                                            P.specialize E.TRecordType expression
-                                                                                                |> P.bind
-                                                                                                    (\( tipe, end ) ->
-                                                                                                        Space.checkIndent end E.TRecordIndentEnd
-                                                                                                            |> P.bind
-                                                                                                                (\_ ->
-                                                                                                                    chompRecordEnd [ ( name, tipe ) ]
-                                                                                                                        |> P.bind (\fields -> P.addEnd start (Src.TRecord fields Nothing))
-                                                                                                                )
-                                                                                                    )
-                                                                                        )
-                                                                            )
-                                                                    ]
-                                                            )
-                                                )
-                                        ]
-                                )
-                        )
                     ]
             )
+
+
+recordRestHelp : List ( A.Located Name, Src.Type ) -> P.Parser E.TRecord (Step (List ( A.Located Name, Src.Type )) (List ( A.Located Name, Src.Type )))
+recordRestHelp revFields =
+    oneOf
+        [ Advanced.symbol "," E.TRecordEnd
+            |> andThen (\_ -> recordField |> andThen (\f -> succeed (Loop (f :: revFields))))
+        , Advanced.symbol "}" E.TRecordEnd
+            |> andThen (\_ -> succeed (Done (List.reverse revFields)))
+        ]
+
+
+recordField : P.Parser E.TRecord ( A.Located Name, Src.Type )
+recordField =
+    succeed (\n _ t -> ( n, t ))
+        |> andMap (P.located (Var.lower E.TRecordField))
+        |> andMap (Advanced.symbol ":" E.TRecordColon)
+        |> andMap (expression |> map Tuple.first)
 
 
 
@@ -129,50 +165,26 @@ term =
 expression : Space.Parser E.Type Src.Type
 expression =
     P.getPosition
-        |> P.bind
+        |> andThen
             (\start ->
-                P.oneOf E.TStart
-                    [ app start
-                    , term
-                        |> P.bind
-                            (\eterm ->
-                                P.getPosition
-                                    |> P.bind
-                                        (\end ->
-                                            Space.chomp E.TSpace
-                                                |> P.fmap (\_ -> ( eterm, end ))
-                                        )
-                            )
-                    ]
-                    |> P.bind
-                        (\(( tipe1, end1 ) as term1) ->
-                            P.oneOfWithFallback
-                                [ -- should never trigger
-                                  Space.checkIndent end1 E.TIndentStart
-                                    |> P.bind
-                                        (\_ ->
-                                            -- could just be another type instead
-                                            P.word2 '-' '>' E.TStart
-                                                |> P.bind
-                                                    (\_ ->
-                                                        Space.chompAndCheckIndent E.TSpace E.TIndentStart
-                                                            |> P.bind
-                                                                (\_ ->
-                                                                    expression
-                                                                        |> P.fmap
-                                                                            (\( tipe2, end2 ) ->
-                                                                                let
-                                                                                    tipe : A.Located Src.Type_
-                                                                                    tipe =
-                                                                                        A.at start end2 (Src.TLambda tipe1 tipe2)
-                                                                                in
-                                                                                ( tipe, end2 )
-                                                                            )
-                                                                )
-                                                    )
+                oneOf [ app, term |> andThen (\t -> P.getPosition |> andThen (\p -> succeed ( t, p ))) ]
+                    |> andThen
+                        (\( tipe1, end1 ) ->
+                            oneOf
+                                [ succeed ()
+                                    |> andThen (\_ -> Advanced.symbol "->" E.TStart)
+                                    |> andThen (\_ -> expression)
+                                    |> andThen
+                                        (\( tipe2, end2 ) ->
+                                            let
+                                                tipe : A.Located Src.Type_
+                                                tipe =
+                                                    A.at start end2 (Src.TLambda tipe1 tipe2)
+                                            in
+                                            succeed ( tipe, end2 )
                                         )
                                 ]
-                                term1
+                                |> oneOfWithFallback ( tipe1, end1 )
                         )
             )
 
@@ -181,155 +193,50 @@ expression =
 -- TYPE CONSTRUCTORS
 
 
-app : A.Position -> Space.Parser E.Type Src.Type
-app start =
-    Var.foreignUpper E.TStart
-        |> P.bind
-            (\upper ->
-                P.getPosition
-                    |> P.bind
-                        (\upperEnd ->
-                            Space.chomp E.TSpace
-                                |> P.bind
-                                    (\_ ->
-                                        chompArgs [] upperEnd
-                                            |> P.fmap
-                                                (\( args, end ) ->
-                                                    let
-                                                        region : A.Region
-                                                        region =
-                                                            A.Region start upperEnd
+app : Space.Parser E.Type Src.Type
+app =
+    P.getPosition
+        |> andThen
+            (\start ->
+                Var.foreignUpper E.TStart
+                    |> andThen
+                        (\upper ->
+                            P.getPosition
+                                |> andThen
+                                    (\upperEnd ->
+                                        loop [] chompArgsHelp
+                                            |> andThen
+                                                (\args ->
+                                                    P.getPosition
+                                                        |> andThen
+                                                            (\end ->
+                                                                let
+                                                                    region =
+                                                                        A.Region start upperEnd
 
-                                                        tipe : Src.Type_
-                                                        tipe =
-                                                            case upper of
-                                                                Var.Unqualified name ->
-                                                                    Src.TType region name args
+                                                                    tipe : Src.Type_
+                                                                    tipe =
+                                                                        case upper of
+                                                                            Var.Unqualified name ->
+                                                                                Src.TType region name args
 
-                                                                Var.Qualified home name ->
-                                                                    Src.TTypeQual region home name args
-                                                    in
-                                                    ( A.at start end tipe, end )
-                                                )
-                                    )
-                        )
-            )
-
-
-chompArgs : List Src.Type -> A.Position -> Space.Parser E.Type (List Src.Type)
-chompArgs args end =
-    P.oneOfWithFallback
-        [ Space.checkIndent end E.TIndentStart
-            |> P.bind
-                (\_ ->
-                    term
-                        |> P.bind
-                            (\arg ->
-                                P.getPosition
-                                    |> P.bind
-                                        (\newEnd ->
-                                            Space.chomp E.TSpace
-                                                |> P.bind
-                                                    (\_ ->
-                                                        chompArgs (arg :: args) newEnd
-                                                    )
-                                        )
-                            )
-                )
-        ]
-        ( List.reverse args, end )
-
-
-
--- TUPLES
-
-
-chompTupleEnd : A.Position -> Src.Type -> List Src.Type -> P.Parser E.TTuple Src.Type
-chompTupleEnd start firstType revTypes =
-    P.oneOf E.TTupleEnd
-        [ P.word1 ',' E.TTupleEnd
-            |> P.bind
-                (\_ ->
-                    Space.chompAndCheckIndent E.TTupleSpace E.TTupleIndentTypeN
-                        |> P.bind
-                            (\_ ->
-                                P.specialize E.TTupleType expression
-                                    |> P.bind
-                                        (\( tipe, end ) ->
-                                            Space.checkIndent end E.TTupleIndentEnd
-                                                |> P.bind
-                                                    (\_ ->
-                                                        chompTupleEnd start firstType (tipe :: revTypes)
-                                                    )
-                                        )
-                            )
-                )
-        , P.word1 ')' E.TTupleEnd
-            |> P.bind
-                (\_ ->
-                    case List.reverse revTypes of
-                        [] ->
-                            P.pure firstType
-
-                        secondType :: otherTypes ->
-                            P.addEnd start (Src.TTuple firstType secondType otherTypes)
-                )
-        ]
-
-
-
--- RECORD
-
-
-type alias Field =
-    ( A.Located Name, Src.Type )
-
-
-chompRecordEnd : List Field -> P.Parser E.TRecord (List Field)
-chompRecordEnd fields =
-    P.oneOf E.TRecordEnd
-        [ P.word1 ',' E.TRecordEnd
-            |> P.bind
-                (\_ ->
-                    Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
-                        |> P.bind
-                            (\_ ->
-                                chompField
-                                    |> P.bind
-                                        (\field ->
-                                            chompRecordEnd (field :: fields)
-                                        )
-                            )
-                )
-        , P.word1 '}' E.TRecordEnd
-            |> P.fmap (\_ -> List.reverse fields)
-        ]
-
-
-chompField : P.Parser E.TRecord Field
-chompField =
-    P.addLocation (Var.lower E.TRecordField)
-        |> P.bind
-            (\name ->
-                Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
-                    |> P.bind
-                        (\_ ->
-                            P.word1 ':' E.TRecordColon
-                                |> P.bind
-                                    (\_ ->
-                                        Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
-                                            |> P.bind
-                                                (\_ ->
-                                                    P.specialize E.TRecordType expression
-                                                        |> P.bind
-                                                            (\( tipe, end ) ->
-                                                                Space.checkIndent end E.TRecordIndentEnd
-                                                                    |> P.fmap (\_ -> ( name, tipe ))
+                                                                            Var.Qualified home name ->
+                                                                                Src.TTypeQual region home name args
+                                                                in
+                                                                succeed ( A.at start end tipe, end )
                                                             )
                                                 )
                                     )
                         )
             )
+
+
+chompArgsHelp : List Src.Type -> P.Parser E.Type (Step (List Src.Type) (List Src.Type))
+chompArgsHelp revArgs =
+    oneOf
+        [ term |> andThen (\arg -> succeed (Loop (arg :: revArgs)))
+        , succeed (Done (List.reverse revArgs))
+        ]
 
 
 
@@ -338,16 +245,16 @@ chompField =
 
 variant : Space.Parser E.CustomType ( A.Located Name, List Src.Type )
 variant =
-    P.addLocation (Var.upper E.CT_Variant)
-        |> P.bind
-            (\((A.At (A.Region _ nameEnd) _) as name) ->
-                Space.chomp E.CT_Space
-                    |> P.bind
-                        (\_ ->
-                            P.specialize E.CT_VariantArg (chompArgs [] nameEnd)
-                                |> P.fmap
-                                    (\( args, end ) ->
-                                        ( ( name, args ), end )
+    P.located (Var.upper E.CT_Variant)
+        |> andThen
+            (\name ->
+                loop [] chompArgsHelp
+                    |> andThen
+                        (\args ->
+                            P.getPosition
+                                |> andThen
+                                    (\end ->
+                                        succeed ( ( name, args ), end )
                                     )
                         )
             )
