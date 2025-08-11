@@ -41,7 +41,7 @@ optimization to skip builds in Elm.Details always valid
 run : () -> () -> Task Never ()
 run () () =
     Reporting.attempt Exit.publishToReport <|
-        Task.toResult (Task.bind publish getEnv)
+        Task.run (Task.bind publish getEnv)
 
 
 
@@ -222,7 +222,7 @@ verifyBuild root =
     reportBuildCheck <|
         BW.withScope <|
             \scope ->
-                Task.toResult
+                Task.run
                     (Task.eio Exit.PublishBadDetails
                         (Details.load Reporting.silent scope root)
                         |> Task.bind
@@ -400,14 +400,14 @@ withPrepublishDir root callback =
         Utils.bracket_
             (Utils.dirCreateDirectoryIfMissing True dir)
             (Utils.dirRemoveDirectoryRecursive dir)
-            (Task.toResult (callback dir))
+            (Task.run (callback dir))
 
 
 verifyZipBuild : FilePath -> Task Never (Result Exit.Publish ())
 verifyZipBuild root =
     BW.withScope
         (\scope ->
-            Task.toResult
+            Task.run
                 (Task.eio Exit.PublishZipBadDetails
                     (Details.load Reporting.silent scope root)
                     |> Task.bind

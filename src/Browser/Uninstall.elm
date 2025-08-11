@@ -32,7 +32,7 @@ run pkg =
                             Task.pure (Err Exit.UninstallNoOutline)
 
                         Just root ->
-                            Task.toResult
+                            Task.run
                                 (Task.eio Exit.UninstallBadRegistry Solver.initEnv
                                     |> Task.bind
                                         (\env ->

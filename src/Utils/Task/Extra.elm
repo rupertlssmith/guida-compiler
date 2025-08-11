@@ -7,8 +7,8 @@ module Utils.Task.Extra exposing
     , mapM
     , mio
     , pure
+    , run
     , throw
-    , toResult
     , void
     )
 
@@ -19,11 +19,11 @@ import Task exposing (Task)
 -- TASKS
 
 
-toResult : Task x a -> Task Never (Result x a)
-toResult task =
+run : Task x a -> Task Never (Result x a)
+run task =
     task
-        |> Task.map (\r -> Ok r)
-        |> Task.onError (\err -> Err err |> Task.succeed)
+        |> Task.map Ok
+        |> Task.onError (Err >> Task.succeed)
 
 
 throw : x -> Task x a

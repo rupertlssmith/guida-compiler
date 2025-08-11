@@ -2,8 +2,6 @@ node_modules
 elm-stuff
 .DS_Store
 .idea
-elm-watch.json
-elm-watch-output.js
 
 # Guida
 guida-stuff
@@ -22,4 +20,3 @@ bin/guida.min.js
 
 # Try
 try/public/app.js
-

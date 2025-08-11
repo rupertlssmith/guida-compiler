@@ -51,7 +51,7 @@ run args (Flags autoYes) =
                                     Task.pure (Err Exit.UninstallNoArgs)
 
                                 Uninstall pkg ->
-                                    Task.toResult
+                                    Task.run
                                         (Task.eio Exit.UninstallBadRegistry Solver.initEnv
                                             |> Task.bind
                                                 (\env ->

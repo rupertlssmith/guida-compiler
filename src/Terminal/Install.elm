@@ -53,7 +53,7 @@ run args (Flags forTest autoYes) =
                                         |> Task.fmap (\elmHome -> Err (Exit.InstallNoArgs elmHome))
 
                                 Install pkg ->
-                                    Task.toResult
+                                    Task.run
                                         (Task.eio Exit.InstallBadRegistry Solver.initEnv
                                             |> Task.bind
                                                 (\env ->

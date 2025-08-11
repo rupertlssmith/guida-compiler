@@ -150,10 +150,10 @@ verifyInstall scope root (Solver.Env cache manager connection registry) outline 
                 in
                 case outline of
                     Outline.Pkg pkg ->
-                        Task.toResult (Task.fmap (\_ -> ()) (verifyPkg env time pkg))
+                        Task.run (Task.fmap (\_ -> ()) (verifyPkg env time pkg))
 
                     Outline.App app ->
-                        Task.toResult (Task.fmap (\_ -> ()) (verifyApp env time app))
+                        Task.run (Task.fmap (\_ -> ()) (verifyApp env time app))
             )
 
 
@@ -201,10 +201,10 @@ generate style scope root time =
                             Ok ( env, outline ) ->
                                 case outline of
                                     Outline.Pkg pkg ->
-                                        Task.toResult (verifyPkg env time pkg)
+                                        Task.run (verifyPkg env time pkg)
 
                                     Outline.App app ->
-                                        Task.toResult (verifyApp env time app)
+                                        Task.run (verifyApp env time app)
                     )
         )
 

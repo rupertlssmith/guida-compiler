@@ -590,7 +590,7 @@ attemptEval (Env root interpreter ansi) oldState newState output =
     BW.withScope
         (\scope ->
             Stuff.withRootLock root
-                (Task.toResult
+                (Task.run
                     (Task.eio Exit.ReplBadDetails
                         (Details.load Reporting.silent scope root)
                         |> Task.bind

@@ -45,7 +45,7 @@ type Args
 run : Args -> () -> Task Never ()
 run args () =
     Reporting.attempt Exit.diffToReport
-        (Task.toResult
+        (Task.run
             (getEnv
                 |> Task.bind (\env -> diff env args)
             )

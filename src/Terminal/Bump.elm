@@ -31,7 +31,7 @@ import Utils.Task.Extra as Task
 run : () -> () -> Task Never ()
 run () () =
     Reporting.attempt Exit.bumpToReport <|
-        Task.toResult (Task.bind bump getEnv)
+        Task.run (Task.bind bump getEnv)
 
 
 

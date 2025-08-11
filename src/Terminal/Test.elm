@@ -66,7 +66,7 @@ run paths flags =
 runHelp : String -> List String -> Flags -> Task Never (Result Exit.Test ())
 runHelp root testFileGlobs flags =
     Stuff.withRootLock root <|
-        Task.toResult <|
+        Task.run <|
             (Utils.dirCreateDirectoryIfMissing True (Stuff.testDir root)
                 |> Task.bind (\_ -> Utils.nodeGetDirname)
                 |> Task.io
@@ -1076,7 +1076,7 @@ runMake : String -> String -> Task Never (Result Exit.Test String)
 runMake root path =
     BW.withScope
         (\scope ->
-            Task.toResult <|
+            Task.run <|
                 (Task.eio Exit.TestBadDetails (Details.load style scope root)
                     |> Task.bind
                         (\details ->
