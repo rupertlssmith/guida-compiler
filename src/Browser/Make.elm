@@ -27,7 +27,7 @@ import Task exposing (Task)
 import Terminal.Terminal.Internal exposing (Parser(..))
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils exposing (FilePath)
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -55,14 +55,14 @@ type ReportType
 run : String -> Flags -> Task Never (Result Exit.Make String)
 run path flags =
     Stuff.findRoot
-        |> TE.bind
+        |> Task.bind
             (\maybeRoot ->
                 case maybeRoot of
                     Just root ->
                         runHelp root path flags
 
                     Nothing ->
-                        TE.pure (Err Exit.MakeNoOutline)
+                        Task.pure (Err Exit.MakeNoOutline)
             )
 
 
@@ -71,29 +71,29 @@ runHelp root path (Flags debug optimize withSourceMaps) =
     BW.withScope
         (\scope ->
             Stuff.withRootLock root <|
-                TE.toResult <|
+                Task.toResult <|
                     (getMode debug optimize
-                        |> TE.bind
+                        |> Task.bind
                             (\desiredMode ->
                                 let
                                     style : Reporting.Style
                                     style =
                                         Reporting.json
                                 in
-                                TE.eio Exit.MakeBadDetails (Details.load style scope root)
-                                    |> TE.bind
+                                Task.eio Exit.MakeBadDetails (Details.load style scope root)
+                                    |> Task.bind
                                         (\details ->
                                             buildPaths style root details (NE.Nonempty path [])
-                                                |> TE.bind
+                                                |> Task.bind
                                                     (\artifacts ->
                                                         case getMains artifacts of
                                                             [] ->
-                                                                -- TE.pure ()
+                                                                -- Task.pure ()
                                                                 crash "No main!"
 
                                                             [ name ] ->
                                                                 toBuilder withSourceMaps Html.leadingLines root details desiredMode artifacts
-                                                                    |> TE.bind (TE.pure << Html.sandwich name)
+                                                                    |> Task.bind (Task.pure << Html.sandwich name)
 
                                                             _ ->
                                                                 crash "TODO"
@@ -112,16 +112,16 @@ getMode : Bool -> Bool -> Task Exit.Make DesiredMode
 getMode debug optimize =
     case ( debug, optimize ) of
         ( True, True ) ->
-            TE.throw Exit.MakeCannotOptimizeAndDebug
+            Task.throw Exit.MakeCannotOptimizeAndDebug
 
         ( True, False ) ->
-            TE.pure Debug
+            Task.pure Debug
 
         ( False, False ) ->
-            TE.pure Dev
+            Task.pure Dev
 
         ( False, True ) ->
-            TE.pure Prod
+            Task.pure Prod
 
 
 
@@ -130,7 +130,7 @@ getMode debug optimize =
 
 buildPaths : Reporting.Style -> FilePath -> Details.Details -> NE.Nonempty FilePath -> Task Exit.Make Build.Artifacts
 buildPaths style root details paths =
-    TE.eio Exit.MakeCannotBuild <|
+    Task.eio Exit.MakeCannotBuild <|
         Build.fromPaths style root details paths
 
 
@@ -180,7 +180,7 @@ type DesiredMode
 
 toBuilder : Bool -> Int -> FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task Exit.Make String
 toBuilder withSourceMaps leadingLines root details desiredMode artifacts =
-    TE.mapError Exit.MakeBadGenerate <|
+    Task.mapError Exit.MakeBadGenerate <|
         case desiredMode of
             Debug ->
                 Generate.debug withSourceMaps leadingLines root details artifacts
@@ -201,8 +201,8 @@ reportType =
     Parser
         { singular = "report type"
         , plural = "report types"
-        , suggest = \_ -> TE.pure [ "json" ]
-        , examples = \_ -> TE.pure [ "json" ]
+        , suggest = \_ -> Task.pure [ "json" ]
+        , examples = \_ -> Task.pure [ "json" ]
         }
 
 
@@ -220,8 +220,8 @@ output =
     Parser
         { singular = "output file"
         , plural = "output files"
-        , suggest = \_ -> TE.pure []
-        , examples = \_ -> TE.pure [ "elm.js", "index.html", "/dev/null" ]
+        , suggest = \_ -> Task.pure []
+        , examples = \_ -> Task.pure [ "elm.js", "index.html", "/dev/null" ]
         }
 
 
@@ -245,8 +245,8 @@ docsFile =
     Parser
         { singular = "json file"
         , plural = "json files"
-        , suggest = \_ -> TE.pure []
-        , examples = \_ -> TE.pure [ "docs.json", "documentation.json" ]
+        , suggest = \_ -> Task.pure []
+        , examples = \_ -> Task.pure [ "docs.json", "documentation.json" ]
         }
 
 

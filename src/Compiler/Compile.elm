@@ -21,7 +21,7 @@ import Compiler.Type.Solve as Type
 import Data.Map exposing (Dict)
 import System.TypeCheck.IO as TypeCheck
 import Task exposing (Task)
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -34,8 +34,8 @@ type Artifacts
 
 compile : Pkg.Name -> Dict String ModuleName.Raw I.Interface -> Src.Module -> Task Never (Result E.Error Artifacts)
 compile pkg ifaces modul =
-    TE.pure (canonicalize pkg ifaces modul)
-        |> TE.fmap
+    Task.pure (canonicalize pkg ifaces modul)
+        |> Task.fmap
             (\canonicalResult ->
                 case canonicalResult of
                     Ok canonical ->

@@ -26,7 +26,7 @@ import System.TypeCheck.IO as TypeCheck
 import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Main as Utils exposing (FilePath, MVar)
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -39,13 +39,13 @@ import Utils.Task.Extra as TE
 debug : Bool -> Int -> FilePath -> Details.Details -> Build.Artifacts -> Task Exit.Generate String
 debug withSourceMaps leadingLines root details (Build.Artifacts pkg ifaces roots modules) =
     loadObjects root details modules
-        |> TE.bind
+        |> Task.bind
             (\loading ->
                 loadTypes root ifaces modules
-                    |> TE.bind
+                    |> Task.bind
                         (\types ->
                             finalizeObjects loading
-                                |> TE.bind
+                                |> Task.bind
                                     (\objects ->
                                         let
                                             mode : Mode.Mode
@@ -61,7 +61,7 @@ debug withSourceMaps leadingLines root details (Build.Artifacts pkg ifaces roots
                                                 gatherMains pkg objects roots
                                         in
                                         prepareSourceMaps withSourceMaps root
-                                            |> TE.fmap (\sourceMaps -> JS.generate sourceMaps leadingLines mode graph mains)
+                                            |> Task.fmap (\sourceMaps -> JS.generate sourceMaps leadingLines mode graph mains)
                                     )
                         )
             )
@@ -69,8 +69,8 @@ debug withSourceMaps leadingLines root details (Build.Artifacts pkg ifaces roots
 
 dev : Bool -> Int -> FilePath -> Details.Details -> Build.Artifacts -> Task Exit.Generate String
 dev withSourceMaps leadingLines root details (Build.Artifacts pkg _ roots modules) =
-    TE.bind finalizeObjects (loadObjects root details modules)
-        |> TE.bind
+    Task.bind finalizeObjects (loadObjects root details modules)
+        |> Task.bind
             (\objects ->
                 let
                     mode : Mode.Mode
@@ -86,17 +86,17 @@ dev withSourceMaps leadingLines root details (Build.Artifacts pkg _ roots module
                         gatherMains pkg objects roots
                 in
                 prepareSourceMaps withSourceMaps root
-                    |> TE.fmap (\sourceMaps -> JS.generate sourceMaps leadingLines mode graph mains)
+                    |> Task.fmap (\sourceMaps -> JS.generate sourceMaps leadingLines mode graph mains)
             )
 
 
 prod : Bool -> Int -> FilePath -> Details.Details -> Build.Artifacts -> Task Exit.Generate String
 prod withSourceMaps leadingLines root details (Build.Artifacts pkg _ roots modules) =
-    TE.bind finalizeObjects (loadObjects root details modules)
-        |> TE.bind
+    Task.bind finalizeObjects (loadObjects root details modules)
+        |> Task.bind
             (\objects ->
                 checkForDebugUses objects
-                    |> TE.bind
+                    |> Task.bind
                         (\_ ->
                             let
                                 graph : Opt.GlobalGraph
@@ -112,7 +112,7 @@ prod withSourceMaps leadingLines root details (Build.Artifacts pkg _ roots modul
                                     gatherMains pkg objects roots
                             in
                             prepareSourceMaps withSourceMaps root
-                                |> TE.fmap (\sourceMaps -> JS.generate sourceMaps leadingLines mode graph mains)
+                                |> Task.fmap (\sourceMaps -> JS.generate sourceMaps leadingLines mode graph mains)
                         )
             )
 
@@ -121,18 +121,18 @@ prepareSourceMaps : Bool -> FilePath -> Task Exit.Generate JS.SourceMaps
 prepareSourceMaps withSourceMaps root =
     if withSourceMaps then
         Outline.getAllModulePaths root
-            |> TE.bind (Utils.mapTraverse ModuleName.toComparableCanonical ModuleName.compareCanonical File.readUtf8)
-            |> TE.fmap JS.SourceMaps
-            |> TE.io
+            |> Task.bind (Utils.mapTraverse ModuleName.toComparableCanonical ModuleName.compareCanonical File.readUtf8)
+            |> Task.fmap JS.SourceMaps
+            |> Task.io
 
     else
-        TE.pure JS.NoSourceMaps
+        Task.pure JS.NoSourceMaps
 
 
 repl : FilePath -> Details.Details -> Bool -> Build.ReplArtifacts -> N.Name -> Task Exit.Generate String
 repl root details ansi (Build.ReplArtifacts home modules localizer annotations) name =
-    TE.bind finalizeObjects (loadObjects root details modules)
-        |> TE.fmap
+    Task.bind finalizeObjects (loadObjects root details modules)
+        |> Task.fmap
             (\objects ->
                 let
                     graph : Opt.GlobalGraph
@@ -151,10 +151,10 @@ checkForDebugUses : Objects -> Task Exit.Generate ()
 checkForDebugUses (Objects _ locals) =
     case Dict.keys compare (Dict.filter (\_ -> Nitpick.hasDebugUses) locals) of
         [] ->
-            TE.pure ()
+            Task.pure ()
 
         m :: ms ->
-            TE.throw (Exit.GenerateCannotOptimizeDebugValues m ms)
+            Task.throw (Exit.GenerateCannotOptimizeDebugValues m ms)
 
 
 
@@ -191,12 +191,12 @@ type LoadingObjects
 
 loadObjects : FilePath -> Details.Details -> List Build.Module -> Task Exit.Generate LoadingObjects
 loadObjects root details modules =
-    TE.io
+    Task.io
         (Details.loadObjects root details
-            |> TE.bind
+            |> Task.bind
                 (\mvar ->
                     Utils.listTraverse (loadObject root) modules
-                        |> TE.fmap
+                        |> Task.fmap
                             (\mvars ->
                                 LoadingObjects mvar (Dict.fromList identity mvars)
                             )
@@ -209,14 +209,14 @@ loadObject root modul =
     case modul of
         Build.Fresh name _ graph ->
             Utils.newMVar (Utils.maybeEncoder Opt.localGraphEncoder) (Just graph)
-                |> TE.fmap (\mvar -> ( name, mvar ))
+                |> Task.fmap (\mvar -> ( name, mvar ))
 
         Build.Cached name _ _ ->
             Utils.newEmptyMVar
-                |> TE.bind
+                |> Task.bind
                     (\mvar ->
-                        Utils.forkIO (TE.bind (Utils.putMVar (Utils.maybeEncoder Opt.localGraphEncoder) mvar) (File.readBinary Opt.localGraphDecoder (Stuff.guidao root name)))
-                            |> TE.fmap (\_ -> ( name, mvar ))
+                        Utils.forkIO (Task.bind (Utils.putMVar (Utils.maybeEncoder Opt.localGraphEncoder) mvar) (File.readBinary Opt.localGraphDecoder (Stuff.guidao root name)))
+                            |> Task.fmap (\_ -> ( name, mvar ))
                     )
 
 
@@ -230,12 +230,12 @@ type Objects
 
 finalizeObjects : LoadingObjects -> Task Exit.Generate Objects
 finalizeObjects (LoadingObjects mvar mvars) =
-    TE.eio identity
+    Task.eio identity
         (Utils.readMVar (BD.maybe Opt.globalGraphDecoder) mvar
-            |> TE.bind
+            |> Task.bind
                 (\result ->
                     Utils.mapTraverse identity compare (Utils.readMVar (BD.maybe Opt.localGraphDecoder)) mvars
-                        |> TE.fmap
+                        |> Task.fmap
                             (\results ->
                                 case Maybe.map2 Objects result (Utils.sequenceDictMaybe identity compare results) of
                                     Just loaded ->
@@ -259,9 +259,9 @@ objectsToGlobalGraph (Objects globals locals) =
 
 loadTypes : FilePath -> Dict (List String) TypeCheck.Canonical I.DependencyInterface -> List Build.Module -> Task Exit.Generate Extract.Types
 loadTypes root ifaces modules =
-    TE.eio identity
+    Task.eio identity
         (Utils.listTraverse (loadTypesHelp root) modules
-            |> TE.bind
+            |> Task.bind
                 (\mvars ->
                     let
                         foreigns : Extract.Types
@@ -269,7 +269,7 @@ loadTypes root ifaces modules =
                             Extract.mergeMany (Dict.values ModuleName.compareCanonical (Dict.map Extract.fromDependencyInterface ifaces))
                     in
                     Utils.listTraverse (Utils.readMVar (BD.maybe Extract.typesDecoder)) mvars
-                        |> TE.fmap
+                        |> Task.fmap
                             (\results ->
                                 case Utils.sequenceListMaybe results of
                                     Just ts ->
@@ -290,21 +290,21 @@ loadTypesHelp root modul =
 
         Build.Cached name _ ciMVar ->
             Utils.readMVar Build.cachedInterfaceDecoder ciMVar
-                |> TE.bind
+                |> Task.bind
                     (\cachedInterface ->
                         case cachedInterface of
                             Build.Unneeded ->
                                 Utils.newEmptyMVar
-                                    |> TE.bind
+                                    |> Task.bind
                                         (\mvar ->
                                             Utils.forkIO
                                                 (File.readBinary I.interfaceDecoder (Stuff.guidai root name)
-                                                    |> TE.bind
+                                                    |> Task.bind
                                                         (\maybeIface ->
                                                             Utils.putMVar (Utils.maybeEncoder Extract.typesEncoder) mvar (Maybe.map (Extract.fromInterface name) maybeIface)
                                                         )
                                                 )
-                                                |> TE.fmap (\_ -> mvar)
+                                                |> Task.fmap (\_ -> mvar)
                                         )
 
                             Build.Loaded iface ->

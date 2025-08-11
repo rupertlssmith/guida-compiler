@@ -36,7 +36,7 @@ import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 import Utils.Main as Utils exposing (FilePath)
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -175,16 +175,16 @@ encodeSrcDir srcDir =
 read : FilePath -> Task Never (Result Exit.Outline Outline)
 read root =
     File.readUtf8 (root ++ "/elm.json")
-        |> TE.bind
+        |> Task.bind
             (\bytes ->
                 case D.fromByteString decoder bytes of
                     Err err ->
-                        TE.pure <| Err (Exit.OutlineHasBadStructure err)
+                        Task.pure <| Err (Exit.OutlineHasBadStructure err)
 
                     Ok outline ->
                         case outline of
                             Pkg (PkgOutline pkg _ _ _ _ deps _ _) ->
-                                TE.pure <|
+                                Task.pure <|
                                     if not (Dict.member identity Pkg.core deps) && pkg /= Pkg.core then
                                         Err Exit.OutlineNoPkgCore
 
@@ -193,29 +193,29 @@ read root =
 
                             App (AppOutline _ srcDirs direct indirect _ _) ->
                                 if not (Dict.member identity Pkg.core direct) then
-                                    TE.pure <| Err Exit.OutlineNoAppCore
+                                    Task.pure <| Err Exit.OutlineNoAppCore
 
                                 else if not (Dict.member identity Pkg.json direct) && not (Dict.member identity Pkg.json indirect) then
-                                    TE.pure <| Err Exit.OutlineNoAppJson
+                                    Task.pure <| Err Exit.OutlineNoAppJson
 
                                 else
                                     Utils.filterM (isSrcDirMissing root) (NE.toList srcDirs)
-                                        |> TE.bind
+                                        |> Task.bind
                                             (\badDirs ->
                                                 case List.map toGiven badDirs of
                                                     d :: ds ->
-                                                        TE.pure <| Err (Exit.OutlineHasMissingSrcDirs d ds)
+                                                        Task.pure <| Err (Exit.OutlineHasMissingSrcDirs d ds)
 
                                                     [] ->
                                                         detectDuplicates root (NE.toList srcDirs)
-                                                            |> TE.bind
+                                                            |> Task.bind
                                                                 (\maybeDups ->
                                                                     case maybeDups of
                                                                         Nothing ->
-                                                                            TE.pure <| Ok outline
+                                                                            Task.pure <| Ok outline
 
                                                                         Just ( canonicalDir, ( dir1, dir2 ) ) ->
-                                                                            TE.pure <| Err (Exit.OutlineHasDuplicateSrcDirs canonicalDir dir1 dir2)
+                                                                            Task.pure <| Err (Exit.OutlineHasDuplicateSrcDirs canonicalDir dir1 dir2)
                                                                 )
                                             )
             )
@@ -223,7 +223,7 @@ read root =
 
 isSrcDirMissing : FilePath -> SrcDir -> Task Never Bool
 isSrcDirMissing root srcDir =
-    TE.fmap not (Utils.dirDoesDirectoryExist (toAbsolute root srcDir))
+    Task.fmap not (Utils.dirDoesDirectoryExist (toAbsolute root srcDir))
 
 
 toGiven : SrcDir -> FilePath
@@ -249,7 +249,7 @@ toAbsolute root srcDir =
 detectDuplicates : FilePath -> List SrcDir -> Task Never (Maybe ( FilePath, ( FilePath, FilePath ) ))
 detectDuplicates root srcDirs =
     Utils.listTraverse (toPair root) srcDirs
-        |> TE.fmap
+        |> Task.fmap
             (\pairs ->
                 Utils.mapLookupMin <|
                     Utils.mapMapMaybe identity compare isDup <|
@@ -260,9 +260,9 @@ detectDuplicates root srcDirs =
 toPair : FilePath -> SrcDir -> Task Never ( FilePath, OneOrMore.OneOrMore FilePath )
 toPair root srcDir =
     Utils.dirCanonicalizePath (toAbsolute root srcDir)
-        |> TE.bind
+        |> Task.bind
             (\key ->
-                TE.pure ( key, OneOrMore.one (toGiven srcDir) )
+                Task.pure ( key, OneOrMore.one (toGiven srcDir) )
             )
 
 
@@ -283,11 +283,11 @@ isDup paths =
 getAllModulePaths : FilePath -> Task Never (Dict (List String) TypeCheck.Canonical FilePath)
 getAllModulePaths root =
     read root
-        |> TE.bind
+        |> Task.bind
             (\outlineResult ->
                 case outlineResult of
                     Err _ ->
-                        TE.pure Dict.empty
+                        Task.pure Dict.empty
 
                     Ok outline ->
                         case outline of
@@ -316,13 +316,13 @@ getAllModulePaths root =
 getAllModulePathsHelper : Pkg.Name -> List FilePath -> Dict ( String, String ) Pkg.Name V.Version -> Task Never (Dict (List String) TypeCheck.Canonical FilePath)
 getAllModulePathsHelper packageName packageSrcDirs deps =
     Utils.listTraverse recursiveFindFiles packageSrcDirs
-        |> TE.bind
+        |> Task.bind
             (\files ->
                 Utils.mapTraverseWithKey identity compare resolvePackagePaths deps
-                    |> TE.bind
+                    |> Task.bind
                         (\dependencyRoots ->
                             Utils.mapTraverse identity compare (\( pkgName, pkgRoot ) -> getAllModulePathsHelper pkgName [ pkgRoot ++ "/src" ] Dict.empty) dependencyRoots
-                                |> TE.fmap
+                                |> Task.fmap
                                     (\dependencyMaps ->
                                         let
                                             asMap : Dict (List String) TypeCheck.Canonical FilePath
@@ -340,13 +340,13 @@ getAllModulePathsHelper packageName packageSrcDirs deps =
 recursiveFindFiles : FilePath -> Task Never (List ( FilePath, FilePath ))
 recursiveFindFiles root =
     recursiveFindFilesHelp root
-        |> TE.fmap (List.map (Tuple.pair root))
+        |> Task.fmap (List.map (Tuple.pair root))
 
 
 recursiveFindFilesHelp : FilePath -> Task Never (List FilePath)
 recursiveFindFilesHelp root =
     Utils.dirListDirectory root
-        |> TE.bind
+        |> Task.bind
             (\dirContents ->
                 let
                     ( elmFiles, ( guidaFiles, others ) ) =
@@ -354,10 +354,10 @@ recursiveFindFilesHelp root =
                             |> Tuple.mapSecond (List.partition (hasExtension ".guida"))
                 in
                 Utils.filterM (\fp -> Utils.dirDoesDirectoryExist (root ++ "/" ++ fp)) others
-                    |> TE.bind
+                    |> Task.bind
                         (\subDirectories ->
                             Utils.listTraverse (\subDirectory -> recursiveFindFilesHelp (root ++ "/" ++ subDirectory)) subDirectories
-                                |> TE.fmap
+                                |> Task.fmap
                                     (\filesFromSubDirs ->
                                         List.concat filesFromSubDirs ++ List.map (\fp -> root ++ "/" ++ fp) (elmFiles ++ guidaFiles)
                                     )
@@ -381,7 +381,7 @@ moduleNameFromFilePath root filePath =
 resolvePackagePaths : Pkg.Name -> V.Version -> Task Never ( Pkg.Name, FilePath )
 resolvePackagePaths pkgName vsn =
     Stuff.getPackageCache
-        |> TE.fmap (\packageCache -> ( pkgName, Stuff.package packageCache pkgName vsn ))
+        |> Task.fmap (\packageCache -> ( pkgName, Stuff.package packageCache pkgName vsn ))
 
 
 

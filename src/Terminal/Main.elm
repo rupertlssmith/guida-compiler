@@ -19,14 +19,14 @@ import Terminal.Terminal.Internal as Terminal
 import Terminal.Test as Test
 import Terminal.Uninstall as Uninstall
 import Utils.Impure as Impure
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 main : IO.Program
 main =
     IO.run
         (app
-            |> TE.bind
+            |> Task.bind
                 (\() ->
                     Impure.task "exitWith"
                         []
@@ -180,8 +180,8 @@ interpreter =
     Terminal.Parser
         { singular = "interpreter"
         , plural = "interpreters"
-        , suggest = \_ -> TE.pure []
-        , examples = \_ -> TE.pure [ "node", "nodejs" ]
+        , suggest = \_ -> Task.pure []
+        , examples = \_ -> Task.pure [ "node", "nodejs" ]
         }
 
 
@@ -584,8 +584,8 @@ output =
     Terminal.Parser
         { singular = "output"
         , plural = "outputs"
-        , suggest = \_ -> TE.pure []
-        , examples = \_ -> TE.pure []
+        , suggest = \_ -> Task.pure []
+        , examples = \_ -> Task.pure []
         }
 
 
@@ -646,8 +646,8 @@ int =
     Terminal.Parser
         { singular = "int"
         , plural = "ints"
-        , suggest = \_ -> TE.pure []
-        , examples = \_ -> TE.pure []
+        , suggest = \_ -> Task.pure []
+        , examples = \_ -> Task.pure []
         }
 
 

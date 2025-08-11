@@ -32,7 +32,7 @@ import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 import Utils.Crash exposing (crash)
 import Utils.Main as Utils
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -87,7 +87,7 @@ verify cache connection registry constraints =
         case try constraints of
             Solver solver ->
                 solver (State cache connection registry Dict.empty)
-                    |> TE.fmap
+                    |> Task.fmap
                         (\result ->
                             case result of
                                 ISOk s a ->
@@ -191,7 +191,7 @@ addToApp cache connection registry pkg (Outline.AppOutline elm srcDirs direct in
         of
             Solver solver ->
                 solver (State cache connection registry Dict.empty)
-                    |> TE.fmap
+                    |> Task.fmap
                         (\result ->
                             case result of
                                 ISOk (State _ _ _ constraints) new ->
@@ -265,7 +265,7 @@ addToTestApp cache connection registry pkg con (Outline.AppOutline elm srcDirs d
         of
             Solver solver ->
                 solver (State cache connection registry Dict.empty)
-                    |> TE.fmap
+                    |> Task.fmap
                         (\result ->
                             case result of
                                 ISOk (State _ _ _ constraints) new ->
@@ -311,7 +311,7 @@ removeFromApp cache connection registry pkg (Outline.AppOutline elm srcDirs dire
         case try (Dict.map (\_ -> C.exactly) (Dict.remove identity pkg allDirects)) of
             Solver solver ->
                 solver (State cache connection registry Dict.empty)
-                    |> TE.fmap
+                    |> Task.fmap
                         (\result ->
                             case result of
                                 ISOk (State _ _ _ constraints) new ->
@@ -450,13 +450,13 @@ getRelevantVersions name constraint =
                 Just (Registry.KnownVersions newest previous) ->
                     case List.filter (C.satisfies constraint) (newest :: previous) of
                         [] ->
-                            TE.pure (ISBack state)
+                            Task.pure (ISBack state)
 
                         v :: vs ->
-                            TE.pure (ISOk state ( v, vs ))
+                            Task.pure (ISOk state ( v, vs ))
 
                 Nothing ->
-                    TE.pure (ISBack state)
+                    Task.pure (ISBack state)
 
 
 
@@ -474,7 +474,7 @@ getConstraints pkg vsn =
             in
             case Dict.get (Tuple.mapSecond V.toComparable) key cDict of
                 Just cs ->
-                    TE.pure (ISOk state cs)
+                    Task.pure (ISOk state cs)
 
                 Nothing ->
                     let
@@ -491,21 +491,21 @@ getConstraints pkg vsn =
                             home ++ "/elm.json"
                     in
                     File.exists path
-                        |> TE.bind
+                        |> Task.bind
                             (\outlineExists ->
                                 if outlineExists then
                                     File.readUtf8 path
-                                        |> TE.bind
+                                        |> Task.bind
                                             (\bytes ->
                                                 case D.fromByteString constraintsDecoder bytes of
                                                     Ok cs ->
                                                         case connection of
                                                             Online _ ->
-                                                                TE.pure (ISOk (toNewState cs) cs)
+                                                                Task.pure (ISOk (toNewState cs) cs)
 
                                                             Offline ->
                                                                 Utils.dirDoesDirectoryExist (Stuff.package cache pkg vsn ++ "/src")
-                                                                    |> TE.fmap
+                                                                    |> Task.fmap
                                                                         (\srcExists ->
                                                                             if srcExists then
                                                                                 ISOk (toNewState cs) cs
@@ -516,34 +516,34 @@ getConstraints pkg vsn =
 
                                                     Err _ ->
                                                         File.remove path
-                                                            |> TE.fmap (\_ -> ISErr (Exit.SolverBadCacheData pkg vsn))
+                                                            |> Task.fmap (\_ -> ISErr (Exit.SolverBadCacheData pkg vsn))
                                             )
 
                                 else
                                     case connection of
                                         Offline ->
-                                            TE.pure (ISBack state)
+                                            Task.pure (ISBack state)
 
                                         Online manager ->
                                             Website.metadata pkg vsn "elm.json"
-                                                |> TE.bind
+                                                |> Task.bind
                                                     (\url ->
-                                                        Http.get manager url [] identity (TE.pure << Ok)
-                                                            |> TE.bind
+                                                        Http.get manager url [] identity (Task.pure << Ok)
+                                                            |> Task.bind
                                                                 (\result ->
                                                                     case result of
                                                                         Err httpProblem ->
-                                                                            TE.pure (ISErr (Exit.SolverBadHttp pkg vsn httpProblem))
+                                                                            Task.pure (ISErr (Exit.SolverBadHttp pkg vsn httpProblem))
 
                                                                         Ok body ->
                                                                             case D.fromByteString constraintsDecoder body of
                                                                                 Ok cs ->
                                                                                     Utils.dirCreateDirectoryIfMissing True home
-                                                                                        |> TE.bind (\_ -> File.writeUtf8 path body)
-                                                                                        |> TE.fmap (\_ -> ISOk (toNewState cs) cs)
+                                                                                        |> Task.bind (\_ -> File.writeUtf8 path body)
+                                                                                        |> Task.fmap (\_ -> ISOk (toNewState cs) cs)
 
                                                                                 Err _ ->
-                                                                                    TE.pure (ISErr (Exit.SolverBadHttpData pkg vsn url))
+                                                                                    Task.pure (ISErr (Exit.SolverBadHttpData pkg vsn url))
                                                                 )
                                                     )
                             )
@@ -574,25 +574,25 @@ type Env
 initEnv : Task Never (Result Exit.RegistryProblem Env)
 initEnv =
     Utils.newEmptyMVar
-        |> TE.bind
+        |> Task.bind
             (\mvar ->
-                Utils.forkIO (TE.bind (Utils.putMVar Http.managerEncoder mvar) Http.getManager)
-                    |> TE.bind
+                Utils.forkIO (Task.bind (Utils.putMVar Http.managerEncoder mvar) Http.getManager)
+                    |> Task.bind
                         (\_ ->
                             Stuff.getPackageCache
-                                |> TE.bind
+                                |> Task.bind
                                     (\cache ->
                                         Stuff.withRegistryLock cache
                                             (Registry.read cache
-                                                |> TE.bind
+                                                |> Task.bind
                                                     (\maybeRegistry ->
                                                         Utils.readMVar Http.managerDecoder mvar
-                                                            |> TE.bind
+                                                            |> Task.bind
                                                                 (\manager ->
                                                                     case maybeRegistry of
                                                                         Nothing ->
                                                                             Registry.fetch manager cache
-                                                                                |> TE.fmap
+                                                                                |> Task.fmap
                                                                                     (\eitherRegistry ->
                                                                                         case eitherRegistry of
                                                                                             Ok latestRegistry ->
@@ -604,7 +604,7 @@ initEnv =
 
                                                                         Just cachedRegistry ->
                                                                             Registry.update manager cache cachedRegistry
-                                                                                |> TE.fmap
+                                                                                |> Task.fmap
                                                                                     (\eitherRegistry ->
                                                                                         case eitherRegistry of
                                                                                             Ok latestRegistry ->
@@ -630,7 +630,7 @@ fmap func (Solver solver) =
     Solver <|
         \state ->
             solver state
-                |> TE.fmap
+                |> Task.fmap
                     (\result ->
                         case result of
                             ISOk stateA arg ->
@@ -646,7 +646,7 @@ fmap func (Solver solver) =
 
 pure : a -> Solver a
 pure a =
-    Solver (\state -> TE.pure (ISOk state a))
+    Solver (\state -> Task.pure (ISOk state a))
 
 
 bind : (a -> Solver b) -> Solver a -> Solver b
@@ -654,7 +654,7 @@ bind callback (Solver solverA) =
     Solver <|
         \state ->
             solverA state
-                |> TE.bind
+                |> Task.bind
                     (\resA ->
                         case resA of
                             ISOk stateA a ->
@@ -663,10 +663,10 @@ bind callback (Solver solverA) =
                                         solverB stateA
 
                             ISBack stateA ->
-                                TE.pure (ISBack stateA)
+                                Task.pure (ISBack stateA)
 
                             ISErr e ->
-                                TE.pure (ISErr e)
+                                Task.pure (ISErr e)
                     )
 
 
@@ -680,11 +680,11 @@ oneOf ((Solver solverHead) as solver) solvers =
             Solver <|
                 \state0 ->
                     solverHead state0
-                        |> TE.bind
+                        |> Task.bind
                             (\result ->
                                 case result of
                                     ISOk stateA arg ->
-                                        TE.pure (ISOk stateA arg)
+                                        Task.pure (ISOk stateA arg)
 
                                     ISBack stateA ->
                                         let
@@ -694,7 +694,7 @@ oneOf ((Solver solverHead) as solver) solvers =
                                         solverTail stateA
 
                                     ISErr e ->
-                                        TE.pure (ISErr e)
+                                        Task.pure (ISErr e)
                             )
 
 
@@ -702,7 +702,7 @@ backtrack : Solver a
 backtrack =
     Solver <|
         \state ->
-            TE.pure (ISBack state)
+            Task.pure (ISBack state)
 
 
 foldM : (b -> a -> Solver b) -> b -> List a -> Solver b

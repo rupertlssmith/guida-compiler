@@ -9,7 +9,7 @@ import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 import Utils.Main as Utils
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -23,16 +23,16 @@ type Scope
 withScope : (Scope -> Task Never a) -> Task Never a
 withScope callback =
     Utils.newMVar (BE.list (\_ -> BE.unit ())) []
-        |> TE.bind
+        |> Task.bind
             (\workList ->
                 callback (Scope workList)
-                    |> TE.bind
+                    |> Task.bind
                         (\result ->
                             Utils.takeMVar (BD.list Utils.mVarDecoder) workList
-                                |> TE.bind
+                                |> Task.bind
                                     (\mvars ->
                                         Utils.listTraverse_ (Utils.takeMVar (BD.succeed ())) mvars
-                                            |> TE.fmap (\_ -> result)
+                                            |> Task.fmap (\_ -> result)
                                     )
                         )
             )
@@ -41,16 +41,16 @@ withScope callback =
 writeBinary : (a -> BE.Encoder) -> Scope -> String -> a -> Task Never ()
 writeBinary toEncoder (Scope workList) path value =
     Utils.newEmptyMVar
-        |> TE.bind
+        |> Task.bind
             (\mvar ->
                 Utils.forkIO
                     (File.writeBinary toEncoder path value
-                        |> TE.bind (\_ -> Utils.putMVar BE.unit mvar ())
+                        |> Task.bind (\_ -> Utils.putMVar BE.unit mvar ())
                     )
-                    |> TE.bind
+                    |> Task.bind
                         (\_ ->
                             Utils.takeMVar (BD.list Utils.mVarDecoder) workList
-                                |> TE.bind
+                                |> Task.bind
                                     (\oldWork ->
                                         let
                                             newWork : List (Utils.MVar ())

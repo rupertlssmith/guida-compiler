@@ -19,7 +19,7 @@ import Data.Map as Dict exposing (Dict)
 import System.IO as IO
 import Task exposing (Task)
 import Utils.Main exposing (FilePath)
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -39,33 +39,33 @@ run : Args -> Flags -> Task Never ()
 run args (Flags autoYes) =
     Reporting.attempt Exit.uninstallToReport
         (Stuff.findRoot
-            |> TE.bind
+            |> Task.bind
                 (\maybeRoot ->
                     case maybeRoot of
                         Nothing ->
-                            TE.pure (Err Exit.UninstallNoOutline)
+                            Task.pure (Err Exit.UninstallNoOutline)
 
                         Just root ->
                             case args of
                                 NoArgs ->
-                                    TE.pure (Err Exit.UninstallNoArgs)
+                                    Task.pure (Err Exit.UninstallNoArgs)
 
                                 Uninstall pkg ->
-                                    TE.toResult
-                                        (TE.eio Exit.UninstallBadRegistry Solver.initEnv
-                                            |> TE.bind
+                                    Task.toResult
+                                        (Task.eio Exit.UninstallBadRegistry Solver.initEnv
+                                            |> Task.bind
                                                 (\env ->
-                                                    TE.eio Exit.UninstallBadOutline (Outline.read root)
-                                                        |> TE.bind
+                                                    Task.eio Exit.UninstallBadOutline (Outline.read root)
+                                                        |> Task.bind
                                                             (\oldOutline ->
                                                                 case oldOutline of
                                                                     Outline.App outline ->
                                                                         makeAppPlan env pkg outline
-                                                                            |> TE.bind (\changes -> attemptChanges root env oldOutline V.toChars changes autoYes)
+                                                                            |> Task.bind (\changes -> attemptChanges root env oldOutline V.toChars changes autoYes)
 
                                                                     Outline.Pkg outline ->
                                                                         makePkgPlan pkg outline
-                                                                            |> TE.bind (\changes -> attemptChanges root env oldOutline C.toChars changes autoYes)
+                                                                            |> Task.bind (\changes -> attemptChanges root env oldOutline C.toChars changes autoYes)
                                                             )
                                                 )
                                         )
@@ -86,7 +86,7 @@ attemptChanges : String -> Solver.Env -> Outline.Outline -> (a -> String) -> Cha
 attemptChanges root env oldOutline toChars changes autoYes =
     case changes of
         AlreadyNotPresent ->
-            TE.io (IO.putStrLn "It is not currently installed!")
+            Task.io (IO.putStrLn "It is not currently installed!")
 
         Changes changeDict newOutline ->
             let
@@ -109,39 +109,39 @@ attemptChanges root env oldOutline toChars changes autoYes =
 
 attemptChangesHelp : FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> Bool -> D.Doc -> Task Exit.Uninstall ()
 attemptChangesHelp root env oldOutline newOutline autoYes question =
-    TE.eio Exit.UninstallBadDetails <|
+    Task.eio Exit.UninstallBadDetails <|
         BW.withScope
             (\scope ->
                 let
                     askQuestion : Task Never Bool
                     askQuestion =
                         if autoYes then
-                            TE.pure True
+                            Task.pure True
 
                         else
                             Reporting.ask question
                 in
                 askQuestion
-                    |> TE.bind
+                    |> Task.bind
                         (\approved ->
                             if approved then
                                 Outline.write root newOutline
-                                    |> TE.bind (\_ -> Details.verifyInstall scope root env newOutline)
-                                    |> TE.bind
+                                    |> Task.bind (\_ -> Details.verifyInstall scope root env newOutline)
+                                    |> Task.bind
                                         (\result ->
                                             case result of
                                                 Err exit ->
                                                     Outline.write root oldOutline
-                                                        |> TE.fmap (\_ -> Err exit)
+                                                        |> Task.fmap (\_ -> Err exit)
 
                                                 Ok () ->
                                                     IO.putStrLn "Success!"
-                                                        |> TE.fmap (\_ -> Ok ())
+                                                        |> Task.fmap (\_ -> Ok ())
                                         )
 
                             else
                                 IO.putStrLn "Okay, I did not change anything!"
-                                    |> TE.fmap (\_ -> Ok ())
+                                    |> Task.fmap (\_ -> Ok ())
                         )
             )
 
@@ -154,25 +154,25 @@ makeAppPlan : Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task Exit.Uninstal
 makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline _ _ direct _ testDirect _) as outline) =
     case Dict.get identity pkg (Dict.union direct testDirect) of
         Just _ ->
-            TE.io (Solver.removeFromApp cache connection registry pkg outline)
-                |> TE.bind
+            Task.io (Solver.removeFromApp cache connection registry pkg outline)
+                |> Task.bind
                     (\result ->
                         case result of
                             Solver.SolverOk (Solver.AppSolution old new app) ->
-                                TE.pure (Changes (detectChanges old new) (Outline.App app))
+                                Task.pure (Changes (detectChanges old new) (Outline.App app))
 
                             Solver.NoSolution ->
-                                TE.throw (Exit.UninstallNoOnlineAppSolution pkg)
+                                Task.throw (Exit.UninstallNoOnlineAppSolution pkg)
 
                             Solver.NoOfflineSolution ->
-                                TE.throw (Exit.UninstallNoOfflineAppSolution pkg)
+                                Task.throw (Exit.UninstallNoOfflineAppSolution pkg)
 
                             Solver.SolverErr exit ->
-                                TE.throw (Exit.UninstallHadSolverTrouble exit)
+                                Task.throw (Exit.UninstallHadSolverTrouble exit)
                     )
 
         Nothing ->
-            TE.pure AlreadyNotPresent
+            Task.pure AlreadyNotPresent
 
 
 
@@ -196,7 +196,7 @@ makePkgPlan pkg (Outline.PkgOutline name summary license version exposed deps te
             changes =
                 detectChanges old new
         in
-        TE.pure <|
+        Task.pure <|
             Changes changes <|
                 Outline.Pkg <|
                     Outline.PkgOutline name
@@ -209,7 +209,7 @@ makePkgPlan pkg (Outline.PkgOutline name summary license version exposed deps te
                         elmVersion
 
     else
-        TE.pure AlreadyNotPresent
+        Task.pure AlreadyNotPresent
 
 
 

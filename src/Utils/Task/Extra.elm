@@ -4,7 +4,6 @@ module Utils.Task.Extra exposing
     , eio
     , fmap
     , io
-    , mapError
     , mapM
     , mio
     , pure
@@ -30,11 +29,6 @@ toResult task =
 throw : x -> Task x a
 throw =
     Task.fail
-
-
-mapError : (x -> y) -> Task x a -> Task y a
-mapError =
-    Task.mapError
 
 
 

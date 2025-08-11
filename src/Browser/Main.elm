@@ -13,7 +13,7 @@ import Json.Encode as Encode
 import System.IO as IO
 import Task exposing (Task)
 import Utils.Impure as Impure
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 main : IO.Program
@@ -24,12 +24,12 @@ main =
 app : Task Never ()
 app =
     getArgs
-        |> TE.bind
+        |> Task.bind
             (\args ->
                 case args of
                     MakeArgs path debug optimize withSourceMaps ->
                         Make.run path (Make.Flags debug optimize withSourceMaps)
-                            |> TE.bind
+                            |> Task.bind
                                 (\result ->
                                     case result of
                                         Ok output ->
@@ -51,7 +51,7 @@ app =
                         case P.fromByteString Pkg.parser Tuple.pair pkgString of
                             Ok pkg ->
                                 Install.run pkg
-                                    |> TE.bind (\_ -> exitWithResponse Encode.null)
+                                    |> Task.bind (\_ -> exitWithResponse Encode.null)
 
                             Err _ ->
                                 exitWithResponse (Encode.object [ ( "error", Encode.string "Invalid package..." ) ])
@@ -60,7 +60,7 @@ app =
                         case P.fromByteString Pkg.parser Tuple.pair pkgString of
                             Ok pkg ->
                                 Uninstall.run pkg
-                                    |> TE.bind (\_ -> exitWithResponse Encode.null)
+                                    |> Task.bind (\_ -> exitWithResponse Encode.null)
 
                             Err _ ->
                                 exitWithResponse (Encode.object [ ( "error", Encode.string "Invalid package..." ) ])

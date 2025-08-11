@@ -32,7 +32,7 @@ import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 import Utils.Main as Utils exposing (Chan, MVar)
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -57,7 +57,7 @@ json =
 
 terminal : Task Never Style
 terminal =
-    TE.fmap Terminal (Utils.newMVar (\_ -> BE.bool True) ())
+    Task.fmap Terminal (Utils.newMVar (\_ -> BE.bool True) ())
 
 
 
@@ -68,15 +68,15 @@ attempt : (x -> Help.Report) -> Task Never (Result x a) -> Task Never a
 attempt toReport work =
     work
         -- |> IO.catch reportExceptionsNicely
-        |> TE.bind
+        |> Task.bind
             (\result ->
                 case result of
                     Ok a ->
-                        TE.pure a
+                        Task.pure a
 
                     Err x ->
                         Exit.toStderr (toReport x)
-                            |> TE.bind (\_ -> Exit.exitFailure)
+                            |> Task.bind (\_ -> Exit.exitFailure)
             )
 
 
@@ -84,11 +84,11 @@ attemptWithStyle : Style -> (x -> Help.Report) -> Task Never (Result x a) -> Tas
 attemptWithStyle style toReport work =
     work
         -- |> IO.catch reportExceptionsNicely
-        |> TE.bind
+        |> Task.bind
             (\result ->
                 case result of
                     Ok a ->
-                        TE.pure a
+                        Task.pure a
 
                     Err x ->
                         case style of
@@ -97,12 +97,12 @@ attemptWithStyle style toReport work =
 
                             Json ->
                                 Utils.builderHPutBuilder IO.stderr (Encode.encodeUgly (Exit.toJson (toReport x)))
-                                    |> TE.bind (\_ -> Exit.exitFailure)
+                                    |> Task.bind (\_ -> Exit.exitFailure)
 
                             Terminal mvar ->
                                 Utils.readMVar (BD.map (\_ -> ()) BD.bool) mvar
-                                    |> TE.bind (\_ -> Exit.toStderr (toReport x))
-                                    |> TE.bind (\_ -> Exit.exitFailure)
+                                    |> Task.bind (\_ -> Exit.toStderr (toReport x))
+                                    |> Task.bind (\_ -> Exit.exitFailure)
             )
 
 
@@ -153,7 +153,7 @@ report (Key send) msg =
 
 ignorer : Key msg
 ignorer =
-    Key (\_ -> TE.pure ())
+    Key (\_ -> Task.pure ())
 
 
 
@@ -163,31 +163,31 @@ ignorer =
 ask : D.Doc -> Task Never Bool
 ask doc =
     Help.toStdout doc
-        |> TE.bind (\_ -> askHelp)
+        |> Task.bind (\_ -> askHelp)
 
 
 askHelp : Task Never Bool
 askHelp =
     IO.hFlush IO.stdout
-        |> TE.bind (\_ -> IO.getLine)
-        |> TE.bind
+        |> Task.bind (\_ -> IO.getLine)
+        |> Task.bind
             (\input ->
                 case input of
                     "" ->
-                        TE.pure True
+                        Task.pure True
 
                     "Y" ->
-                        TE.pure True
+                        Task.pure True
 
                     "y" ->
-                        TE.pure True
+                        Task.pure True
 
                     "n" ->
-                        TE.pure False
+                        Task.pure False
 
                     _ ->
                         IO.putStr "Must type 'y' for yes or 'n' for no: "
-                            |> TE.bind (\_ -> askHelp)
+                            |> Task.bind (\_ -> askHelp)
             )
 
 
@@ -203,21 +203,21 @@ trackDetails : Style -> (DKey -> Task Never a) -> Task Never a
 trackDetails style callback =
     case style of
         Silent ->
-            callback (Key (\_ -> TE.pure ()))
+            callback (Key (\_ -> Task.pure ()))
 
         Json ->
-            callback (Key (\_ -> TE.pure ()))
+            callback (Key (\_ -> Task.pure ()))
 
         Terminal mvar ->
             Utils.newChan Utils.mVarEncoder
-                |> TE.bind
+                |> Task.bind
                     (\chan ->
                         Utils.forkIO
                             (Utils.takeMVar (BD.succeed ()) mvar
-                                |> TE.bind (\_ -> detailsLoop chan (DState 0 0 0 0 0 0 0))
-                                |> TE.bind (\_ -> Utils.putMVar (\_ -> BE.bool True) mvar ())
+                                |> Task.bind (\_ -> detailsLoop chan (DState 0 0 0 0 0 0 0))
+                                |> Task.bind (\_ -> Utils.putMVar (\_ -> BE.bool True) mvar ())
                             )
-                            |> TE.bind
+                            |> Task.bind
                                 (\_ ->
                                     let
                                         encoder : Maybe DMsg -> BE.Encoder
@@ -225,10 +225,10 @@ trackDetails style callback =
                                             BE.maybe dMsgEncoder
                                     in
                                     callback (Key (Utils.writeChan encoder chan << Just))
-                                        |> TE.bind
+                                        |> Task.bind
                                             (\answer ->
                                                 Utils.writeChan encoder chan Nothing
-                                                    |> TE.fmap (\_ -> answer)
+                                                    |> Task.fmap (\_ -> answer)
                                             )
                                 )
                     )
@@ -237,11 +237,11 @@ trackDetails style callback =
 detailsLoop : Chan (Maybe DMsg) -> DState -> Task Never ()
 detailsLoop chan ((DState total _ _ _ _ built _) as state) =
     Utils.readChan (BD.maybe dMsgDecoder) chan
-        |> TE.bind
+        |> Task.bind
             (\msg ->
                 case msg of
                     Just dmsg ->
-                        TE.bind (detailsLoop chan) (detailsStep dmsg state)
+                        Task.bind (detailsLoop chan) (detailsStep dmsg state)
 
                     Nothing ->
                         IO.putStrLn
@@ -274,7 +274,7 @@ detailsStep : DMsg -> DState -> Task Never DState
 detailsStep msg (DState total cached rqst rcvd failed built broken) =
     case msg of
         DStart numDependencies ->
-            TE.pure (DState numDependencies 0 0 0 0 0 0)
+            Task.pure (DState numDependencies 0 0 0 0 0 0)
 
         DCached ->
             putTransition (DState total (cached + 1) rqst rcvd failed built broken)
@@ -284,17 +284,17 @@ detailsStep msg (DState total cached rqst rcvd failed built broken) =
                 IO.putStrLn "Starting downloads...\n"
 
              else
-                TE.pure ()
+                Task.pure ()
             )
-                |> TE.fmap (\_ -> DState total cached (rqst + 1) rcvd failed built broken)
+                |> Task.fmap (\_ -> DState total cached (rqst + 1) rcvd failed built broken)
 
         DReceived pkg vsn ->
             putDownload goodMark pkg vsn
-                |> TE.bind (\_ -> putTransition (DState total cached rqst (rcvd + 1) failed built broken))
+                |> Task.bind (\_ -> putTransition (DState total cached rqst (rcvd + 1) failed built broken))
 
         DFailed pkg vsn ->
             putDownload badMark pkg vsn
-                |> TE.bind (\_ -> putTransition (DState total cached rqst rcvd (failed + 1) built broken))
+                |> Task.bind (\_ -> putTransition (DState total cached rqst rcvd (failed + 1) built broken))
 
         DBuilt ->
             putBuilt (DState total cached rqst rcvd failed (built + 1) broken)
@@ -318,7 +318,7 @@ putDownload mark pkg vsn =
 putTransition : DState -> Task Never DState
 putTransition ((DState total cached _ rcvd failed built broken) as state) =
     if cached + rcvd + failed < total then
-        TE.pure state
+        Task.pure state
 
     else
         let
@@ -331,7 +331,7 @@ putTransition ((DState total cached _ rcvd failed built broken) as state) =
                     '\n'
         in
         putStrFlush (String.cons char (toBuildProgress (built + broken + failed) total))
-            |> TE.fmap (\_ -> state)
+            |> Task.fmap (\_ -> state)
 
 
 putBuilt : DState -> Task Never DState
@@ -340,9 +340,9 @@ putBuilt ((DState total cached _ rcvd failed built broken) as state) =
         putStrFlush (String.cons '\u{000D}' (toBuildProgress (built + broken + failed) total))
 
      else
-        TE.pure ()
+        Task.pure ()
     )
-        |> TE.fmap (\_ -> state)
+        |> Task.fmap (\_ -> state)
 
 
 toBuildProgress : Int -> Int -> String
@@ -374,14 +374,14 @@ trackBuild : BD.Decoder a -> (a -> BE.Encoder) -> Style -> (BKey -> Task Never (
 trackBuild decoder encoder style callback =
     case style of
         Silent ->
-            callback (Key (\_ -> TE.pure ()))
+            callback (Key (\_ -> Task.pure ()))
 
         Json ->
-            callback (Key (\_ -> TE.pure ()))
+            callback (Key (\_ -> Task.pure ()))
 
         Terminal mvar ->
             Utils.newChan Utils.mVarEncoder
-                |> TE.bind
+                |> Task.bind
                     (\chan ->
                         let
                             chanEncoder : Result BMsg (BResult a) -> BE.Encoder
@@ -390,15 +390,15 @@ trackBuild decoder encoder style callback =
                         in
                         Utils.forkIO
                             (Utils.takeMVar (BD.succeed ()) mvar
-                                |> TE.bind (\_ -> putStrFlush "Compiling ...")
-                                |> TE.bind (\_ -> buildLoop decoder chan 0)
-                                |> TE.bind (\_ -> Utils.putMVar (\_ -> BE.bool True) mvar ())
+                                |> Task.bind (\_ -> putStrFlush "Compiling ...")
+                                |> Task.bind (\_ -> buildLoop decoder chan 0)
+                                |> Task.bind (\_ -> Utils.putMVar (\_ -> BE.bool True) mvar ())
                             )
-                            |> TE.bind (\_ -> callback (Key (Utils.writeChan chanEncoder chan << Err)))
-                            |> TE.bind
+                            |> Task.bind (\_ -> callback (Key (Utils.writeChan chanEncoder chan << Err)))
+                            |> Task.bind
                                 (\result ->
                                     Utils.writeChan chanEncoder chan (Ok result)
-                                        |> TE.fmap (\_ -> result)
+                                        |> Task.fmap (\_ -> result)
                                 )
                     )
 
@@ -410,7 +410,7 @@ type BMsg
 buildLoop : BD.Decoder a -> Chan (Result BMsg (BResult a)) -> Int -> Task Never ()
 buildLoop decoder chan done =
     Utils.readChan (BD.result bMsgDecoder (bResultDecoder decoder)) chan
-        |> TE.bind
+        |> Task.bind
             (\msg ->
                 case msg of
                     Err BDone ->
@@ -420,7 +420,7 @@ buildLoop decoder chan done =
                                 done + 1
                         in
                         putStrFlush ("\u{000D}Compiling (" ++ String.fromInt done1 ++ ")")
-                            |> TE.bind (\_ -> buildLoop decoder chan done1)
+                            |> Task.bind (\_ -> buildLoop decoder chan done1)
 
                     Ok result ->
                         let
@@ -477,14 +477,14 @@ reportGenerate : Style -> NE.Nonempty ModuleName.Raw -> String -> Task Never ()
 reportGenerate style names output =
     case style of
         Silent ->
-            TE.pure ()
+            Task.pure ()
 
         Json ->
-            TE.pure ()
+            Task.pure ()
 
         Terminal mvar ->
             Utils.readMVar (BD.map (\_ -> ()) BD.bool) mvar
-                |> TE.bind
+                |> Task.bind
                     (\_ ->
                         let
                             cnames : NE.Nonempty String
@@ -564,7 +564,7 @@ vbottom =
 putStrFlush : String -> Task Never ()
 putStrFlush str =
     IO.hPutStr IO.stdout str
-        |> TE.bind (\_ -> IO.hFlush IO.stdout)
+        |> Task.bind (\_ -> IO.hFlush IO.stdout)
 
 
 

@@ -23,7 +23,7 @@ import Task exposing (Task)
 import Terminal.Terminal.Error as Error
 import Terminal.Terminal.Internal exposing (Args(..), Command(..), CompleteArgs(..), Flag(..), Flags(..), Parser, RequiredArgs(..), toName)
 import Utils.Main as Utils
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -33,7 +33,7 @@ import Utils.Task.Extra as TE
 app : D.Doc -> D.Doc -> List Command -> Task Never ()
 app intro outro commands =
     Utils.envGetArgs
-        |> TE.bind
+        |> Task.bind
             (\argStrings ->
                 case argStrings of
                     [] ->
@@ -44,7 +44,7 @@ app intro outro commands =
 
                     [ "--version" ] ->
                         IO.hPutStrLn IO.stdout (V.toChars V.compiler)
-                            |> TE.bind (\_ -> Exit.exitSuccess)
+                            |> Task.bind (\_ -> Exit.exitSuccess)
 
                     command :: chunks ->
                         case List.find (\cmd -> toName cmd == command) commands of

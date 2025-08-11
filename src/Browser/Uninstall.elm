@@ -14,7 +14,7 @@ import Data.Map as Dict exposing (Dict)
 import System.IO as IO
 import Task exposing (Task)
 import Utils.Main exposing (FilePath)
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -25,28 +25,28 @@ run : Pkg.Name -> Task Never ()
 run pkg =
     Reporting.attempt Exit.uninstallToReport
         (Stuff.findRoot
-            |> TE.bind
+            |> Task.bind
                 (\maybeRoot ->
                     case maybeRoot of
                         Nothing ->
-                            TE.pure (Err Exit.UninstallNoOutline)
+                            Task.pure (Err Exit.UninstallNoOutline)
 
                         Just root ->
-                            TE.toResult
-                                (TE.eio Exit.UninstallBadRegistry Solver.initEnv
-                                    |> TE.bind
+                            Task.toResult
+                                (Task.eio Exit.UninstallBadRegistry Solver.initEnv
+                                    |> Task.bind
                                         (\env ->
-                                            TE.eio Exit.UninstallBadOutline (Outline.read root)
-                                                |> TE.bind
+                                            Task.eio Exit.UninstallBadOutline (Outline.read root)
+                                                |> Task.bind
                                                     (\oldOutline ->
                                                         case oldOutline of
                                                             Outline.App outline ->
                                                                 makeAppPlan env pkg outline
-                                                                    |> TE.bind (\changes -> attemptChanges root env oldOutline changes)
+                                                                    |> Task.bind (\changes -> attemptChanges root env oldOutline changes)
 
                                                             Outline.Pkg outline ->
                                                                 makePkgPlan pkg outline
-                                                                    |> TE.bind (\changes -> attemptChanges root env oldOutline changes)
+                                                                    |> Task.bind (\changes -> attemptChanges root env oldOutline changes)
                                                     )
                                         )
                                 )
@@ -67,7 +67,7 @@ attemptChanges : String -> Solver.Env -> Outline.Outline -> Changes a -> Task Ex
 attemptChanges root env oldOutline changes =
     case changes of
         AlreadyNotPresent ->
-            TE.io (IO.putStrLn "It is not currently installed!")
+            Task.io (IO.putStrLn "It is not currently installed!")
 
         Changes newOutline ->
             attemptChangesHelp root env oldOutline newOutline
@@ -75,21 +75,21 @@ attemptChanges root env oldOutline changes =
 
 attemptChangesHelp : FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> Task Exit.Uninstall ()
 attemptChangesHelp root env oldOutline newOutline =
-    TE.eio Exit.UninstallBadDetails <|
+    Task.eio Exit.UninstallBadDetails <|
         BW.withScope
             (\scope ->
                 Outline.write root newOutline
-                    |> TE.bind (\_ -> Details.verifyInstall scope root env newOutline)
-                    |> TE.bind
+                    |> Task.bind (\_ -> Details.verifyInstall scope root env newOutline)
+                    |> Task.bind
                         (\result ->
                             case result of
                                 Err exit ->
                                     Outline.write root oldOutline
-                                        |> TE.fmap (\_ -> Err exit)
+                                        |> Task.fmap (\_ -> Err exit)
 
                                 Ok () ->
                                     IO.putStrLn "Success!"
-                                        |> TE.fmap (\_ -> Ok ())
+                                        |> Task.fmap (\_ -> Ok ())
                         )
             )
 
@@ -102,25 +102,25 @@ makeAppPlan : Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task Exit.Uninstal
 makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline _ _ direct _ testDirect _) as outline) =
     case Dict.get identity pkg (Dict.union direct testDirect) of
         Just _ ->
-            TE.io (Solver.removeFromApp cache connection registry pkg outline)
-                |> TE.bind
+            Task.io (Solver.removeFromApp cache connection registry pkg outline)
+                |> Task.bind
                     (\result ->
                         case result of
                             Solver.SolverOk (Solver.AppSolution _ _ app) ->
-                                TE.pure (Changes (Outline.App app))
+                                Task.pure (Changes (Outline.App app))
 
                             Solver.NoSolution ->
-                                TE.throw (Exit.UninstallNoOnlineAppSolution pkg)
+                                Task.throw (Exit.UninstallNoOnlineAppSolution pkg)
 
                             Solver.NoOfflineSolution ->
-                                TE.throw (Exit.UninstallNoOfflineAppSolution pkg)
+                                Task.throw (Exit.UninstallNoOfflineAppSolution pkg)
 
                             Solver.SolverErr exit ->
-                                TE.throw (Exit.UninstallHadSolverTrouble exit)
+                                Task.throw (Exit.UninstallHadSolverTrouble exit)
                     )
 
         Nothing ->
-            TE.pure AlreadyNotPresent
+            Task.pure AlreadyNotPresent
 
 
 
@@ -135,7 +135,7 @@ makePkgPlan pkg (Outline.PkgOutline name summary license version exposed deps te
             Dict.union deps test
     in
     if Dict.member identity pkg old then
-        TE.pure <|
+        Task.pure <|
             Changes <|
                 Outline.Pkg <|
                     Outline.PkgOutline name
@@ -148,4 +148,4 @@ makePkgPlan pkg (Outline.PkgOutline name summary license version exposed deps te
                         elmVersion
 
     else
-        TE.pure AlreadyNotPresent
+        Task.pure AlreadyNotPresent

@@ -27,7 +27,7 @@ import Data.Set as EverySet
 import List
 import Task exposing (Task)
 import Utils.Main as Utils
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 type PackageChanges
@@ -408,34 +408,34 @@ getDocs cache manager name version =
             home ++ "/docs.json"
     in
     File.exists path
-        |> TE.bind
+        |> Task.bind
             (\exists ->
                 if exists then
                     File.readUtf8 path
-                        |> TE.bind
+                        |> Task.bind
                             (\bytes ->
                                 case D.fromByteString Docs.decoder bytes of
                                     Ok docs ->
-                                        TE.pure (Ok docs)
+                                        Task.pure (Ok docs)
 
                                     Err _ ->
                                         File.remove path
-                                            |> TE.fmap (\_ -> Err DP_Cache)
+                                            |> Task.fmap (\_ -> Err DP_Cache)
                             )
 
                 else
                     Website.metadata name version "docs.json"
-                        |> TE.bind
+                        |> Task.bind
                             (\url ->
                                 Http.get manager url [] Exit.DP_Http <|
                                     \body ->
                                         case D.fromByteString Docs.decoder body of
                                             Ok docs ->
                                                 Utils.dirCreateDirectoryIfMissing True home
-                                                    |> TE.bind (\_ -> File.writeUtf8 path body)
-                                                    |> TE.fmap (\_ -> Ok docs)
+                                                    |> Task.bind (\_ -> File.writeUtf8 path body)
+                                                    |> Task.fmap (\_ -> Ok docs)
 
                                             Err _ ->
-                                                TE.pure (Err (DP_Data url body))
+                                                Task.pure (Err (DP_Data url body))
                             )
             )

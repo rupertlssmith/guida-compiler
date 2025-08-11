@@ -6,7 +6,7 @@ import Node.Format as Format
 import System.IO as IO
 import Task exposing (Task)
 import Utils.Impure as Impure
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 main : IO.Program
@@ -17,7 +17,7 @@ main =
 app : Task Never ()
 app =
     getArgs
-        |> TE.bind
+        |> Task.bind
             (\args ->
                 case args of
                     FormatArgs path ->

@@ -21,7 +21,7 @@ import Prelude
 import System.IO as IO
 import Task exposing (Task)
 import Utils.Main as Utils exposing (FilePath)
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -31,7 +31,7 @@ import Utils.Task.Extra as TE
 run : () -> () -> Task Never ()
 run () () =
     Reporting.attempt Exit.bumpToReport <|
-        TE.toResult (TE.bind bump getEnv)
+        Task.toResult (Task.bind bump getEnv)
 
 
 
@@ -44,32 +44,32 @@ type Env
 
 getEnv : Task Exit.Bump Env
 getEnv =
-    TE.io Stuff.findRoot
-        |> TE.bind
+    Task.io Stuff.findRoot
+        |> Task.bind
             (\maybeRoot ->
                 case maybeRoot of
                     Nothing ->
-                        TE.throw Exit.BumpNoOutline
+                        Task.throw Exit.BumpNoOutline
 
                     Just root ->
-                        TE.io Stuff.getPackageCache
-                            |> TE.bind
+                        Task.io Stuff.getPackageCache
+                            |> Task.bind
                                 (\cache ->
-                                    TE.io Http.getManager
-                                        |> TE.bind
+                                    Task.io Http.getManager
+                                        |> Task.bind
                                             (\manager ->
-                                                TE.eio Exit.BumpMustHaveLatestRegistry (Registry.latest manager cache)
-                                                    |> TE.bind
+                                                Task.eio Exit.BumpMustHaveLatestRegistry (Registry.latest manager cache)
+                                                    |> Task.bind
                                                         (\registry ->
-                                                            TE.eio Exit.BumpBadOutline (Outline.read root)
-                                                                |> TE.bind
+                                                            Task.eio Exit.BumpBadOutline (Outline.read root)
+                                                                |> Task.bind
                                                                     (\outline ->
                                                                         case outline of
                                                                             Outline.App _ ->
-                                                                                TE.throw Exit.BumpApplication
+                                                                                Task.throw Exit.BumpApplication
 
                                                                             Outline.Pkg pkgOutline ->
-                                                                                TE.pure (Env root cache manager registry pkgOutline)
+                                                                                Task.pure (Env root cache manager registry pkgOutline)
                                                                     )
                                                         )
                                             )
@@ -94,12 +94,12 @@ bump ((Env root _ _ registry ((Outline.PkgOutline pkg _ _ vsn _ _ _ _) as outlin
                 suggestVersion env
 
             else
-                TE.throw <|
+                Task.throw <|
                     Exit.BumpUnexpectedVersion vsn <|
                         List.map Prelude.head (Utils.listGroupBy (==) (List.sortWith V.compare bumpableVersions))
 
         Nothing ->
-            TE.io <| checkNewPackage root outline
+            Task.io <| checkNewPackage root outline
 
 
 
@@ -109,7 +109,7 @@ bump ((Env root _ _ registry ((Outline.PkgOutline pkg _ _ vsn _ _ _ _) as outlin
 checkNewPackage : FilePath -> Outline.PkgOutline -> Task Never ()
 checkNewPackage root ((Outline.PkgOutline _ _ _ version _ _ _ _) as outline) =
     IO.putStrLn Exit.newPackageOverview
-        |> TE.bind
+        |> Task.bind
             (\_ ->
                 if version == V.one then
                     IO.putStrLn "The version number in elm.json is correct so you are all set!"
@@ -129,11 +129,11 @@ checkNewPackage root ((Outline.PkgOutline _ _ _ version _ _ _ _) as outline) =
 
 suggestVersion : Env -> Task Exit.Bump ()
 suggestVersion (Env root cache manager _ ((Outline.PkgOutline pkg _ _ vsn _ _ _ _) as outline)) =
-    TE.eio (Exit.BumpCannotFindDocs vsn) (Diff.getDocs cache manager pkg vsn)
-        |> TE.bind
+    Task.eio (Exit.BumpCannotFindDocs vsn) (Diff.getDocs cache manager pkg vsn)
+        |> Task.bind
             (\oldDocs ->
                 generateDocs root outline
-                    |> TE.bind
+                    |> Task.bind
                         (\newDocs ->
                             let
                                 changes : Diff.PackageChanges
@@ -156,7 +156,7 @@ suggestVersion (Env root cache manager _ ((Outline.PkgOutline pkg _ _ vsn _ _ _ 
                                 mag =
                                     D.fromChars <| M.toChars (Diff.toMagnitude changes)
                             in
-                            TE.io <|
+                            Task.io <|
                                 changeVersion root outline newVersion <|
                                     (D.fromChars "Based on your new API, this should be a"
                                         |> D.plus (D.green mag)
@@ -179,16 +179,16 @@ suggestVersion (Env root cache manager _ ((Outline.PkgOutline pkg _ _ vsn _ _ _ 
 
 generateDocs : FilePath -> Outline.PkgOutline -> Task Exit.Bump Docs.Documentation
 generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
-    TE.eio Exit.BumpBadDetails
+    Task.eio Exit.BumpBadDetails
         (BW.withScope (\scope -> Details.load Reporting.silent scope root))
-        |> TE.bind
+        |> Task.bind
             (\details ->
                 case Outline.flattenExposed exposed of
                     [] ->
-                        TE.throw <| Exit.BumpNoExposed
+                        Task.throw <| Exit.BumpNoExposed
 
                     e :: es ->
-                        TE.eio Exit.BumpBadBuild <|
+                        Task.eio Exit.BumpBadBuild <|
                             Build.fromExposed Docs.bytesDecoder Docs.bytesEncoder Reporting.silent root details Build.keepDocs (NE.Nonempty e es)
             )
 
@@ -200,7 +200,7 @@ generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
 changeVersion : FilePath -> Outline.PkgOutline -> V.Version -> D.Doc -> Task Never ()
 changeVersion root (Outline.PkgOutline name summary license _ exposed deps testDeps elmVersion) targetVersion question =
     Reporting.ask question
-        |> TE.bind
+        |> Task.bind
             (\approved ->
                 if not approved then
                     IO.putStrLn "Okay, I did not change anything!"
@@ -210,7 +210,7 @@ changeVersion root (Outline.PkgOutline name summary license _ exposed deps testD
                         (Outline.Pkg
                             (Outline.PkgOutline name summary license targetVersion exposed deps testDeps elmVersion)
                         )
-                        |> TE.bind
+                        |> Task.bind
                             (\_ ->
                                 Help.toStdout
                                     (D.fromChars "Version changed to "

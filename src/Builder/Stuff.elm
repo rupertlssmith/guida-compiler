@@ -27,7 +27,7 @@ import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 import Utils.Main as Utils
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -95,7 +95,7 @@ toArtifactPath root name ext =
 findRoot : Task Never (Maybe String)
 findRoot =
     Utils.dirGetCurrentDirectory
-        |> TE.bind
+        |> Task.bind
             (\dir ->
                 findRootHelp (Utils.fpSplitDirectories dir)
             )
@@ -105,14 +105,14 @@ findRootHelp : List String -> Task Never (Maybe String)
 findRootHelp dirs =
     case dirs of
         [] ->
-            TE.pure Nothing
+            Task.pure Nothing
 
         _ :: _ ->
             Utils.dirDoesFileExist (Utils.fpJoinPath dirs ++ "/elm.json")
-                |> TE.bind
+                |> Task.bind
                     (\exists ->
                         if exists then
-                            TE.pure (Just (Utils.fpJoinPath dirs))
+                            Task.pure (Just (Utils.fpJoinPath dirs))
 
                         else
                             findRootHelp (Prelude.init dirs)
@@ -131,7 +131,7 @@ withRootLock root work =
             stuff root
     in
     Utils.dirCreateDirectoryIfMissing True dir
-        |> TE.bind
+        |> Task.bind
             (\_ ->
                 Utils.lockWithFileLock (dir ++ "/lock") Utils.LockExclusive (\_ -> work)
             )
@@ -152,7 +152,7 @@ type PackageCache
 
 getPackageCache : Task Never PackageCache
 getPackageCache =
-    TE.fmap PackageCache (getCacheDir "packages")
+    Task.fmap PackageCache (getCacheDir "packages")
 
 
 registry : PackageCache -> String
@@ -177,7 +177,7 @@ getReplCache =
 getCacheDir : String -> Task Never String
 getCacheDir projectName =
     getElmHome
-        |> TE.bind
+        |> Task.bind
             (\home ->
                 let
                     root : Utils.FilePath
@@ -185,18 +185,18 @@ getCacheDir projectName =
                         Utils.fpCombine home (Utils.fpCombine compilerVersion projectName)
                 in
                 Utils.dirCreateDirectoryIfMissing True root
-                    |> TE.fmap (\_ -> root)
+                    |> Task.fmap (\_ -> root)
             )
 
 
 getElmHome : Task Never String
 getElmHome =
     Utils.envLookupEnv "GUIDA_HOME"
-        |> TE.bind
+        |> Task.bind
             (\maybeCustomHome ->
                 case maybeCustomHome of
                     Just customHome ->
-                        TE.pure customHome
+                        Task.pure customHome
 
                     Nothing ->
                         Utils.dirGetAppUserDataDirectory "guida"

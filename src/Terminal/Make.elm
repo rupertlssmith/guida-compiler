@@ -29,7 +29,7 @@ import Terminal.Terminal.Internal exposing (Parser(..))
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
 import Utils.Main as Utils exposing (FilePath)
-import Utils.Task.Extra as TE
+import Utils.Task.Extra as Task
 
 
 
@@ -57,10 +57,10 @@ type ReportType
 run : List String -> Flags -> Task Never ()
 run paths ((Flags _ _ _ _ report _) as flags) =
     getStyle report
-        |> TE.bind
+        |> Task.bind
             (\style ->
                 Stuff.findRoot
-                    |> TE.bind
+                    |> Task.bind
                         (\maybeRoot ->
                             Reporting.attemptWithStyle style Exit.makeToReport <|
                                 case maybeRoot of
@@ -68,7 +68,7 @@ run paths ((Flags _ _ _ _ report _) as flags) =
                                         runHelp root paths style flags
 
                                     Nothing ->
-                                        TE.pure (Err Exit.MakeNoOutline)
+                                        Task.pure (Err Exit.MakeNoOutline)
                         )
             )
 
@@ -78,63 +78,63 @@ runHelp root paths style (Flags debug optimize withSourceMaps maybeOutput _ mayb
     BW.withScope
         (\scope ->
             Stuff.withRootLock root <|
-                TE.toResult <|
+                Task.toResult <|
                     (getMode debug optimize
-                        |> TE.bind
+                        |> Task.bind
                             (\desiredMode ->
-                                TE.eio Exit.MakeBadDetails (Details.load style scope root)
-                                    |> TE.bind
+                                Task.eio Exit.MakeBadDetails (Details.load style scope root)
+                                    |> Task.bind
                                         (\details ->
                                             case paths of
                                                 [] ->
                                                     getExposed details
-                                                        |> TE.bind (\exposed -> buildExposed style root details maybeDocs exposed)
+                                                        |> Task.bind (\exposed -> buildExposed style root details maybeDocs exposed)
 
                                                 p :: ps ->
                                                     buildPaths style root details (NE.Nonempty p ps)
-                                                        |> TE.bind
+                                                        |> Task.bind
                                                             (\artifacts ->
                                                                 case maybeOutput of
                                                                     Nothing ->
                                                                         case getMains artifacts of
                                                                             [] ->
-                                                                                TE.pure ()
+                                                                                Task.pure ()
 
                                                                             [ name ] ->
                                                                                 toBuilder withSourceMaps Html.leadingLines root details desiredMode artifacts
-                                                                                    |> TE.bind
+                                                                                    |> Task.bind
                                                                                         (\builder ->
                                                                                             generate style "index.html" (Html.sandwich name builder) (NE.Nonempty name [])
                                                                                         )
 
                                                                             name :: names ->
                                                                                 toBuilder withSourceMaps 0 root details desiredMode artifacts
-                                                                                    |> TE.bind
+                                                                                    |> Task.bind
                                                                                         (\builder ->
                                                                                             generate style "elm.js" builder (NE.Nonempty name names)
                                                                                         )
 
                                                                     Just DevNull ->
-                                                                        TE.pure ()
+                                                                        Task.pure ()
 
                                                                     Just (JS target) ->
                                                                         case getNoMains artifacts of
                                                                             [] ->
                                                                                 toBuilder withSourceMaps 0 root details desiredMode artifacts
-                                                                                    |> TE.bind
+                                                                                    |> Task.bind
                                                                                         (\builder ->
                                                                                             generate style target builder (Build.getRootNames artifacts)
                                                                                         )
 
                                                                             name :: names ->
-                                                                                TE.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
+                                                                                Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
 
                                                                     Just (Html target) ->
                                                                         hasOneMain artifacts
-                                                                            |> TE.bind
+                                                                            |> Task.bind
                                                                                 (\name ->
                                                                                     toBuilder withSourceMaps Html.leadingLines root details desiredMode artifacts
-                                                                                        |> TE.bind
+                                                                                        |> Task.bind
                                                                                             (\builder ->
                                                                                                 generate style target (Html.sandwich name builder) (NE.Nonempty name [])
                                                                                             )
@@ -157,38 +157,38 @@ getStyle report =
             Reporting.terminal
 
         Just Json ->
-            TE.pure Reporting.json
+            Task.pure Reporting.json
 
 
 getMode : Bool -> Bool -> Task Exit.Make DesiredMode
 getMode debug optimize =
     case ( debug, optimize ) of
         ( True, True ) ->
-            TE.throw Exit.MakeCannotOptimizeAndDebug
+            Task.throw Exit.MakeCannotOptimizeAndDebug
 
         ( True, False ) ->
-            TE.pure Debug
+            Task.pure Debug
 
         ( False, False ) ->
-            TE.pure Dev
+            Task.pure Dev
 
         ( False, True ) ->
-            TE.pure Prod
+            Task.pure Prod
 
 
 getExposed : Details.Details -> Task Exit.Make (NE.Nonempty ModuleName.Raw)
 getExposed (Details.Details _ validOutline _ _ _ _) =
     case validOutline of
         Details.ValidApp _ ->
-            TE.throw Exit.MakeAppNeedsFileNames
+            Task.throw Exit.MakeAppNeedsFileNames
 
         Details.ValidPkg _ exposed _ ->
             case exposed of
                 [] ->
-                    TE.throw Exit.MakePkgNeedsExposing
+                    Task.throw Exit.MakePkgNeedsExposing
 
                 m :: ms ->
-                    TE.pure (NE.Nonempty m ms)
+                    Task.pure (NE.Nonempty m ms)
 
 
 
@@ -202,7 +202,7 @@ buildExposed style root details maybeDocs exposed =
         docsGoal =
             Maybe.unwrap Build.ignoreDocs Build.writeDocs maybeDocs
     in
-    TE.eio Exit.MakeCannotBuild <|
+    Task.eio Exit.MakeCannotBuild <|
         Build.fromExposed BD.unit
             BE.unit
             style
@@ -214,7 +214,7 @@ buildExposed style root details maybeDocs exposed =
 
 buildPaths : Reporting.Style -> FilePath -> Details.Details -> NE.Nonempty FilePath -> Task Exit.Make Build.Artifacts
 buildPaths style root details paths =
-    TE.eio Exit.MakeCannotBuild <|
+    Task.eio Exit.MakeCannotBuild <|
         Build.fromPaths style root details paths
 
 
@@ -260,10 +260,10 @@ hasOneMain : Build.Artifacts -> Task Exit.Make ModuleName.Raw
 hasOneMain (Build.Artifacts _ _ roots modules) =
     case roots of
         NE.Nonempty root [] ->
-            TE.mio Exit.MakeNoMain (TE.pure <| getMain modules root)
+            Task.mio Exit.MakeNoMain (Task.pure <| getMain modules root)
 
         NE.Nonempty _ (_ :: _) ->
-            TE.throw Exit.MakeMultipleFilesIntoHtml
+            Task.throw Exit.MakeMultipleFilesIntoHtml
 
 
 
@@ -300,10 +300,10 @@ getNoMain modules root =
 
 generate : Reporting.Style -> FilePath -> String -> NE.Nonempty ModuleName.Raw -> Task Exit.Make ()
 generate style target builder names =
-    TE.io
+    Task.io
         (Utils.dirCreateDirectoryIfMissing True (Utils.fpTakeDirectory target)
-            |> TE.bind (\_ -> File.writeUtf8 target builder)
-            |> TE.bind (\_ -> Reporting.reportGenerate style names target)
+            |> Task.bind (\_ -> File.writeUtf8 target builder)
+            |> Task.bind (\_ -> Reporting.reportGenerate style names target)
         )
 
 
@@ -319,7 +319,7 @@ type DesiredMode
 
 toBuilder : Bool -> Int -> FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task Exit.Make String
 toBuilder withSourceMaps leadingLines root details desiredMode artifacts =
-    TE.mapError Exit.MakeBadGenerate <|
+    Task.mapError Exit.MakeBadGenerate <|
         case desiredMode of
             Debug ->
                 Generate.debug withSourceMaps leadingLines root details artifacts
@@ -340,8 +340,8 @@ reportType =
     Parser
         { singular = "report type"
         , plural = "report types"
-        , suggest = \_ -> TE.pure [ "json" ]
-        , examples = \_ -> TE.pure [ "json" ]
+        , suggest = \_ -> Task.pure [ "json" ]
+        , examples = \_ -> Task.pure [ "json" ]
         }
 
 
@@ -359,8 +359,8 @@ output =
     Parser
         { singular = "output file"
         , plural = "output files"
-        , suggest = \_ -> TE.pure []
-        , examples = \_ -> TE.pure [ "elm.js", "index.html", "/dev/null" ]
+        , suggest = \_ -> Task.pure []
+        , examples = \_ -> Task.pure [ "elm.js", "index.html", "/dev/null" ]
         }
 
 
@@ -384,8 +384,8 @@ docsFile =
     Parser
         { singular = "json file"
         , plural = "json files"
-        , suggest = \_ -> TE.pure []
-        , examples = \_ -> TE.pure [ "docs.json", "documentation.json" ]
+        , suggest = \_ -> Task.pure []
+        , examples = \_ -> Task.pure [ "docs.json", "documentation.json" ]
         }
 
 
