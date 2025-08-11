@@ -14,7 +14,6 @@ module Terminal.Terminal.Internal exposing
     , toName
     )
 
-import System.IO
 import Task exposing (Task)
 import Text.PrettyPrint.ANSI.Leijen exposing (Doc)
 

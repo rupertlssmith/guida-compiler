@@ -5,7 +5,6 @@ module System.Exit exposing
     , exitWith
     )
 
-import System.IO
 import Task exposing (Task)
 import Utils.Impure as Impure
 

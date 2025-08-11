@@ -11,19 +11,11 @@ module System.IO exposing
     , putStr, putStrLn, getLine
     , ReplState(..), initialReplState
     , writeString
-    --, pure, apply, fmap, bind, mapM
-    --, eio, io, mapError, mio, throw, void
     )
 
 {-| Ref.: <https://hackage.haskell.org/package/base-4.20.0.1/docs/System-IO.html>
 
 @docs Program, Model, Msg, run
-
-
-# Task Extra
-
-@docs pure, apply, fmap, bind, mapM
-@docs eio, io, mapError, mio, throw, void
 
 
 # Files and handles
@@ -131,79 +123,9 @@ writeString path content =
 -- Task extra
 
 
-io : Task Never a -> Task x a
-io work =
-    Task.mapError never work
-
-
-mio : x -> Task Never (Maybe a) -> Task x a
-mio x work =
-    work
-        |> Task.mapError never
-        |> Task.andThen
-            (\m ->
-                case m of
-                    Just a ->
-                        Task.succeed a
-
-                    Nothing ->
-                        Task.fail x
-            )
-
-
-eio : (x -> y) -> Task Never (Result x a) -> Task y a
-eio func work =
-    work
-        |> Task.mapError never
-        |> Task.andThen
-            (\m ->
-                case m of
-                    Ok a ->
-                        Task.succeed a
-
-                    Err err ->
-                        func err |> Task.fail
-            )
-
-
-throw : x -> Task x a
-throw x =
-    Task.fail x
-
-
-mapError : (x -> y) -> Task x a -> Task y a
-mapError func task =
-    Task.mapError func task
-
-
-void : Task x a -> Task x ()
-void =
-    Task.map (always ())
-
-
 pure : a -> Task x a
 pure =
     Task.succeed
-
-
-apply : Task x a -> Task x (a -> b) -> Task x b
-apply ma mf =
-    bind (\f -> bind (pure << f) ma) mf
-
-
-fmap : (a -> b) -> Task x a -> Task x b
-fmap =
-    Task.map
-
-
-bind : (a -> Task x b) -> Task x a -> Task x b
-bind =
-    Task.andThen
-
-
-mapM : (a -> Task x b) -> List a -> Task x (List b)
-mapM f =
-    List.map f >> Task.sequence
 
 
 

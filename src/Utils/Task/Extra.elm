@@ -22,7 +22,7 @@ import Task exposing (Task)
 toResult : Task x a -> Task Never (Result x a)
 toResult task =
     task
-        |> Task.andThen (\r -> Ok r |> Task.succeed)
+        |> Task.map (\r -> Ok r)
         |> Task.onError (\err -> Err err |> Task.succeed)
 
 
