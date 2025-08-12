@@ -12,7 +12,7 @@ import Compiler.Elm.Compiler.Imports as Imports
 import Compiler.Elm.Package as Pkg
 import Compiler.Parse.Declaration as Decl
 import Compiler.Parse.Keyword as Keyword
-import Compiler.Parse.Primitives as P exposing (Col, Row)
+import Compiler.Parse.NewPrimitives as P
 import Compiler.Parse.Space as Space
 import Compiler.Parse.Symbol as Symbol
 import Compiler.Parse.SyntaxVersion exposing (SyntaxVersion)
@@ -21,22 +21,26 @@ import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Error.Syntax as E
 
 
-
--- FROM BYTE STRING
-
-
 fromByteString : SyntaxVersion -> ProjectType -> String -> Result E.Error Src.Module
 fromByteString syntaxVersion projectType source =
-    case P.fromByteString (chompModule syntaxVersion projectType) E.ModuleBadEnd source of
+    case P.fromByteString (chompModule syntaxVersion projectType) source of
         Ok modul ->
             checkModule syntaxVersion projectType modul
 
-        Err err ->
-            Err (E.ParseError err)
+        Err deadEnds ->
+            Err (toSyntaxError deadEnds)
 
 
+toSyntaxError : List (P.DeadEnd P.Context P.Problem) -> E.Error
+toSyntaxError deadEnds =
+    -- This is a simplification. A real implementation would generate
+    -- a more detailed error report based on the list of dead ends.
+    case List.head deadEnds of
+        Just deadEnd ->
+            E.ParseError (E.ModuleProblem deadEnd.row deadEnd.col)
 
--- PROJECT TYPE
+        Nothing ->
+            E.ParseError (E.ModuleProblem 1 1)
 
 
 type ProjectType
@@ -64,10 +68,6 @@ isKernel projectType =
             False
 
 
-
--- MODULE
-
-
 type alias Module =
     { header : Maybe Header
     , imports : List Src.Import
@@ -76,30 +76,28 @@ type alias Module =
     }
 
 
-chompModule : SyntaxVersion -> ProjectType -> P.Parser E.Module Module
+chompModule : SyntaxVersion -> ProjectType -> P.Parser Module
 chompModule syntaxVersion projectType =
     chompHeader
-        |> P.bind
+        |> P.andThen
             (\header ->
                 chompImports
                     (if isCore projectType then
                         []
-
                      else
                         Imports.defaults
                     )
-                    |> P.bind
+                    |> P.andThen
                         (\imports ->
                             (if isKernel projectType then
                                 chompInfixes []
-
                              else
-                                P.pure []
+                                P.succeed []
                             )
-                                |> P.bind
+                                |> P.andThen
                                     (\infixes ->
-                                        P.specialize E.Declarations (chompDecls syntaxVersion)
-                                            |> P.fmap
+                                        chompDecls syntaxVersion
+                                            |> P.map
                                                 (\decls ->
                                                     Module
                                                         header
@@ -110,10 +108,6 @@ chompModule syntaxVersion projectType =
                                     )
                         )
             )
-
-
-
--- CHECK MODULE
 
 
 checkModule : SyntaxVersion -> ProjectType -> Module -> Result E.Error Src.Module
@@ -221,10 +215,6 @@ categorizeDecls values unions aliases ports decls =
                     categorizeDecls values unions aliases (port_ :: ports) otherDecls
 
 
-
--- TO DOCS
-
-
 toDocs : Result A.Region Src.Comment -> List Decl.Decl -> Src.Docs
 toDocs comment decls =
     case comment of
@@ -266,72 +256,55 @@ addComment maybeComment (A.At _ name) comments =
             comments
 
 
-
--- FRESH LINES
-
-
-freshLine : (Row -> Col -> E.Module) -> P.Parser E.Module ()
+freshLine : P.Problem -> P.Parser ()
 freshLine toFreshLineError =
-    Space.chomp E.ModuleSpace
-        |> P.bind (\_ -> Space.checkFreshLine toFreshLineError)
+    Space.chomp
+        |> P.andThen (\_ -> Space.checkFreshLine toFreshLineError)
 
 
-
--- CHOMP DECLARATIONS
-
-
-chompDecls : SyntaxVersion -> P.Parser E.Decl (List Decl.Decl)
+chompDecls : SyntaxVersion -> P.Parser (List Decl.Decl)
 chompDecls syntaxVersion =
-    Decl.declaration syntaxVersion
-        |> P.bind (\( decl, _ ) -> P.loop (chompDeclsHelp syntaxVersion) [ decl ])
+    P.loop [] (chompDeclsHelp syntaxVersion)
 
 
-chompDeclsHelp : SyntaxVersion -> List Decl.Decl -> P.Parser E.Decl (P.Step (List Decl.Decl) (List Decl.Decl))
+chompDeclsHelp : SyntaxVersion -> List Decl.Decl -> P.Parser (P.Step (List Decl.Decl) (List Decl.Decl))
 chompDeclsHelp syntaxVersion decls =
     P.oneOfWithFallback
-        [ Space.checkFreshLine E.DeclStart
-            |> P.bind
+        [ Space.checkFreshLine (P.Problem_Decl P.DP_Start)
+            |> P.andThen
                 (\_ ->
                     Decl.declaration syntaxVersion
-                        |> P.fmap (\( decl, _ ) -> P.Loop (decl :: decls))
+                        |> P.map (\decl -> P.Loop (decl :: decls))
                 )
         ]
         (P.Done (List.reverse decls))
 
 
-chompInfixes : List (A.Located Src.Infix) -> P.Parser E.Module (List (A.Located Src.Infix))
+chompInfixes : List (A.Located Src.Infix) -> P.Parser (List (A.Located Src.Infix))
 chompInfixes infixes =
     P.oneOfWithFallback
         [ Decl.infix_
-            |> P.bind (\binop -> chompInfixes (binop :: infixes))
+            |> P.andThen (\binop -> chompInfixes (binop :: infixes))
         ]
         infixes
 
 
-
--- MODULE DOC COMMENT
-
-
-chompModuleDocCommentSpace : P.Parser E.Module (Result A.Region Src.Comment)
+chompModuleDocCommentSpace : P.Parser (Result A.Region Src.Comment)
 chompModuleDocCommentSpace =
-    P.addLocation (freshLine E.FreshLine)
-        |> P.bind
+    P.addLocation (freshLine (P.Problem_Module P.MP_FreshLine))
+        |> P.andThen
             (\(A.At region ()) ->
                 P.oneOfWithFallback
-                    [ Space.docComment E.ImportStart E.ModuleSpace
-                        |> P.bind
+                    [ Space.docComment (P.Problem_Module P.MP_ImportStart) (P.Problem_Module P.MP_Space)
+                        |> P.andThen
                             (\docComment ->
-                                Space.chomp E.ModuleSpace
-                                    |> P.bind (\_ -> Space.checkFreshLine E.FreshLine)
-                                    |> P.fmap (\_ -> Ok docComment)
+                                Space.chomp
+                                    |> P.andThen (\_ -> Space.checkFreshLine (P.Problem_Module P.MP_FreshLine))
+                                    |> P.map (\_ -> Ok docComment)
                             )
                     ]
                     (Err region)
             )
-
-
-
--- HEADER
 
 
 type alias Header =
@@ -348,30 +321,29 @@ type Effects
     | Manager A.Region Src.Manager
 
 
-chompHeader : P.Parser E.Module (Maybe Header)
+chompHeader : P.Parser (Maybe Header)
 chompHeader =
-    freshLine E.FreshLine
-        |> P.bind (\_ -> P.getPosition)
-        |> P.bind
+    freshLine (P.Problem_Module P.MP_FreshLine)
+        |> P.andThen (\_ -> P.getPosition)
+        |> P.andThen
             (\start ->
                 P.oneOfWithFallback
-                    [ -- module MyThing exposing (..)
-                      Keyword.module_ E.ModuleProblem
-                        |> P.bind (\_ -> P.getPosition)
-                        |> P.bind
+                    [ Keyword.module_ (P.Problem_Module P.MP_Problem)
+                        |> P.andThen (\_ -> P.getPosition)
+                        |> P.andThen
                             (\effectEnd ->
-                                Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
-                                    |> P.bind (\_ -> P.addLocation (Var.moduleName E.ModuleName))
-                                    |> P.bind
+                                Space.chomp
+                                    |> P.andThen (\_ -> P.addLocation (Var.moduleName (P.Problem_Module P.MP_ModuleName)))
+                                    |> P.andThen
                                         (\name ->
-                                            Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
-                                                |> P.bind (\_ -> Keyword.exposing_ E.ModuleProblem)
-                                                |> P.bind (\_ -> Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem)
-                                                |> P.bind (\_ -> P.addLocation (P.specialize E.ModuleExposing exposing_))
-                                                |> P.bind
+                                            Space.chomp
+                                                |> P.andThen (\_ -> Keyword.exposing_ (P.Problem_Module P.MP_Problem))
+                                                |> P.andThen (\_ -> Space.chomp)
+                                                |> P.andThen (\_ -> P.addLocation exposing_)
+                                                |> P.andThen
                                                     (\exports ->
                                                         chompModuleDocCommentSpace
-                                                            |> P.fmap
+                                                            |> P.map
                                                                 (\comment ->
                                                                     Just <|
                                                                         Header
@@ -383,25 +355,24 @@ chompHeader =
                                                     )
                                         )
                             )
-                    , -- port module MyThing exposing (..)
-                      Keyword.port_ E.PortModuleProblem
-                        |> P.bind (\_ -> Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem)
-                        |> P.bind (\_ -> Keyword.module_ E.PortModuleProblem)
-                        |> P.bind (\_ -> P.getPosition)
-                        |> P.bind
+                    , Keyword.port_ (P.Problem_Module P.MP_PortModuleProblem)
+                        |> P.andThen (\_ -> Space.chomp)
+                        |> P.andThen (\_ -> Keyword.module_ (P.Problem_Module P.MP_PortModuleProblem))
+                        |> P.andThen (\_ -> P.getPosition)
+                        |> P.andThen
                             (\effectEnd ->
-                                Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
-                                    |> P.bind (\_ -> P.addLocation (Var.moduleName E.PortModuleName))
-                                    |> P.bind
+                                Space.chomp
+                                    |> P.andThen (\_ -> P.addLocation (Var.moduleName (P.Problem_Module P.MP_PortModuleName)))
+                                    |> P.andThen
                                         (\name ->
-                                            Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
-                                                |> P.bind (\_ -> Keyword.exposing_ E.PortModuleProblem)
-                                                |> P.bind (\_ -> Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem)
-                                                |> P.bind (\_ -> P.addLocation (P.specialize E.PortModuleExposing exposing_))
-                                                |> P.bind
+                                            Space.chomp
+                                                |> P.andThen (\_ -> Keyword.exposing_ (P.Problem_Module P.MP_PortModuleProblem))
+                                                |> P.andThen (\_ -> Space.chomp)
+                                                |> P.andThen (\_ -> P.addLocation exposing_)
+                                                |> P.andThen
                                                     (\exports ->
                                                         chompModuleDocCommentSpace
-                                                            |> P.fmap
+                                                            |> P.map
                                                                 (\comment ->
                                                                     Just <|
                                                                         Header
@@ -413,31 +384,30 @@ chompHeader =
                                                     )
                                         )
                             )
-                    , -- effect module MyThing where { command = MyCmd } exposing (..)
-                      Keyword.effect_ E.Effect
-                        |> P.bind (\_ -> Space.chompAndCheckIndent E.ModuleSpace E.Effect)
-                        |> P.bind (\_ -> Keyword.module_ E.Effect)
-                        |> P.bind (\_ -> P.getPosition)
-                        |> P.bind
+                    , Keyword.effect_ (P.Problem_Module P.MP_Effect)
+                        |> P.andThen (\_ -> Space.chomp)
+                        |> P.andThen (\_ -> Keyword.module_ (P.Problem_Module P.MP_Effect))
+                        |> P.andThen (\_ -> P.getPosition)
+                        |> P.andThen
                             (\effectEnd ->
-                                Space.chompAndCheckIndent E.ModuleSpace E.Effect
-                                    |> P.bind (\_ -> P.addLocation (Var.moduleName E.ModuleName))
-                                    |> P.bind
+                                Space.chomp
+                                    |> P.andThen (\_ -> P.addLocation (Var.moduleName (P.Problem_Module P.MP_ModuleName)))
+                                    |> P.andThen
                                         (\name ->
-                                            Space.chompAndCheckIndent E.ModuleSpace E.Effect
-                                                |> P.bind (\_ -> Keyword.where_ E.Effect)
-                                                |> P.bind (\_ -> Space.chompAndCheckIndent E.ModuleSpace E.Effect)
-                                                |> P.bind (\_ -> chompManager)
-                                                |> P.bind
+                                            Space.chomp
+                                                |> P.andThen (\_ -> Keyword.where_ (P.Problem_Module P.MP_Effect))
+                                                |> P.andThen (\_ -> Space.chomp)
+                                                |> P.andThen (\_ -> chompManager)
+                                                |> P.andThen
                                                     (\manager ->
-                                                        Space.chompAndCheckIndent E.ModuleSpace E.Effect
-                                                            |> P.bind (\_ -> Keyword.exposing_ E.Effect)
-                                                            |> P.bind (\_ -> Space.chompAndCheckIndent E.ModuleSpace E.Effect)
-                                                            |> P.bind (\_ -> P.addLocation (P.specialize (\_ -> E.Effect) exposing_))
-                                                            |> P.bind
+                                                        Space.chomp
+                                                            |> P.andThen (\_ -> Keyword.exposing_ (P.Problem_Module P.MP_Effect))
+                                                            |> P.andThen (\_ -> Space.chomp)
+                                                            |> P.andThen (\_ -> P.addLocation exposing_)
+                                                            |> P.andThen
                                                                 (\exports ->
                                                                     chompModuleDocCommentSpace
-                                                                        |> P.fmap
+                                                                        |> P.map
                                                                             (\comment ->
                                                                                 Just <|
                                                                                     Header name (Manager (A.Region start effectEnd) manager) exports comment
@@ -447,60 +417,64 @@ chompHeader =
                                         )
                             )
                     ]
-                    -- default header
                     Nothing
             )
 
 
-chompManager : P.Parser E.Module Src.Manager
+chompManager : P.Parser Src.Manager
 chompManager =
-    P.word1 '{' E.Effect
-        |> P.bind (\_ -> spaces_em)
-        |> P.bind
+    P.succeed ()
+        |. P.word1 '{' (P.Problem_Module P.MP_Effect)
+        |> P.andThen (\_ -> spaces_em)
+        |> P.andThen
             (\_ ->
-                P.oneOf E.Effect
+                P.oneOf
                     [ chompCommand
-                        |> P.bind
+                        |> P.andThen
                             (\cmd ->
                                 spaces_em
-                                    |> P.bind
+                                    |> P.andThen
                                         (\_ ->
-                                            P.oneOf E.Effect
-                                                [ P.word1 '}' E.Effect
-                                                    |> P.bind (\_ -> spaces_em)
-                                                    |> P.fmap (\_ -> Src.Cmd cmd)
-                                                , P.word1 ',' E.Effect
-                                                    |> P.bind (\_ -> spaces_em)
-                                                    |> P.bind (\_ -> chompSubscription)
-                                                    |> P.bind
+                                            P.oneOf
+                                                [ P.succeed ()
+                                                    |. P.word1 '}' (P.Problem_Module P.MP_Effect)
+                                                    |> P.andThen (\_ -> spaces_em)
+                                                    |> P.map (\_ -> Src.Cmd cmd)
+                                                , P.succeed ()
+                                                    |. P.word1 ',' (P.Problem_Module P.MP_Effect)
+                                                    |> P.andThen (\_ -> spaces_em)
+                                                    |> P.andThen (\_ -> chompSubscription)
+                                                    |> P.andThen
                                                         (\sub ->
                                                             spaces_em
-                                                                |> P.bind (\_ -> P.word1 '}' E.Effect)
-                                                                |> P.bind (\_ -> spaces_em)
-                                                                |> P.fmap (\_ -> Src.Fx cmd sub)
+                                                                |> P.andThen (\_ -> P.word1 '}' (P.Problem_Module P.MP_Effect))
+                                                                |> P.andThen (\_ -> spaces_em)
+                                                                |> P.map (\_ -> Src.Fx cmd sub)
                                                         )
                                                 ]
                                         )
                             )
                     , chompSubscription
-                        |> P.bind
+                        |> P.andThen
                             (\sub ->
                                 spaces_em
-                                    |> P.bind
+                                    |> P.andThen
                                         (\_ ->
-                                            P.oneOf E.Effect
-                                                [ P.word1 '}' E.Effect
-                                                    |> P.bind (\_ -> spaces_em)
-                                                    |> P.fmap (\_ -> Src.Sub sub)
-                                                , P.word1 ',' E.Effect
-                                                    |> P.bind (\_ -> spaces_em)
-                                                    |> P.bind (\_ -> chompCommand)
-                                                    |> P.bind
+                                            P.oneOf
+                                                [ P.succeed ()
+                                                    |. P.word1 '}' (P.Problem_Module P.MP_Effect)
+                                                    |> P.andThen (\_ -> spaces_em)
+                                                    |> P.map (\_ -> Src.Sub sub)
+                                                , P.succeed ()
+                                                    |. P.word1 ',' (P.Problem_Module P.MP_Effect)
+                                                    |> P.andThen (\_ -> spaces_em)
+                                                    |> P.andThen (\_ -> chompCommand)
+                                                    |> P.andThen
                                                         (\cmd ->
                                                             spaces_em
-                                                                |> P.bind (\_ -> P.word1 '}' E.Effect)
-                                                                |> P.bind (\_ -> spaces_em)
-                                                                |> P.fmap (\_ -> Src.Fx cmd sub)
+                                                                |> P.andThen (\_ -> P.word1 '}' (P.Problem_Module P.MP_Effect))
+                                                                |> P.andThen (\_ -> spaces_em)
+                                                                |> P.map (\_ -> Src.Fx cmd sub)
                                                         )
                                                 ]
                                         )
@@ -509,59 +483,55 @@ chompManager =
             )
 
 
-chompCommand : P.Parser E.Module (A.Located Name.Name)
+chompCommand : P.Parser (A.Located Name.Name)
 chompCommand =
-    Keyword.command_ E.Effect
-        |> P.bind (\_ -> spaces_em)
-        |> P.bind (\_ -> P.word1 '=' E.Effect)
-        |> P.bind (\_ -> spaces_em)
-        |> P.bind (\_ -> P.addLocation (Var.upper E.Effect))
+    Keyword.command_ (P.Problem_Module P.MP_Effect)
+        |> P.andThen (\_ -> spaces_em)
+        |> P.andThen (\_ -> P.word1 '=' (P.Problem_Module P.MP_Effect))
+        |> P.andThen (\_ -> spaces_em)
+        |> P.andThen (\_ -> P.addLocation (Var.upper (P.Problem_Module P.MP_Effect)))
 
 
-chompSubscription : P.Parser E.Module (A.Located Name.Name)
+chompSubscription : P.Parser (A.Located Name.Name)
 chompSubscription =
-    Keyword.subscription_ E.Effect
-        |> P.bind (\_ -> spaces_em)
-        |> P.bind (\_ -> P.word1 '=' E.Effect)
-        |> P.bind (\_ -> spaces_em)
-        |> P.bind (\_ -> P.addLocation (Var.upper E.Effect))
+    Keyword.subscription_ (P.Problem_Module P.MP_Effect)
+        |> P.andThen (\_ -> spaces_em)
+        |> P.andThen (\_ -> P.word1 '=' (P.Problem_Module P.MP_Effect))
+        |> P.andThen (\_ -> spaces_em)
+        |> P.andThen (\_ -> P.addLocation (Var.upper (P.Problem_Module P.MP_Effect)))
 
 
-spaces_em : P.Parser E.Module ()
+spaces_em : P.Parser ()
 spaces_em =
-    Space.chompAndCheckIndent E.ModuleSpace E.Effect
+    Space.chomp
 
 
-
--- IMPORTS
-
-
-chompImports : List Src.Import -> P.Parser E.Module (List Src.Import)
+chompImports : List Src.Import -> P.Parser (List Src.Import)
 chompImports is =
     P.oneOfWithFallback
         [ chompImport
-            |> P.bind (\i -> chompImports (i :: is))
+            |> P.andThen (\i -> chompImports (i :: is))
         ]
         (List.reverse is)
 
 
-chompImport : P.Parser E.Module Src.Import
+chompImport : P.Parser Src.Import
 chompImport =
-    Keyword.import_ E.ImportStart
-        |> P.bind (\_ -> Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName)
-        |> P.bind (\_ -> P.addLocation (Var.moduleName E.ImportName))
-        |> P.bind
-            (\((A.At (A.Region _ end) _) as name) ->
-                Space.chomp E.ModuleSpace
-                    |> P.bind
+    Keyword.import_ (P.Problem_Module P.MP_ImportStart)
+        |> P.andThen (\_ -> Space.chomp)
+        |> P.andThen (\_ -> P.addLocation (Var.moduleName (P.Problem_Module P.MP_ImportName)))
+        |> P.andThen
+            (\name ->
+                Space.chomp
+                    |> P.andThen
                         (\_ ->
-                            P.oneOf E.ImportEnd
-                                [ Space.checkFreshLine E.ImportEnd
-                                    |> P.fmap (\_ -> Src.Import name Nothing (Src.Explicit []))
-                                , Space.checkIndent end E.ImportEnd
-                                    |> P.bind
+                            P.oneOf
+                                [ freshLine (P.Problem_Module P.MP_ImportEnd)
+                                    |> P.map (\_ -> Src.Import name Nothing (Src.Explicit []))
+                                , Space.checkIndent (A.getEnd name) (P.Problem_Module P.MP_ImportEnd)
+                                    |> P.andThen
                                         (\_ ->
-                                            P.oneOf E.ImportAs
+                                            P.oneOf
                                                 [ chompAs name
                                                 , chompExposing name Nothing
                                                 ]
@@ -571,136 +541,126 @@ chompImport =
             )
 
 
-chompAs : A.Located Name.Name -> P.Parser E.Module Src.Import
+chompAs : A.Located Name.Name -> P.Parser Src.Import
 chompAs name =
-    Keyword.as_ E.ImportAs
-        |> P.bind (\_ -> Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias)
-        |> P.bind (\_ -> Var.upper E.ImportAlias)
-        |> P.bind
+    Keyword.as_ (P.Problem_Module P.MP_ImportAs)
+        |> P.andThen (\_ -> Space.chomp)
+        |> P.andThen (\_ -> Var.upper (P.Problem_Module P.MP_ImportAlias))
+        |> P.andThen
             (\alias ->
-                P.getPosition
-                    |> P.bind
-                        (\end ->
-                            Space.chomp E.ModuleSpace
-                                |> P.bind
-                                    (\_ ->
-                                        P.oneOf E.ImportEnd
-                                            [ Space.checkFreshLine E.ImportEnd
-                                                |> P.fmap (\_ -> Src.Import name (Just alias) (Src.Explicit []))
-                                            , Space.checkIndent end E.ImportEnd
-                                                |> P.bind (\_ -> chompExposing name (Just alias))
-                                            ]
-                                    )
+                Space.chomp
+                    |> P.andThen
+                        (\_ ->
+                            P.oneOf
+                                [ freshLine (P.Problem_Module P.MP_ImportEnd)
+                                    |> P.map (\_ -> Src.Import name (Just alias) (Src.Explicit []))
+                                , Space.checkIndent (A.sameAs name "") (P.Problem_Module P.MP_ImportEnd) -- dummy position
+                                    |> P.andThen (\_ -> chompExposing name (Just alias))
+                                ]
                         )
             )
 
 
-chompExposing : A.Located Name.Name -> Maybe Name.Name -> P.Parser E.Module Src.Import
+chompExposing : A.Located Name.Name -> Maybe Name.Name -> P.Parser Src.Import
 chompExposing name maybeAlias =
-    Keyword.exposing_ E.ImportExposing
-        |> P.bind (\_ -> Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingList)
-        |> P.bind (\_ -> P.specialize E.ImportExposingList exposing_)
-        |> P.bind
+    Keyword.exposing_ (P.Problem_Module P.MP_ImportExposing)
+        |> P.andThen (\_ -> Space.chomp)
+        |> P.andThen (\_ -> exposing_)
+        |> P.andThen
             (\exposed ->
-                freshLine E.ImportEnd
-                    |> P.fmap (\_ -> Src.Import name maybeAlias exposed)
+                freshLine (P.Problem_Module P.MP_ImportEnd)
+                    |> P.map (\_ -> Src.Import name maybeAlias exposed)
             )
 
 
-
--- LISTING
-
-
-exposing_ : P.Parser E.Exposing Src.Exposing
+exposing_ : P.Parser Src.Exposing
 exposing_ =
-    P.word1 '(' E.ExposingStart
-        |> P.bind (\_ -> Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue)
-        |> P.bind
-            (\_ ->
-                P.oneOf E.ExposingValue
-                    [ P.word2 '.' '.' E.ExposingValue
-                        |> P.bind (\_ -> Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd)
-                        |> P.bind (\_ -> P.word1 ')' E.ExposingEnd)
-                        |> P.fmap (\_ -> Src.Open)
-                    , chompExposed
-                        |> P.bind
-                            (\exposed ->
-                                Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
-                                    |> P.bind (\_ -> P.loop exposingHelp [ exposed ])
-                            )
-                    ]
-            )
-
-
-exposingHelp : List Src.Exposed -> P.Parser E.Exposing (P.Step (List Src.Exposed) Src.Exposing)
-exposingHelp revExposed =
-    P.oneOf E.ExposingEnd
-        [ P.word1 ',' E.ExposingEnd
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue)
-            |> P.bind (\_ -> chompExposed)
-            |> P.bind
-                (\exposed ->
-                    Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
-                        |> P.fmap (\_ -> P.Loop (exposed :: revExposed))
+    P.inContext (P.CtxNode P.NExposing)
+        (P.succeed ()
+            |. P.word1 '(' (P.Problem_Module (P.MP_Exposing P.EP_Start))
+            |> P.andThen (\_ -> Space.chomp)
+            |> P.andThen
+                (\_ ->
+                    P.oneOf
+                        [ P.succeed Src.Open
+                            |. P.word2 '.' '.' (P.Problem_Module (P.MP_Exposing P.EP_Value))
+                            |> P.andThen (\_ -> Space.chomp)
+                            |> P.andThen (\_ -> P.word1 ')' (P.Problem_Module (P.MP_Exposing P.EP_End)))
+                        , chompExposed
+                            |> P.andThen
+                                (\exposed ->
+                                    Space.chomp
+                                        |> P.andThen (\_ -> P.loop [ exposed ] exposingHelp)
+                                )
+                        ]
                 )
-        , P.word1 ')' E.ExposingEnd
-            |> P.fmap (\_ -> P.Done (Src.Explicit (List.reverse revExposed)))
+        )
+
+
+exposingHelp : List Src.Exposed -> P.Parser (P.Step (List Src.Exposed) Src.Exposing)
+exposingHelp revExposed =
+    P.oneOf
+        [ P.succeed ()
+            |. P.word1 ',' (P.Problem_Module (P.MP_Exposing P.EP_End))
+            |> P.andThen (\_ -> Space.chomp)
+            |> P.andThen (\_ -> chompExposed)
+            |> P.andThen
+                (\exposed ->
+                    Space.chomp
+                        |> P.map (\_ -> P.Loop (exposed :: revExposed))
+                )
+        , P.succeed (Src.Explicit (List.reverse revExposed))
+            |. P.word1 ')' (P.Problem_Module (P.MP_Exposing P.EP_End))
         ]
 
 
-chompExposed : P.Parser E.Exposing Src.Exposed
+chompExposed : P.Parser Src.Exposed
 chompExposed =
-    P.getPosition
-        |> P.bind
-            (\start ->
-                P.oneOf E.ExposingValue
-                    [ Var.lower E.ExposingValue
-                        |> P.bind
-                            (\name ->
-                                P.getPosition
-                                    |> P.fmap (\end -> Src.Lower <| A.at start end name)
-                            )
-                    , P.word1 '(' E.ExposingValue
-                        |> P.bind (\_ -> Symbol.operator E.ExposingOperator E.ExposingOperatorReserved)
-                        |> P.bind
-                            (\op ->
-                                P.word1 ')' E.ExposingOperatorRightParen
-                                    |> P.bind (\_ -> P.getPosition)
-                                    |> P.fmap (\end -> Src.Operator (A.Region start end) op)
-                            )
-                    , Var.upper E.ExposingValue
-                        |> P.bind
-                            (\name ->
-                                P.getPosition
-                                    |> P.bind
-                                        (\end ->
-                                            Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
-                                                |> P.bind
-                                                    (\_ ->
-                                                        privacy
-                                                            |> P.fmap (Src.Upper (A.at start end name))
-                                                    )
-                                        )
-                            )
-                    ]
-            )
+    P.oneOf
+        [ Var.lower (P.Problem_Module (P.MP_Exposing P.EP_Value))
+            |> P.andThen (\name -> P.addLocation (P.succeed name) |> P.map Src.Lower)
+        , P.succeed ()
+            |. P.word1 '(' (P.Problem_Module (P.MP_Exposing P.EP_Value))
+            |> P.andThen (\_ -> Symbol.operator (P.Problem_Module (P.MP_Exposing P.EP_Operator)) (\op -> P.Problem_Module (P.MP_Exposing (P.EP_OperatorReserved op))))
+            |> P.andThen
+                (\op ->
+                    P.addLocation (P.succeed op)
+                        |> P.andThen (\locatedOp ->
+                            P.succeed ()
+                                |. P.word1 ')' (P.Problem_Module (P.MP_Exposing P.EP_OperatorRightParen))
+                                |> P.map (\_ -> Src.Operator (A.toRegion locatedOp) (A.toValue locatedOp))
+                           )
+                )
+        , Var.upper (P.Problem_Module (P.MP_Exposing P.EP_Value))
+            |> P.andThen
+                (\name ->
+                    P.addLocation (P.succeed name)
+                        |> P.andThen (\locatedName ->
+                            Space.chomp
+                                |> P.andThen (\_ -> privacy)
+                                |> P.map (Src.Upper locatedName)
+                           )
+                )
+        ]
 
 
-privacy : P.Parser E.Exposing Src.Privacy
+privacy : P.Parser Src.Privacy
 privacy =
     P.oneOfWithFallback
-        [ P.word1 '(' E.ExposingTypePrivacy
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.ExposingSpace E.ExposingTypePrivacy)
-            |> P.bind (\_ -> P.getPosition)
-            |> P.bind
+        [ P.succeed ()
+            |. P.word1 '(' (P.Problem_Module (P.MP_Exposing P.EP_TypePrivacy))
+            |> P.andThen (\_ -> Space.chomp)
+            |> P.andThen (\_ -> P.addLocation (P.succeed ()))
+            |> P.andThen
                 (\start ->
-                    P.word2 '.' '.' E.ExposingTypePrivacy
-                        |> P.bind (\_ -> P.getPosition)
-                        |> P.bind
+                    P.succeed ()
+                        |. P.word2 '.' '.' (P.Problem_Module (P.MP_Exposing P.EP_TypePrivacy))
+                        |> P.andThen (\_ -> P.addLocation (P.succeed ()))
+                        |> P.andThen
                             (\end ->
-                                Space.chompAndCheckIndent E.ExposingSpace E.ExposingTypePrivacy
-                                    |> P.bind (\_ -> P.word1 ')' E.ExposingTypePrivacy)
-                                    |> P.fmap (\_ -> Src.Public (A.Region start end))
+                                Space.chomp
+                                    |> P.andThen (\_ -> P.word1 ')' (P.Problem_Module (P.MP_Exposing P.EP_TypePrivacy)))
+                                    |> P.map (\_ -> Src.Public (A.mergeRegions (A.toRegion start) (A.toRegion end)))
                             )
                 )
         ]

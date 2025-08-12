@@ -6,9 +6,9 @@ module Compiler.Parse.Expression exposing
 import Compiler.AST.Source as Src
 import Compiler.Data.Name as Name exposing (Name)
 import Compiler.Parse.Keyword as Keyword
+import Compiler.Parse.NewPrimitives as P
 import Compiler.Parse.Number as Number
 import Compiler.Parse.Pattern as Pattern
-import Compiler.Parse.Primitives as P exposing (Col, Row)
 import Compiler.Parse.Shader as Shader
 import Compiler.Parse.Space as Space
 import Compiler.Parse.String as String
@@ -17,90 +17,74 @@ import Compiler.Parse.SyntaxVersion as SV exposing (SyntaxVersion)
 import Compiler.Parse.Type as Type
 import Compiler.Parse.Variable as Var
 import Compiler.Reporting.Annotation as A
-import Compiler.Reporting.Error.Syntax as E
 
 
-
--- TERMS
-
-
-term : SyntaxVersion -> P.Parser E.Expr Src.Expr
+term : SyntaxVersion -> P.Parser Src.Expr
 term syntaxVersion =
-    P.getPosition
-        |> P.bind
-            (\start ->
-                P.oneOf E.Start
-                    [ variable start |> P.bind (accessible start)
-                    , string start
-                    , number start
-                    , Shader.shader start
-                    , list syntaxVersion start
-                    , record syntaxVersion start |> P.bind (accessible start)
-                    , tuple syntaxVersion start |> P.bind (accessible start)
-                    , accessor start
-                    , character start
-                    ]
-            )
+    P.oneOf
+        [ P.addLocation (variable |> P.andThen accessible)
+        , P.addLocation string
+        , P.addLocation number
+        , Shader.shader
+        , list syntaxVersion
+        , record syntaxVersion |> P.andThen accessible
+        , tuple syntaxVersion |> P.andThen accessible
+        , P.addLocation accessor
+        , P.addLocation character
+        ]
 
 
-string : A.Position -> P.Parser E.Expr Src.Expr
-string start =
-    String.string E.Start E.String_
-        |> P.bind (\str -> P.addEnd start (Src.Str str))
+string : P.Parser Src.Expr_
+string =
+    String.string
+        |> P.map Src.Str
 
 
-character : A.Position -> P.Parser E.Expr Src.Expr
-character start =
-    String.character E.Start E.Char
-        |> P.bind (\chr -> P.addEnd start (Src.Chr chr))
+character : P.Parser Src.Expr_
+character =
+    String.character
+        |> P.map Src.Chr
 
 
-number : A.Position -> P.Parser E.Expr Src.Expr
-number start =
-    Number.number E.Start E.Number
-        |> P.bind
+number : P.Parser Src.Expr_
+number =
+    Number.number
+        |> P.map
             (\nmbr ->
-                P.addEnd start <|
-                    case nmbr of
-                        Number.Int int ->
-                            Src.Int int
+                case nmbr of
+                    Number.Int int ->
+                        Src.Int int
 
-                        Number.Float float ->
-                            Src.Float float
+                    Number.Float float ->
+                        Src.Float float
             )
 
 
-accessor : A.Position -> P.Parser E.Expr Src.Expr
-accessor start =
-    P.word1 '.' E.Dot
-        |> P.bind (\_ -> Var.lower E.Access)
-        |> P.bind (\field -> P.addEnd start (Src.Accessor field))
+accessor : P.Parser Src.Expr_
+accessor =
+    P.succeed ()
+        |. P.word1 '.' (P.Problem_Expr P.EP_Dot)
+        |> P.andThen (\_ -> Var.lower (P.Problem_Expr P.EP_Access))
+        |> P.map Src.Accessor
 
 
-variable : A.Position -> P.Parser E.Expr Src.Expr
-variable start =
-    Var.foreignAlpha E.Start
-        |> P.bind (\var -> P.addEnd start var)
+variable : P.Parser Src.Expr
+variable =
+    Var.foreignAlpha (P.Problem_Expr P.EP_Start)
+        |> P.andThen (\var -> P.addLocation (P.succeed var))
 
 
-accessible : A.Position -> Src.Expr -> P.Parser E.Expr Src.Expr
-accessible start expr =
+accessible : Src.Expr -> P.Parser Src.Expr
+accessible expr =
     P.oneOfWithFallback
-        [ P.word1 '.' E.Dot
-            |> P.bind (\_ -> P.getPosition)
-            |> P.bind
-                (\pos ->
-                    Var.lower E.Access
-                        |> P.bind
-                            (\field ->
-                                P.getPosition
-                                    |> P.bind
-                                        (\end ->
-                                            accessible start <|
-                                                A.at start end (Src.Access expr (A.at pos end field))
-                                        )
-                            )
-                )
+        [ P.succeed ()
+            |. P.word1 '.' (P.Problem_Expr P.EP_Dot)
+            |> P.andThen (\_ ->
+                P.addLocation (Var.lower (P.Problem_Expr P.EP_Access))
+                    |> P.andThen (\field ->
+                        accessible (A.merge expr field (Src.Access expr field))
+                       )
+               )
         ]
         expr
 
@@ -109,40 +93,46 @@ accessible start expr =
 -- LISTS
 
 
-list : SyntaxVersion -> A.Position -> P.Parser E.Expr Src.Expr
-list syntaxVersion start =
-    P.inContext E.List (P.word1 '[' E.Start) <|
-        (Space.chompAndCheckIndent E.ListSpace E.ListIndentOpen
-            |> P.bind
-                (\_ ->
-                    P.oneOf E.ListOpen
-                        [ P.specialize E.ListExpr (expression syntaxVersion)
-                            |> P.bind
-                                (\( entry, end ) ->
-                                    Space.checkIndent end E.ListIndentEnd
-                                        |> P.bind (\_ -> P.loop (chompListEnd syntaxVersion start) [ entry ])
-                                )
-                        , P.word1 ']' E.ListOpen
-                            |> P.bind (\_ -> P.addEnd start (Src.List []))
-                        ]
-                )
+list : SyntaxVersion -> P.Parser Src.Expr
+list syntaxVersion =
+    P.inContext (P.CtxNode P.NList)
+        (P.succeed ()
+            |. P.word1 '[' (P.Problem_Expr (P.EP_List P.LP_Open))
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        P.oneOf
+                            [ expression syntaxVersion
+                                |> P.andThen (\entry ->
+                                    Space.chomp
+                                        |> P.andThen (\_ -> P.loop [ entry ] (chompListEnd syntaxVersion))
+                                   )
+                            , P.addLocation (P.succeed (Src.List []))
+                                |. P.word1 ']' (P.Problem_Expr (P.EP_List P.LP_End))
+                            ]
+                       )
+               )
         )
 
 
-chompListEnd : SyntaxVersion -> A.Position -> List Src.Expr -> P.Parser E.List_ (P.Step (List Src.Expr) Src.Expr)
-chompListEnd syntaxVersion start entries =
-    P.oneOf E.ListEnd
-        [ P.word1 ',' E.ListEnd
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.ListSpace E.ListIndentExpr)
-            |> P.bind (\_ -> P.specialize E.ListExpr (expression syntaxVersion))
-            |> P.bind
-                (\( entry, end ) ->
-                    Space.checkIndent end E.ListIndentEnd
-                        |> P.fmap (\_ -> P.Loop (entry :: entries))
-                )
-        , P.word1 ']' E.ListEnd
-            |> P.bind (\_ -> P.addEnd start (Src.List (List.reverse entries)))
-            |> P.fmap P.Done
+chompListEnd : SyntaxVersion -> List Src.Expr -> P.Parser (P.Step (List Src.Expr) Src.Expr)
+chompListEnd syntaxVersion entries =
+    P.oneOf
+        [ P.succeed ()
+            |. P.word1 ',' (P.Problem_Expr (P.EP_List P.LP_End))
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        expression syntaxVersion
+                            |> P.andThen (\entry ->
+                                Space.chomp
+                                    |> P.andThen (\_ -> P.succeed (P.Loop (entry :: entries)))
+                               )
+                       )
+               )
+        , P.addLocation (P.succeed (Src.List (List.reverse entries)))
+            |. P.word1 ']' (P.Problem_Expr (P.EP_List P.LP_End))
+            |> P.map P.Done
         ]
 
 
@@ -150,116 +140,73 @@ chompListEnd syntaxVersion start entries =
 -- TUPLES
 
 
-tuple : SyntaxVersion -> A.Position -> P.Parser E.Expr Src.Expr
-tuple syntaxVersion ((A.Position row col) as start) =
-    P.inContext E.Tuple (P.word1 '(' E.Start) <|
-        (P.getPosition
-            |> P.bind
-                (\before ->
-                    Space.chompAndCheckIndent E.TupleSpace E.TupleIndentExpr1
-                        |> P.bind
-                            (\_ ->
-                                P.getPosition
-                                    |> P.bind
-                                        (\after ->
-                                            if before /= after then
-                                                P.specialize E.TupleExpr (expression syntaxVersion)
-                                                    |> P.bind
-                                                        (\( entry, end ) ->
-                                                            Space.checkIndent end E.TupleIndentEnd
-                                                                |> P.bind (\_ -> chompTupleEnd syntaxVersion start entry [])
-                                                        )
-
-                                            else
-                                                P.oneOf E.TupleIndentExpr1
-                                                    [ Symbol.operator E.TupleIndentExpr1 E.TupleOperatorReserved
-                                                        |> P.bind
-                                                            (\op ->
-                                                                if op == "-" then
-                                                                    P.oneOf E.TupleOperatorClose
-                                                                        [ P.word1 ')' E.TupleOperatorClose
-                                                                            |> P.bind (\_ -> P.addEnd start (Src.Op op))
-                                                                        , P.specialize E.TupleExpr
-                                                                            (term syntaxVersion
-                                                                                |> P.bind
-                                                                                    (\((A.At (A.Region _ end) _) as negatedExpr) ->
-                                                                                        Space.chomp E.Space
-                                                                                            |> P.bind
-                                                                                                (\_ ->
-                                                                                                    let
-                                                                                                        exprStart : A.Position
-                                                                                                        exprStart =
-                                                                                                            A.Position row (col + 2)
-
-                                                                                                        expr : A.Located Src.Expr_
-                                                                                                        expr =
-                                                                                                            A.at exprStart end (Src.Negate negatedExpr)
-                                                                                                    in
-                                                                                                    chompExprEnd syntaxVersion
-                                                                                                        exprStart
-                                                                                                        (State
-                                                                                                            { ops = []
-                                                                                                            , expr = expr
-                                                                                                            , args = []
-                                                                                                            , end = end
-                                                                                                            }
-                                                                                                        )
-                                                                                                )
-                                                                                    )
-                                                                            )
-                                                                            |> P.bind
-                                                                                (\( entry, end ) ->
-                                                                                    Space.checkIndent end E.TupleIndentEnd
-                                                                                        |> P.bind (\_ -> chompTupleEnd syntaxVersion start entry [])
-                                                                                )
-                                                                        ]
-
-                                                                else
-                                                                    P.word1 ')' E.TupleOperatorClose
-                                                                        |> P.bind (\_ -> P.addEnd start (Src.Op op))
-                                                            )
-                                                    , P.word1 ')' E.TupleIndentExpr1
-                                                        |> P.bind (\_ -> P.addEnd start Src.Unit)
-                                                    , P.specialize E.TupleExpr (expression syntaxVersion)
-                                                        |> P.bind
-                                                            (\( entry, end ) ->
-                                                                Space.checkIndent end E.TupleIndentEnd
-                                                                    |> P.bind (\_ -> chompTupleEnd syntaxVersion start entry [])
-                                                            )
-                                                    ]
-                                        )
-                            )
-                )
+tuple : SyntaxVersion -> P.Parser Src.Expr
+tuple syntaxVersion =
+    P.inContext (P.CtxNode P.NParens)
+        (P.succeed ()
+            |. P.word1 '(' (P.Problem_Expr (P.EP_Tuple P.TUP_IndentExpr1))
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        P.oneOf
+                            [ Symbol.operator (P.Problem_Expr (P.EP_Tuple P.TUP_IndentExpr1)) (\op -> P.Problem_Expr (P.EP_Tuple (P.TUP_OperatorReserved op)))
+                                |> P.andThen (\op ->
+                                    if op == "-" then
+                                        P.oneOf
+                                            [ P.addLocation (P.succeed (Src.Op op))
+                                                |. P.word1 ')' (P.Problem_Expr (P.EP_Tuple P.TUP_OperatorClose))
+                                            , term syntaxVersion
+                                                |> P.andThen (\negatedExpr ->
+                                                    Space.chomp
+                                                        |> P.andThen (\_ ->
+                                                            let
+                                                                expr =
+                                                                    A.map Src.Negate negatedExpr
+                                                            in
+                                                            chompExprEnd syntaxVersion expr
+                                                           )
+                                                   )
+                                                |> P.andThen (\entry -> chompTupleEnd syntaxVersion entry [])
+                                            ]
+                                    else
+                                        P.addLocation (P.succeed (Src.Op op))
+                                            |. P.word1 ')' (P.Problem_Expr (P.EP_Tuple P.TUP_OperatorClose))
+                                   )
+                            , P.addLocation (P.succeed Src.Unit)
+                                |. P.word1 ')' (P.Problem_Expr (P.EP_Tuple P.TUP_IndentExpr1))
+                            , expression syntaxVersion
+                                |> P.andThen (\entry ->
+                                    Space.chomp
+                                        |> P.andThen (\_ -> chompTupleEnd syntaxVersion entry [])
+                                   )
+                            ]
+                       )
+               )
         )
 
 
-chompTupleEnd : SyntaxVersion -> A.Position -> Src.Expr -> List Src.Expr -> P.Parser E.Tuple Src.Expr
-chompTupleEnd syntaxVersion start firstExpr revExprs =
-    P.oneOf E.TupleEnd
-        [ P.word1 ',' E.TupleEnd
-            |> P.bind
-                (\_ ->
-                    Space.chompAndCheckIndent E.TupleSpace E.TupleIndentExprN
-                        |> P.bind
-                            (\_ ->
-                                P.specialize E.TupleExpr (expression syntaxVersion)
-                                    |> P.bind
-                                        (\( entry, end ) ->
-                                            Space.checkIndent end E.TupleIndentEnd
-                                                |> P.bind (\_ -> chompTupleEnd syntaxVersion start firstExpr (entry :: revExprs))
-                                        )
-                            )
-                )
-        , P.word1 ')' E.TupleEnd
-            |> P.bind
-                (\_ ->
-                    case List.reverse revExprs of
-                        [] ->
-                            P.pure firstExpr
+chompTupleEnd : SyntaxVersion -> Src.Expr -> List Src.Expr -> P.Parser Src.Expr
+chompTupleEnd syntaxVersion firstExpr revExprs =
+    P.oneOf
+        [ P.succeed ()
+            |. P.word1 ',' (P.Problem_Expr (P.EP_Tuple P.TUP_End))
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        expression syntaxVersion
+                            |> P.andThen (\entry -> chompTupleEnd syntaxVersion firstExpr (entry :: revExprs))
+                       )
+               )
+        , P.succeed ()
+            |. P.word1 ')' (P.Problem_Expr (P.EP_Tuple P.TUP_End))
+            |> P.map (\_ ->
+                case List.reverse revExprs of
+                    [] ->
+                        firstExpr
 
-                        secondExpr :: otherExprs ->
-                            P.addEnd start (Src.Tuple firstExpr secondExpr otherExprs)
-                )
+                    secondExpr :: otherExprs ->
+                        A.merge firstExpr (List.head otherExprs |> Maybe.withDefault secondExpr) (Src.Tuple firstExpr secondExpr otherExprs)
+               )
         ]
 
 
@@ -267,409 +214,170 @@ chompTupleEnd syntaxVersion start firstExpr revExprs =
 -- RECORDS
 
 
-record : SyntaxVersion -> A.Position -> P.Parser E.Expr Src.Expr
-record syntaxVersion start =
-    case syntaxVersion of
-        SV.Elm ->
-            P.inContext E.Record (P.word1 '{' E.Start) <|
-                (Space.chompAndCheckIndent E.RecordSpace E.RecordIndentOpen
-                    |> P.bind
-                        (\_ ->
-                            P.oneOf E.RecordOpen
-                                [ P.word1 '}' E.RecordOpen
-                                    |> P.bind (\_ -> P.addEnd start (Src.Record []))
-                                , P.addLocation (Var.lower E.RecordField)
-                                    |> P.bind
-                                        (\((A.At starterPosition starterName) as starter) ->
-                                            Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
-                                                |> P.bind
-                                                    (\_ ->
-                                                        P.oneOf E.RecordEquals
-                                                            [ P.word1 '|' E.RecordEquals
-                                                                |> P.bind (\_ -> Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField)
-                                                                |> P.bind (\_ -> chompField syntaxVersion)
-                                                                |> P.bind (\firstField -> chompFields syntaxVersion [ firstField ])
-                                                                |> P.bind (\fields -> P.addEnd start (Src.Update (A.At starterPosition (Src.Var Src.LowVar starterName)) fields))
-                                                            , P.word1 '=' E.RecordEquals
-                                                                |> P.bind (\_ -> Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr)
-                                                                |> P.bind (\_ -> P.specialize E.RecordExpr (expression syntaxVersion))
-                                                                |> P.bind
-                                                                    (\( value, end ) ->
-                                                                        Space.checkIndent end E.RecordIndentEnd
-                                                                            |> P.bind (\_ -> chompFields syntaxVersion [ ( starter, value ) ])
-                                                                            |> P.bind (\fields -> P.addEnd start (Src.Record fields))
-                                                                    )
-                                                            ]
-                                                    )
-                                        )
-                                ]
-                        )
-                )
-
-        SV.Guida ->
-            P.inContext E.Record (P.word1 '{' E.Start) <|
-                (Space.chompAndCheckIndent E.RecordSpace E.RecordIndentOpen
-                    |> P.bind
-                        (\_ ->
-                            P.oneOf E.RecordOpen
-                                [ P.word1 '}' E.RecordOpen
-                                    |> P.bind (\_ -> P.addEnd start (Src.Record []))
-                                , P.getPosition
-                                    |> P.bind
-                                        (\nameStart ->
-                                            foreignAlpha E.RecordField
-                                                |> P.bind (\var -> P.addEnd nameStart var)
-                                                |> P.bind (accessibleRecord nameStart)
-                                                |> P.bind
-                                                    (\starter ->
-                                                        Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
-                                                            |> P.bind (\_ -> P.word1 '|' E.RecordEquals)
-                                                            |> P.bind (\_ -> Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField)
-                                                            |> P.bind (\_ -> chompField syntaxVersion)
-                                                            |> P.bind (\firstField -> chompFields syntaxVersion [ firstField ])
-                                                            |> P.bind (\fields -> P.addEnd start (Src.Update starter fields))
-                                                    )
-                                        )
-                                , P.addLocation (Var.lower E.RecordField)
-                                    |> P.bind
-                                        (\starter ->
-                                            Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
-                                                |> P.bind (\_ -> P.word1 '=' E.RecordEquals)
-                                                |> P.bind (\_ -> Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr)
-                                                |> P.bind (\_ -> P.specialize E.RecordExpr (expression syntaxVersion))
-                                                |> P.bind
-                                                    (\( value, end ) ->
-                                                        Space.checkIndent end E.RecordIndentEnd
-                                                            |> P.bind (\_ -> chompFields syntaxVersion [ ( starter, value ) ])
-                                                            |> P.bind (\fields -> P.addEnd start (Src.Record fields))
-                                                    )
-                                        )
-                                ]
-                        )
-                )
-
-
-accessibleRecord : A.Position -> Src.Expr -> P.Parser E.Record Src.Expr
-accessibleRecord start expr =
-    P.oneOfWithFallback
-        [ P.word1 '.' E.RecordOpen
-            |> P.bind (\_ -> P.getPosition)
-            |> P.bind
-                (\pos ->
-                    Var.lower E.RecordOpen
-                        |> P.bind
-                            (\field ->
-                                P.getPosition
-                                    |> P.bind
-                                        (\end ->
-                                            accessibleRecord start <|
-                                                A.at start end (Src.Access expr (A.at pos end field))
-                                        )
-                            )
-                )
-        ]
-        expr
-
-
-
--- FOREIGN ALPHA
-
-
-foreignAlpha : (Row -> Col -> x) -> P.Parser x Src.Expr_
-foreignAlpha toError =
-    P.Parser <|
-        \(P.State src pos end indent row col) ->
-            let
-                ( ( alphaStart, alphaEnd ), ( newCol, varType ) ) =
-                    foreignAlphaHelp src pos end col
-            in
-            if alphaStart == alphaEnd then
-                P.Eerr row newCol toError
-
-            else
-                case varType of
-                    Src.LowVar ->
-                        let
-                            name : Name
-                            name =
-                                Name.fromPtr src alphaStart alphaEnd
-
-                            newState : P.State
-                            newState =
-                                P.State src alphaEnd end indent row newCol
-                        in
-                        if alphaStart == pos then
-                            if Var.isReservedWord name then
-                                P.Eerr row col toError
-
-                            else
-                                P.Cok (Src.Var varType name) newState
-
-                        else
-                            let
-                                home : Name
-                                home =
-                                    Name.fromPtr src pos (alphaStart + -1)
-                            in
-                            P.Cok (Src.VarQual varType home name) newState
-
-                    Src.CapVar ->
-                        P.Eerr row col toError
-
-
-foreignAlphaHelp : String -> Int -> Int -> Col -> ( ( Int, Int ), ( Col, Src.VarType ) )
-foreignAlphaHelp src pos end col =
-    let
-        ( lowerPos, lowerCol ) =
-            Var.chompLower src pos end col
-    in
-    if pos < lowerPos then
-        ( ( pos, lowerPos ), ( lowerCol, Src.LowVar ) )
-
-    else
-        let
-            ( upperPos, upperCol ) =
-                Var.chompUpper src pos end col
-        in
-        if pos == upperPos then
-            ( ( pos, pos ), ( col, Src.CapVar ) )
-
-        else if Var.isDot src upperPos end then
-            foreignAlphaHelp src (upperPos + 1) end (upperCol + 1)
-
-        else
-            ( ( pos, upperPos ), ( upperCol, Src.CapVar ) )
+record : SyntaxVersion -> P.Parser Src.Expr
+record syntaxVersion =
+    P.inContext (P.CtxNode P.NRecord) <|
+        (P.succeed ()
+            |. P.word1 '{' (P.Problem_Expr (P.EP_Record P.RP_Open))
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        P.oneOf
+                            [ P.addLocation (P.succeed (Src.Record []))
+                                |. P.word1 '}' (P.Problem_Expr (P.EP_Record P.RP_End))
+                            , P.addLocation (Var.lower (P.Problem_Expr (P.EP_Record P.RP_Field)))
+                                |> P.andThen (\starter ->
+                                    Space.chomp
+                                        |> P.andThen (\_ ->
+                                            P.oneOf
+                                                [ P.succeed ()
+                                                    |. P.word1 '|' (P.Problem_Expr (P.EP_Record P.RP_Equals))
+                                                    |> P.andThen (\_ ->
+                                                        Space.chomp
+                                                            |> P.andThen (\_ -> chompField syntaxVersion)
+                                                            |> P.andThen (\firstField -> chompFields syntaxVersion [ firstField ])
+                                                            |> P.map (\fields -> A.map (\(A.At region (Src.Var _ name)) -> Src.Update (A.At region (Src.Var Src.LowVar name)) fields) starter)
+                                                       )
+                                                , P.succeed ()
+                                                    |. P.word1 '=' (P.Problem_Expr (P.EP_Record P.RP_Equals))
+                                                    |> P.andThen (\_ ->
+                                                        Space.chomp
+                                                            |> P.andThen (\_ -> expression syntaxVersion)
+                                                            |> P.andThen (\value ->
+                                                                Space.chomp
+                                                                    |> P.andThen (\_ -> chompFields syntaxVersion [ ( starter, value ) ])
+                                                                    |> P.map (\fields -> A.map (\_ -> Src.Record fields) starter)
+                                                               )
+                                                       )
+                                                ]
+                                           )
+                                   )
+                            ]
+                       )
+               )
+        )
 
 
 type alias Field =
     ( A.Located Name.Name, Src.Expr )
 
 
-chompFields : SyntaxVersion -> List Field -> P.Parser E.Record (List Field)
+chompFields : SyntaxVersion -> List Field -> P.Parser (List Field)
 chompFields syntaxVersion fields =
-    P.oneOf E.RecordEnd
-        [ P.word1 ',' E.RecordEnd
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField)
-            |> P.bind (\_ -> chompField syntaxVersion)
-            |> P.bind (\f -> chompFields syntaxVersion (f :: fields))
-        , P.word1 '}' E.RecordEnd
-            |> P.fmap (\_ -> List.reverse fields)
+    P.oneOfWithFallback
+        [ P.succeed ()
+            |. P.word1 ',' (P.Problem_Expr (P.EP_Record P.RP_End))
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        chompField syntaxVersion
+                            |> P.andThen (\f -> chompFields syntaxVersion (f :: fields))
+                       )
+               )
+        , P.succeed (List.reverse fields)
+            |. P.word1 '}' (P.Problem_Expr (P.EP_Record P.RP_End))
         ]
+        (List.reverse fields)
 
 
-chompField : SyntaxVersion -> P.Parser E.Record Field
+chompField : SyntaxVersion -> P.Parser Field
 chompField syntaxVersion =
-    P.addLocation (Var.lower E.RecordField)
-        |> P.bind
-            (\key ->
-                Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
-                    |> P.bind (\_ -> P.word1 '=' E.RecordEquals)
-                    |> P.bind (\_ -> Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr)
-                    |> P.bind (\_ -> P.specialize E.RecordExpr (expression syntaxVersion))
-                    |> P.bind
-                        (\( value, end ) ->
-                            Space.checkIndent end E.RecordIndentEnd
-                                |> P.fmap (\_ -> ( key, value ))
-                        )
-            )
+    P.addLocation (Var.lower (P.Problem_Expr (P.EP_Record P.RP_Field)))
+        |> P.andThen (\key ->
+            Space.chomp
+                |> P.andThen (\_ ->
+                    P.succeed ()
+                        |. P.word1 '=' (P.Problem_Expr (P.EP_Record P.RP_Equals))
+                        |> P.andThen (\_ ->
+                            Space.chomp
+                                |> P.andThen (\_ ->
+                                    expression syntaxVersion
+                                        |> P.map (\value -> ( key, value ))
+                                   )
+                           )
+                   )
+           )
 
 
 
 -- EXPRESSIONS
 
 
-expression : SyntaxVersion -> Space.Parser E.Expr Src.Expr
+expression : SyntaxVersion -> P.Parser Src.Expr
 expression syntaxVersion =
-    P.getPosition
-        |> P.bind
-            (\start ->
-                P.oneOf E.Start
-                    [ let_ syntaxVersion start
-                    , if_ syntaxVersion start
-                    , case_ syntaxVersion start
-                    , function syntaxVersion start
-                    , possiblyNegativeTerm syntaxVersion start
-                        |> P.bind
-                            (\expr ->
-                                P.getPosition
-                                    |> P.bind
-                                        (\end ->
-                                            Space.chomp E.Space
-                                                |> P.bind
-                                                    (\_ ->
-                                                        chompExprEnd syntaxVersion
-                                                            start
-                                                            (State
-                                                                { ops = []
-                                                                , expr = expr
-                                                                , args = []
-                                                                , end = end
-                                                                }
-                                                            )
-                                                    )
-                                        )
-                            )
-                    ]
-            )
+    P.oneOf
+        [ let_ syntaxVersion
+        , if_ syntaxVersion
+        , case_ syntaxVersion
+        , function_ syntaxVersion
+        , possiblyNegativeTerm syntaxVersion
+            |> P.andThen (\expr ->
+                Space.chomp
+                    |> P.andThen (\_ -> chompExprEnd syntaxVersion expr)
+               )
+        ]
 
 
-type State
-    = State
-        { ops : List ( Src.Expr, A.Located Name.Name )
-        , expr : Src.Expr
-        , args : List Src.Expr
-        , end : A.Position
-        }
+chompExprEnd : SyntaxVersion -> Src.Expr -> P.Parser Src.Expr
+chompExprEnd syntaxVersion expr =
+    P.loop { ops = [], expr = expr, args = [] } (chompExprEndHelp syntaxVersion)
 
 
-chompExprEnd : SyntaxVersion -> A.Position -> State -> Space.Parser E.Expr Src.Expr
-chompExprEnd syntaxVersion start (State { ops, expr, args, end }) =
+type alias ChompExprState =
+    { ops : List ( Src.Expr, A.Located Name.Name )
+    , expr : Src.Expr
+    , args : List Src.Expr
+    }
+
+
+chompExprEndHelp : SyntaxVersion -> ChompExprState -> P.Parser (P.Step ChompExprState Src.Expr)
+chompExprEndHelp syntaxVersion state =
     P.oneOfWithFallback
         [ -- argument
-          Space.checkIndent end E.Start
-            |> P.bind (\_ -> term syntaxVersion)
-            |> P.bind
-                (\arg ->
-                    P.getPosition
-                        |> P.bind
-                            (\newEnd ->
-                                Space.chomp E.Space
-                                    |> P.bind
-                                        (\_ ->
-                                            chompExprEnd syntaxVersion
-                                                start
-                                                (State
-                                                    { ops = ops
-                                                    , expr = expr
-                                                    , args = arg :: args
-                                                    , end = newEnd
-                                                    }
-                                                )
-                                        )
-                            )
-                )
+          term syntaxVersion
+            |> P.andThen (\arg ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        P.succeed (P.Loop { state | args = arg :: state.args })
+                       )
+               )
         , -- operator
-          Space.checkIndent end E.Start
-            |> P.bind (\_ -> P.addLocation (Symbol.operator E.Start E.OperatorReserved))
-            |> P.bind
-                (\((A.At (A.Region opStart opEnd) opName) as op) ->
-                    Space.chompAndCheckIndent E.Space (E.IndentOperatorRight opName)
-                        |> P.bind (\_ -> P.getPosition)
-                        |> P.bind
-                            (\newStart ->
-                                if "-" == opName && end /= opStart && opEnd == newStart then
-                                    -- negative terms
-                                    term syntaxVersion
-                                        |> P.bind
-                                            (\negatedExpr ->
-                                                P.getPosition
-                                                    |> P.bind
-                                                        (\newEnd ->
-                                                            Space.chomp E.Space
-                                                                |> P.bind
-                                                                    (\_ ->
-                                                                        let
-                                                                            arg : A.Located Src.Expr_
-                                                                            arg =
-                                                                                A.at opStart newEnd (Src.Negate negatedExpr)
-                                                                        in
-                                                                        chompExprEnd syntaxVersion
-                                                                            start
-                                                                            (State
-                                                                                { ops = ops
-                                                                                , expr = expr
-                                                                                , args = arg :: args
-                                                                                , end = newEnd
-                                                                                }
-                                                                            )
-                                                                    )
-                                                        )
-                                            )
-
-                                else
-                                    let
-                                        err : P.Row -> P.Col -> E.Expr
-                                        err =
-                                            E.OperatorRight opName
-                                    in
-                                    P.oneOf err
-                                        [ -- term
-                                          possiblyNegativeTerm syntaxVersion newStart
-                                            |> P.bind
-                                                (\newExpr ->
-                                                    P.getPosition
-                                                        |> P.bind
-                                                            (\newEnd ->
-                                                                Space.chomp E.Space
-                                                                    |> P.bind
-                                                                        (\_ ->
-                                                                            let
-                                                                                newOps : List ( Src.Expr, A.Located Name.Name )
-                                                                                newOps =
-                                                                                    ( toCall expr args, op ) :: ops
-                                                                            in
-                                                                            chompExprEnd syntaxVersion
-                                                                                start
-                                                                                (State
-                                                                                    { ops = newOps
-                                                                                    , expr = newExpr
-                                                                                    , args = []
-                                                                                    , end = newEnd
-                                                                                    }
-                                                                                )
-                                                                        )
-                                                            )
-                                                )
-                                        , -- final term
-                                          P.oneOf err
-                                            [ let_ syntaxVersion newStart
-                                            , case_ syntaxVersion newStart
-                                            , if_ syntaxVersion newStart
-                                            , function syntaxVersion newStart
-                                            ]
-                                            |> P.fmap
-                                                (\( newLast, newEnd ) ->
-                                                    let
-                                                        newOps : List ( Src.Expr, A.Located Name.Name )
-                                                        newOps =
-                                                            ( toCall expr args, op ) :: ops
-
-                                                        finalExpr : Src.Expr_
-                                                        finalExpr =
-                                                            Src.Binops (List.reverse newOps) newLast
-                                                    in
-                                                    ( A.at start newEnd finalExpr, newEnd )
-                                                )
-                                        ]
-                            )
-                )
+          P.addLocation (Symbol.operator (P.Problem_Expr P.EP_Start) (\op -> P.Problem_Expr (P.EP_OperatorReserved op)))
+            |> P.andThen (\op ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        let
+                            newOps =
+                                ( toCall state.expr state.args, op ) :: state.ops
+                        in
+                        possiblyNegativeTerm syntaxVersion
+                            |> P.andThen (\newExpr ->
+                                P.succeed (P.Loop { ops = newOps, expr = newExpr, args = [] })
+                               )
+                       )
+               )
         ]
-        -- done
-        (case ops of
-            [] ->
-                ( toCall expr args
-                , end
-                )
-
-            _ ->
-                ( A.at start end (Src.Binops (List.reverse ops) (toCall expr args))
-                , end
-                )
+        (P.Done <|
+            let
+                finalExpr =
+                    toCall state.expr state.args
+            in
+            if List.isEmpty state.ops then
+                finalExpr
+            else
+                A.merge (List.head state.ops |> Maybe.map Tuple.second |> Maybe.withDefault (A.sameAs finalExpr "")) finalExpr (Src.Binops (List.reverse state.ops) finalExpr)
         )
 
 
-possiblyNegativeTerm : SyntaxVersion -> A.Position -> P.Parser E.Expr Src.Expr
-possiblyNegativeTerm syntaxVersion start =
-    P.oneOf E.Start
-        [ P.word1 '-' E.Start
-            |> P.bind
-                (\_ ->
-                    term syntaxVersion
-                        |> P.bind
-                            (\expr ->
-                                P.addEnd start (Src.Negate expr)
-                            )
-                )
+possiblyNegativeTerm : SyntaxVersion -> P.Parser Src.Expr
+possiblyNegativeTerm syntaxVersion =
+    P.oneOf
+        [ P.succeed ()
+            |. P.word1 '-' (P.Problem_Expr P.EP_Start)
+            |> P.andThen (\_ ->
+                term syntaxVersion
+                    |> P.map (A.map Src.Negate)
+               )
         , term syntaxVersion
         ]
 
@@ -680,103 +388,110 @@ toCall func revArgs =
         [] ->
             func
 
-        lastArg :: _ ->
-            A.merge func lastArg (Src.Call func (List.reverse revArgs))
+        firstArg :: _ ->
+            A.merge func firstArg (Src.Call func (List.reverse revArgs))
 
 
 
 -- IF EXPRESSION
 
 
-if_ : SyntaxVersion -> A.Position -> Space.Parser E.Expr Src.Expr
-if_ syntaxVersion start =
-    P.inContext E.If (Keyword.if_ E.Start) <|
-        chompIfEnd syntaxVersion start []
+if_ : SyntaxVersion -> P.Parser Src.Expr
+if_ syntaxVersion =
+    P.inContext (P.CtxNode P.NCond)
+        (P.succeed ()
+            |. Keyword.if_ (P.Problem_Expr (P.EP_If P.IP_Space))
+            |> P.andThen (\_ -> chompIfEnd syntaxVersion [])
+        )
 
 
-chompIfEnd : SyntaxVersion -> A.Position -> List ( Src.Expr, Src.Expr ) -> Space.Parser E.If Src.Expr
-chompIfEnd syntaxVersion start branches =
-    Space.chompAndCheckIndent E.IfSpace E.IfIndentCondition
-        |> P.bind (\_ -> P.specialize E.IfCondition (expression syntaxVersion))
-        |> P.bind
-            (\( condition, condEnd ) ->
-                Space.checkIndent condEnd E.IfIndentThen
-                    |> P.bind (\_ -> Keyword.then_ E.IfThen)
-                    |> P.bind (\_ -> Space.chompAndCheckIndent E.IfSpace E.IfIndentThenBranch)
-                    |> P.bind (\_ -> P.specialize E.IfThenBranch (expression syntaxVersion))
-                    |> P.bind
-                        (\( thenBranch, thenEnd ) ->
-                            Space.checkIndent thenEnd E.IfIndentElse
-                                |> P.bind (\_ -> Keyword.else_ E.IfElse)
-                                |> P.bind (\_ -> Space.chompAndCheckIndent E.IfSpace E.IfIndentElseBranch)
-                                |> P.bind
-                                    (\_ ->
-                                        let
-                                            newBranches : List ( Src.Expr, Src.Expr )
-                                            newBranches =
-                                                ( condition, thenBranch ) :: branches
-                                        in
-                                        P.oneOf E.IfElseBranchStart
-                                            [ Keyword.if_ E.IfElseBranchStart
-                                                |> P.bind (\_ -> chompIfEnd syntaxVersion start newBranches)
-                                            , P.specialize E.IfElseBranch (expression syntaxVersion)
-                                                |> P.fmap
-                                                    (\( elseBranch, elseEnd ) ->
-                                                        let
-                                                            ifExpr : Src.Expr_
-                                                            ifExpr =
-                                                                Src.If (List.reverse newBranches) elseBranch
-                                                        in
-                                                        ( A.at start elseEnd ifExpr, elseEnd )
-                                                    )
-                                            ]
-                                    )
-                        )
-            )
+chompIfEnd : SyntaxVersion -> List ( Src.Expr, Src.Expr ) -> P.Parser Src.Expr
+chompIfEnd syntaxVersion branches =
+    Space.chomp
+        |> P.andThen (\_ ->
+            expression syntaxVersion
+                |> P.andThen (\condition ->
+                    Space.chomp
+                        |> P.andThen (\_ ->
+                            P.succeed ()
+                                |. Keyword.then_ (P.Problem_Expr (P.EP_If P.IP_Then))
+                                |> P.andThen (\_ ->
+                                    Space.chomp
+                                        |> P.andThen (\_ ->
+                                            expression syntaxVersion
+                                                |> P.andThen (\thenBranch ->
+                                                    Space.chomp
+                                                        |> P.andThen (\_ ->
+                                                            P.succeed ()
+                                                                |. Keyword.else_ (P.Problem_Expr (P.EP_If P.IP_Else))
+                                                                |> P.andThen (\_ ->
+                                                                    Space.chomp
+                                                                        |> P.andThen (\_ ->
+                                                                            let
+                                                                                newBranches =
+                                                                                    ( condition, thenBranch ) :: branches
+                                                                            in
+                                                                            P.oneOf
+                                                                                [ P.succeed ()
+                                                                                    |. Keyword.if_ (P.Problem_Expr (P.EP_If P.IP_ElseBranchStart))
+                                                                                    |> P.andThen (\_ -> chompIfEnd syntaxVersion newBranches)
+                                                                                , expression syntaxVersion
+                                                                                    |> P.map (\elseBranch ->
+                                                                                        A.merge condition elseBranch (Src.If (List.reverse newBranches) elseBranch)
+                                                                                       )
+                                                                                ]
+                                                                           )
+                                                                   )
+                                                           )
+                                                   )
+                                           )
+                                   )
+                           )
+                   )
+           )
 
 
 
 -- LAMBDA EXPRESSION
 
 
-function : SyntaxVersion -> A.Position -> Space.Parser E.Expr Src.Expr
-function syntaxVersion start =
-    P.inContext E.Func (P.word1 '\\' E.Start) <|
-        (Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArg
-            |> P.bind (\_ -> P.specialize E.FuncArg (Pattern.term syntaxVersion))
-            |> P.bind
-                (\arg ->
-                    Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
-                        |> P.bind (\_ -> chompArgs syntaxVersion [ arg ])
-                        |> P.bind
-                            (\revArgs ->
-                                Space.chompAndCheckIndent E.FuncSpace E.FuncIndentBody
-                                    |> P.bind (\_ -> P.specialize E.FuncBody (expression syntaxVersion))
-                                    |> P.fmap
-                                        (\( body, end ) ->
-                                            let
-                                                funcExpr : Src.Expr_
-                                                funcExpr =
-                                                    Src.Lambda (List.reverse revArgs) body
-                                            in
-                                            ( A.at start end funcExpr, end )
-                                        )
-                            )
-                )
+function_ : SyntaxVersion -> P.Parser Src.Expr
+function_ syntaxVersion =
+    P.inContext (P.CtxNode P.NFunc)
+        (P.succeed ()
+            |. P.word1 '\\' (P.Problem_Expr (P.EP_Func P.FP_Space))
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        Pattern.term syntaxVersion
+                            |> P.andThen (\arg ->
+                                Space.chomp
+                                    |> P.andThen (\_ -> chompArgs syntaxVersion [ arg ])
+                                    |> P.andThen (\revArgs ->
+                                        Space.chomp
+                                            |> P.andThen (\_ ->
+                                                expression syntaxVersion
+                                                    |> P.map (\body ->
+                                                        A.merge (List.head revArgs |> Maybe.withDefault (A.sameAs body "")) body (Src.Lambda (List.reverse revArgs) body)
+                                                       )
+                                               )
+                                       )
+                               )
+                       )
+               )
         )
 
 
-chompArgs : SyntaxVersion -> List Src.Pattern -> P.Parser E.Func (List Src.Pattern)
+chompArgs : SyntaxVersion -> List Src.Pattern -> P.Parser (List Src.Pattern)
 chompArgs syntaxVersion revArgs =
-    P.oneOf E.FuncArrow
-        [ P.specialize E.FuncArg (Pattern.term syntaxVersion)
-            |> P.bind
-                (\arg ->
-                    Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
-                        |> P.bind (\_ -> chompArgs syntaxVersion (arg :: revArgs))
-                )
-        , P.word2 '-' '>' E.FuncArrow
-            |> P.fmap (\_ -> revArgs)
+    P.oneOf
+        [ Pattern.term syntaxVersion
+            |> P.andThen (\arg ->
+                Space.chomp
+                    |> P.andThen (\_ -> chompArgs syntaxVersion (arg :: revArgs))
+               )
+        , P.succeed (List.reverse revArgs)
+            |. P.word2 '-' '>' (P.Problem_Expr (P.EP_Func P.FP_Arrow))
         ]
 
 
@@ -784,108 +499,130 @@ chompArgs syntaxVersion revArgs =
 -- CASE EXPRESSIONS
 
 
-case_ : SyntaxVersion -> A.Position -> Space.Parser E.Expr Src.Expr
-case_ syntaxVersion start =
-    P.inContext E.Case (Keyword.case_ E.Start) <|
-        (Space.chompAndCheckIndent E.CaseSpace E.CaseIndentExpr
-            |> P.bind (\_ -> P.specialize E.CaseExpr (expression syntaxVersion))
-            |> P.bind
-                (\( expr, exprEnd ) ->
-                    Space.checkIndent exprEnd E.CaseIndentOf
-                        |> P.bind (\_ -> Keyword.of_ E.CaseOf)
-                        |> P.bind (\_ -> Space.chompAndCheckIndent E.CaseSpace E.CaseIndentPattern)
-                        |> P.bind
-                            (\_ ->
-                                P.withIndent <|
-                                    (chompBranch syntaxVersion
-                                        |> P.bind
-                                            (\( firstBranch, firstEnd ) ->
-                                                chompCaseEnd syntaxVersion [ firstBranch ] firstEnd
-                                                    |> P.fmap
-                                                        (\( branches, end ) ->
-                                                            ( A.at start end (Src.Case expr branches)
-                                                            , end
+case_ : SyntaxVersion -> P.Parser Src.Expr
+case_ syntaxVersion =
+    P.inContext (P.CtxNode P.NCase)
+        (P.succeed ()
+            |. Keyword.case_ (P.Problem_Expr (P.EP_Case P.CP_Space))
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        expression syntaxVersion
+                            |> P.andThen (\expr ->
+                                Space.chomp
+                                    |> P.andThen (\_ ->
+                                        P.succeed ()
+                                            |. Keyword.of_ (P.Problem_Expr (P.EP_Case P.CP_Of))
+                                            |> P.andThen (\_ ->
+                                                Space.chomp
+                                                    |> P.andThen (\_ ->
+                                                        P.withIndent
+                                                            (chompBranch syntaxVersion
+                                                                |> P.andThen (\firstBranch ->
+                                                                    chompCaseEnd syntaxVersion [ firstBranch ]
+                                                                        |> P.map (\branches ->
+                                                                            A.merge expr (List.head branches |> Maybe.map Tuple.second |> Maybe.withDefault (A.sameAs expr "")) (Src.Case expr branches)
+                                                                           )
+                                                                   )
                                                             )
-                                                        )
-                                            )
-                                    )
-                            )
-                )
+                                                       )
+                                               )
+                                       )
+                               )
+                       )
+               )
         )
 
 
-chompBranch : SyntaxVersion -> Space.Parser E.Case ( Src.Pattern, Src.Expr )
+chompBranch : SyntaxVersion -> P.Parser ( Src.Pattern, Src.Expr )
 chompBranch syntaxVersion =
-    P.specialize E.CasePattern (Pattern.expression syntaxVersion)
-        |> P.bind
-            (\( pattern, patternEnd ) ->
-                Space.checkIndent patternEnd E.CaseIndentArrow
-                    |> P.bind (\_ -> P.word2 '-' '>' E.CaseArrow)
-                    |> P.bind (\_ -> Space.chompAndCheckIndent E.CaseSpace E.CaseIndentBranch)
-                    |> P.bind (\_ -> P.specialize E.CaseBranch (expression syntaxVersion))
-                    |> P.fmap (\( branchExpr, end ) -> ( ( pattern, branchExpr ), end ))
-            )
+    Pattern.expression syntaxVersion
+        |> P.andThen (\pattern ->
+            Space.chomp
+                |> P.andThen (\_ ->
+                    P.succeed ()
+                        |. P.word2 '-' '>' (P.Problem_Expr (P.EP_Case P.CP_Arrow))
+                        |> P.andThen (\_ ->
+                            Space.chomp
+                                |> P.andThen (\_ ->
+                                    expression syntaxVersion
+                                        |> P.map (\branchExpr -> ( pattern, branchExpr ))
+                                   )
+                           )
+                   )
+           )
 
 
-chompCaseEnd : SyntaxVersion -> List ( Src.Pattern, Src.Expr ) -> A.Position -> Space.Parser E.Case (List ( Src.Pattern, Src.Expr ))
-chompCaseEnd syntaxVersion branches end =
+chompCaseEnd : SyntaxVersion -> List ( Src.Pattern, Src.Expr ) -> P.Parser (List ( Src.Pattern, Src.Expr ))
+chompCaseEnd syntaxVersion branches =
     P.oneOfWithFallback
-        [ Space.checkAligned E.CasePatternAlignment
-            |> P.bind (\_ -> chompBranch syntaxVersion)
-            |> P.bind (\( branch, newEnd ) -> chompCaseEnd syntaxVersion (branch :: branches) newEnd)
+        [ Space.checkAligned (P.Problem_Expr (P.EP_Case (P.CP_PatternAlignment 0))) -- dummy alignment
+            |> P.andThen (\_ ->
+                chompBranch syntaxVersion
+                    |> P.andThen (\branch -> chompCaseEnd syntaxVersion (branch :: branches))
+               )
         ]
-        ( List.reverse branches, end )
+        (List.reverse branches)
 
 
 
 -- LET EXPRESSION
 
 
-let_ : SyntaxVersion -> A.Position -> Space.Parser E.Expr Src.Expr
-let_ syntaxVersion start =
-    P.inContext E.Let (Keyword.let_ E.Start) <|
-        ((P.withBacksetIndent 3 <|
-            (Space.chompAndCheckIndent E.LetSpace E.LetIndentDef
-                |> P.bind
-                    (\_ ->
-                        P.withIndent <|
-                            (chompLetDef syntaxVersion
-                                |> P.bind (\( def, end ) -> chompLetDefs syntaxVersion [ def ] end)
-                            )
+let_ : SyntaxVersion -> P.Parser Src.Expr
+let_ syntaxVersion =
+    P.inContext (P.CtxNode P.NLet)
+        (P.succeed ()
+            |. Keyword.let_ (P.Problem_Expr (P.EP_Let P.LP_Space))
+            |> P.andThen (\_ ->
+                P.withBacksetIndent 3
+                    (Space.chomp
+                        |> P.andThen (\_ ->
+                            P.withIndent
+                                (chompLetDef syntaxVersion
+                                    |> P.andThen (\def -> chompLetDefs syntaxVersion [ def ])
+                                )
+                           )
                     )
-            )
-         )
-            |> P.bind
-                (\( defs, defsEnd ) ->
-                    Space.checkIndent defsEnd E.LetIndentIn
-                        |> P.bind (\_ -> Keyword.in_ E.LetIn)
-                        |> P.bind (\_ -> Space.chompAndCheckIndent E.LetSpace E.LetIndentBody)
-                        |> P.bind (\_ -> P.specialize E.LetBody (expression syntaxVersion))
-                        |> P.fmap
-                            (\( body, end ) ->
-                                ( A.at start end (Src.Let defs body), end )
-                            )
-                )
+                    |> P.andThen (\defs ->
+                        Space.chomp
+                            |> P.andThen (\_ ->
+                                P.succeed ()
+                                    |. Keyword.in_ (P.Problem_Expr (P.EP_Let P.LP_In))
+                                    |> P.andThen (\_ ->
+                                        Space.chomp
+                                            |> P.andThen (\_ ->
+                                                expression syntaxVersion
+                                                    |> P.map (\body ->
+                                                        A.merge (List.head defs |> Maybe.withDefault (A.sameAs body "")) body (Src.Let defs body)
+                                                       )
+                                               )
+                                       )
+                               )
+                       )
+               )
         )
 
 
-chompLetDefs : SyntaxVersion -> List (A.Located Src.Def) -> A.Position -> Space.Parser E.Let (List (A.Located Src.Def))
-chompLetDefs syntaxVersion revDefs end =
+chompLetDefs : SyntaxVersion -> List (A.Located Src.Def) -> P.Parser (List (A.Located Src.Def))
+chompLetDefs syntaxVersion revDefs =
     P.oneOfWithFallback
-        [ Space.checkAligned E.LetDefAlignment
-            |> P.bind (\_ -> chompLetDef syntaxVersion)
-            |> P.bind (\( def, newEnd ) -> chompLetDefs syntaxVersion (def :: revDefs) newEnd)
+        [ Space.checkAligned (P.Problem_Expr (P.EP_Let (P.LP_DefAlignment 0))) -- dummy alignment
+            |> P.andThen (\_ ->
+                chompLetDef syntaxVersion
+                    |> P.andThen (\def -> chompLetDefs syntaxVersion (def :: revDefs))
+               )
         ]
-        ( List.reverse revDefs, end )
+        (List.reverse revDefs)
 
 
 
 -- LET DEFINITIONS
 
 
-chompLetDef : SyntaxVersion -> Space.Parser E.Let (A.Located Src.Def)
+chompLetDef : SyntaxVersion -> P.Parser (A.Located Src.Def)
 chompLetDef syntaxVersion =
-    P.oneOf E.LetDefName
+    P.oneOf
         [ definition syntaxVersion
         , destructure syntaxVersion
         ]
@@ -895,110 +632,88 @@ chompLetDef syntaxVersion =
 -- DEFINITION
 
 
-definition : SyntaxVersion -> Space.Parser E.Let (A.Located Src.Def)
+definition : SyntaxVersion -> P.Parser (A.Located Src.Def)
 definition syntaxVersion =
-    P.addLocation (Var.lower E.LetDefName)
-        |> P.bind
-            (\((A.At (A.Region start _) name) as aname) ->
-                P.specialize (E.LetDef name) <|
-                    (Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
-                        |> P.bind
-                            (\_ ->
-                                P.oneOf E.DefEquals
-                                    [ P.word1 ':' E.DefEquals
-                                        |> P.bind (\_ -> Space.chompAndCheckIndent E.DefSpace E.DefIndentType)
-                                        |> P.bind (\_ -> P.specialize E.DefType Type.expression)
-                                        |> P.bind
-                                            (\( tipe, _ ) ->
-                                                Space.checkAligned E.DefAlignment
-                                                    |> P.bind (\_ -> chompMatchingName name)
-                                                    |> P.bind
-                                                        (\defName ->
-                                                            Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
-                                                                |> P.bind (\_ -> chompDefArgsAndBody syntaxVersion start defName (Just tipe) [])
-                                                        )
-                                            )
-                                    , chompDefArgsAndBody syntaxVersion start aname Nothing []
-                                    ]
-                            )
-                    )
-            )
+    P.addLocation (Var.lower (P.Problem_Expr (P.EP_Let P.LP_DefName)))
+        |> P.andThen (\name ->
+            Space.chomp
+                |> P.andThen (\_ ->
+                    P.oneOf
+                        [ P.succeed ()
+                            |. P.word1 ':' (P.Problem_Expr (P.EP_Let (P.LP_Def (A.toValue name) P.DP_Equals)))
+                            |> P.andThen (\_ ->
+                                Space.chomp
+                                    |> P.andThen (\_ ->
+                                        Type.expression
+                                            |> P.andThen (\tipe ->
+                                                Space.chomp
+                                                    |> P.andThen (\_ -> chompMatchingName (A.toValue name))
+                                                    |> P.andThen (\defName ->
+                                                        Space.chomp
+                                                            |> P.andThen (\_ -> chompDefArgsAndBody syntaxVersion defName (Just tipe) [])
+                                                       )
+                                               )
+                                       )
+                               )
+                        , chompDefArgsAndBody syntaxVersion name Nothing []
+                        ]
+                   )
+           )
 
 
-chompDefArgsAndBody : SyntaxVersion -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> List Src.Pattern -> Space.Parser E.Def (A.Located Src.Def)
-chompDefArgsAndBody syntaxVersion start name tipe revArgs =
-    P.oneOf E.DefEquals
-        [ P.specialize E.DefArg (Pattern.term syntaxVersion)
-            |> P.bind
-                (\arg ->
-                    Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
-                        |> P.bind (\_ -> chompDefArgsAndBody syntaxVersion start name tipe (arg :: revArgs))
-                )
-        , P.word1 '=' E.DefEquals
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.DefSpace E.DefIndentBody)
-            |> P.bind (\_ -> P.specialize E.DefBody (expression syntaxVersion))
-            |> P.fmap
-                (\( body, end ) ->
-                    ( A.at start end (Src.Define name (List.reverse revArgs) body tipe)
-                    , end
-                    )
-                )
+chompDefArgsAndBody : SyntaxVersion -> A.Located Name.Name -> Maybe Src.Type -> List Src.Pattern -> P.Parser (A.Located Src.Def)
+chompDefArgsAndBody syntaxVersion name tipe revArgs =
+    P.oneOf
+        [ Pattern.term syntaxVersion
+            |> P.andThen (\arg ->
+                Space.chomp
+                    |> P.andThen (\_ -> chompDefArgsAndBody syntaxVersion name tipe (arg :: revArgs))
+               )
+        , P.succeed ()
+            |. P.word1 '=' (P.Problem_Expr (P.EP_Let (P.LP_Def (A.toValue name) P.DP_Equals)))
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        expression syntaxVersion
+                            |> P.map (\body ->
+                                A.merge name body (Src.Define name (List.reverse revArgs) body tipe)
+                               )
+                       )
+               )
         ]
 
 
-chompMatchingName : Name.Name -> P.Parser E.Def (A.Located Name.Name)
+chompMatchingName : Name.Name -> P.Parser (A.Located Name.Name)
 chompMatchingName expectedName =
-    let
-        (P.Parser parserL) =
-            Var.lower E.DefNameRepeat
-    in
-    P.Parser <|
-        \((P.State _ _ _ _ sr sc) as state) ->
-            case parserL state of
-                P.Cok name ((P.State _ _ _ _ er ec) as newState) ->
-                    if expectedName == name then
-                        P.Cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-
-                    else
-                        P.Cerr sr sc (E.DefNameMatch name)
-
-                P.Eok name ((P.State _ _ _ _ er ec) as newState) ->
-                    if expectedName == name then
-                        P.Eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-
-                    else
-                        P.Eerr sr sc (E.DefNameMatch name)
-
-                P.Cerr r c t ->
-                    P.Cerr r c t
-
-                P.Eerr r c t ->
-                    P.Eerr r c t
+    P.addLocation (Var.lower (P.Problem_Expr (P.EP_Let (P.LP_Def expectedName P.DP_NameRepeat))))
+        |> P.andThen (\locatedName ->
+            if A.toValue locatedName == expectedName then
+                P.succeed locatedName
+            else
+                P.problem (P.Problem_Expr (P.EP_Let (P.LP_Def expectedName (P.DP_NameMatch (A.toValue locatedName)))))
+           )
 
 
 
 -- DESTRUCTURE
 
 
-destructure : SyntaxVersion -> Space.Parser E.Let (A.Located Src.Def)
+destructure : SyntaxVersion -> P.Parser (A.Located Src.Def)
 destructure syntaxVersion =
-    P.specialize E.LetDestruct <|
-        (P.getPosition
-            |> P.bind
-                (\start ->
-                    P.specialize E.DestructPattern (Pattern.term syntaxVersion)
-                        |> P.bind
-                            (\pattern ->
-                                Space.chompAndCheckIndent E.DestructSpace E.DestructIndentEquals
-                                    |> P.bind (\_ -> P.word1 '=' E.DestructEquals)
-                                    |> P.bind (\_ -> Space.chompAndCheckIndent E.DestructSpace E.DestructIndentBody)
-                                    |> P.bind (\_ -> P.specialize E.DestructBody (expression syntaxVersion))
-                                    |> P.fmap
-                                        (\( expr, end ) ->
-                                            ( A.at start end (Src.Destruct pattern expr)
-                                            , end
-                                            )
-                                        )
-                            )
-                )
+    P.addLocation
+        (Pattern.term syntaxVersion
+            |> P.andThen (\pattern ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        P.succeed ()
+                            |. P.word1 '=' (P.Problem_Expr (P.EP_Let (P.LP_Destruct P.DDP_Equals)))
+                            |> P.andThen (\_ ->
+                                Space.chomp
+                                    |> P.andThen (\_ ->
+                                        expression syntaxVersion
+                                            |> P.map (\expr -> Src.Destruct pattern expr)
+                                       )
+                               )
+                       )
+               )
         )

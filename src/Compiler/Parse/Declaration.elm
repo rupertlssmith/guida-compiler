@@ -9,20 +9,15 @@ import Compiler.AST.Utils.Binop as Binop
 import Compiler.Data.Name exposing (Name)
 import Compiler.Parse.Expression as Expr
 import Compiler.Parse.Keyword as Keyword
+import Compiler.Parse.NewPrimitives as P
 import Compiler.Parse.Number as Number
 import Compiler.Parse.Pattern as Pattern
-import Compiler.Parse.Primitives as P
 import Compiler.Parse.Space as Space
 import Compiler.Parse.Symbol as Symbol
 import Compiler.Parse.SyntaxVersion exposing (SyntaxVersion)
 import Compiler.Parse.Type as Type
 import Compiler.Parse.Variable as Var
 import Compiler.Reporting.Annotation as A
-import Compiler.Reporting.Error.Syntax as E
-
-
-
--- DECLARATION
 
 
 type Decl
@@ -32,345 +27,280 @@ type Decl
     | Port (Maybe Src.Comment) Src.Port
 
 
-declaration : SyntaxVersion -> Space.Parser E.Decl Decl
+declaration : SyntaxVersion -> P.Parser Decl
 declaration syntaxVersion =
     chompDocComment
-        |> P.bind
+        |> P.andThen
             (\maybeDocs ->
-                P.getPosition
-                    |> P.bind
-                        (\start ->
-                            P.oneOf E.DeclStart
-                                [ typeDecl maybeDocs start
-                                , portDecl maybeDocs
-                                , valueDecl syntaxVersion maybeDocs start
-                                ]
-                        )
+                P.oneOf
+                    [ typeDecl maybeDocs
+                    , portDecl maybeDocs
+                    , valueDecl syntaxVersion maybeDocs
+                    ]
             )
 
 
-
--- DOC COMMENT
-
-
-chompDocComment : P.Parser E.Decl (Maybe Src.Comment)
+chompDocComment : P.Parser (Maybe Src.Comment)
 chompDocComment =
     P.oneOfWithFallback
-        [ Space.docComment E.DeclStart E.DeclSpace
-            |> P.bind
+        [ Space.docComment (P.Problem_Decl P.DP_Start) (P.Problem_Decl (P.DP_Space P.HasTab))
+            |> P.andThen
                 (\docComment ->
-                    Space.chomp E.DeclSpace
-                        |> P.bind (\_ -> Space.checkFreshLine E.DeclFreshLineAfterDocComment)
-                        |> P.fmap (\_ -> Just docComment)
+                    Space.chomp
+                        |> P.andThen (\_ -> Space.checkFreshLine (P.Problem_Decl P.DP_FreshLineAfterDocComment))
+                        |> P.map (\_ -> Just docComment)
                 )
         ]
         Nothing
 
 
-
--- DEFINITION and ANNOTATION
-
-
-valueDecl : SyntaxVersion -> Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
-valueDecl syntaxVersion maybeDocs start =
-    Var.lower E.DeclStart
-        |> P.bind
-            (\name ->
-                P.getPosition
-                    |> P.bind
-                        (\end ->
-                            P.specialize (E.DeclDef name) <|
-                                (Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
-                                    |> P.bind
-                                        (\_ ->
-                                            P.oneOf E.DeclDefEquals
-                                                [ P.word1 ':' E.DeclDefEquals
-                                                    |> P.bind (\_ -> Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentType)
-                                                    |> P.bind (\_ -> P.specialize E.DeclDefType Type.expression)
-                                                    |> P.bind
-                                                        (\( tipe, _ ) ->
-                                                            Space.checkFreshLine E.DeclDefNameRepeat
-                                                                |> P.bind (\_ -> chompMatchingName name)
-                                                                |> P.bind
-                                                                    (\defName ->
-                                                                        Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
-                                                                            |> P.bind (\_ -> chompDefArgsAndBody syntaxVersion maybeDocs start defName (Just tipe) [])
-                                                                    )
-                                                        )
-                                                , chompDefArgsAndBody syntaxVersion maybeDocs start (A.at start end name) Nothing []
-                                                ]
-                                        )
-                                )
-                        )
-            )
-
-
-chompDefArgsAndBody : SyntaxVersion -> Maybe Src.Comment -> A.Position -> A.Located Name -> Maybe Src.Type -> List Src.Pattern -> Space.Parser E.DeclDef Decl
-chompDefArgsAndBody syntaxVersion maybeDocs start name tipe revArgs =
-    P.oneOf E.DeclDefEquals
-        [ P.specialize E.DeclDefArg (Pattern.term syntaxVersion)
-            |> P.bind
-                (\arg ->
-                    Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
-                        |> P.bind (\_ -> chompDefArgsAndBody syntaxVersion maybeDocs start name tipe (arg :: revArgs))
-                )
-        , P.word1 '=' E.DeclDefEquals
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentBody)
-            |> P.bind (\_ -> P.specialize E.DeclDefBody (Expr.expression syntaxVersion))
-            |> P.fmap
-                (\( body, end ) ->
-                    let
-                        value : Src.Value
-                        value =
-                            Src.Value name (List.reverse revArgs) body tipe
-
-                        avalue : A.Located Src.Value
-                        avalue =
-                            A.at start end value
-                    in
-                    ( Value maybeDocs avalue, end )
-                )
-        ]
-
-
-chompMatchingName : Name -> P.Parser E.DeclDef (A.Located Name)
-chompMatchingName expectedName =
-    let
-        (P.Parser parserL) =
-            Var.lower E.DeclDefNameRepeat
-    in
-    P.Parser <|
-        \((P.State _ _ _ _ sr sc) as state) ->
-            case parserL state of
-                P.Cok name ((P.State _ _ _ _ er ec) as newState) ->
-                    if expectedName == name then
-                        P.Cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-
-                    else
-                        P.Cerr sr sc (E.DeclDefNameMatch name)
-
-                P.Eok name ((P.State _ _ _ _ er ec) as newState) ->
-                    if expectedName == name then
-                        P.Eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-
-                    else
-                        P.Eerr sr sc (E.DeclDefNameMatch name)
-
-                P.Cerr r c t ->
-                    P.Cerr r c t
-
-                P.Eerr r c t ->
-                    P.Eerr r c t
-
-
-
--- TYPE DECLARATIONS
-
-
-typeDecl : Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
-typeDecl maybeDocs start =
-    P.inContext E.DeclType (Keyword.type_ E.DeclStart) <|
-        (Space.chompAndCheckIndent E.DT_Space E.DT_IndentName
-            |> P.bind
-                (\_ ->
-                    P.oneOf E.DT_Name
-                        [ P.inContext E.DT_Alias (Keyword.alias_ E.DT_Name) <|
-                            (Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
-                                |> P.bind (\_ -> chompAliasNameToEquals)
-                                |> P.bind
-                                    (\( name, args ) ->
-                                        P.specialize E.AliasBody Type.expression
-                                            |> P.fmap
-                                                (\( tipe, end ) ->
-                                                    let
-                                                        alias_ : A.Located Src.Alias
-                                                        alias_ =
-                                                            A.at start end (Src.Alias name args tipe)
-                                                    in
-                                                    ( Alias maybeDocs alias_, end )
-                                                )
-                                    )
-                            )
-                        , P.specialize E.DT_Union <|
-                            (chompCustomNameToEquals
-                                |> P.bind
-                                    (\( name, args ) ->
-                                        Type.variant
-                                            |> P.bind
-                                                (\( firstVariant, firstEnd ) ->
-                                                    chompVariants [ firstVariant ] firstEnd
-                                                        |> P.fmap
-                                                            (\( variants, end ) ->
-                                                                let
-                                                                    union : A.Located Src.Union
-                                                                    union =
-                                                                        A.at start end (Src.Union name args variants)
-                                                                in
-                                                                ( Union maybeDocs union, end )
-                                                            )
-                                                )
-                                    )
-                            )
+valueDecl : SyntaxVersion -> Maybe Src.Comment -> P.Parser Decl
+valueDecl syntaxVersion maybeDocs =
+    P.addLocation (Var.lower (P.Problem_Decl P.DP_Start))
+        |> P.andThen (\name ->
+            Space.chomp
+                |> P.andThen (\_ ->
+                    P.oneOf
+                        [ P.succeed ()
+                            |. P.word1 ':' (P.Problem_Decl (P.DP_Def (A.toValue name) P.DDP_Equals))
+                            |> P.andThen (\_ ->
+                                Space.chomp
+                                    |> P.andThen (\_ ->
+                                        Type.expression
+                                            |> P.andThen (\tipe ->
+                                                Space.checkFreshLine (P.Problem_Decl (P.DP_Def (A.toValue name) P.DDP_NameRepeat))
+                                                    |> P.andThen (\_ -> chompMatchingName (A.toValue name))
+                                                    |> P.andThen (\defName ->
+                                                        Space.chomp
+                                                            |> P.andThen (\_ -> chompDefArgsAndBody syntaxVersion maybeDocs defName (Just tipe) [])
+                                                       )
+                                               )
+                                       )
+                               )
+                        , chompDefArgsAndBody syntaxVersion maybeDocs name Nothing []
                         ]
-                )
+                   )
+           )
+
+
+chompDefArgsAndBody : SyntaxVersion -> Maybe Src.Comment -> A.Located Name -> Maybe Src.Type -> List Src.Pattern -> P.Parser Decl
+chompDefArgsAndBody syntaxVersion maybeDocs name tipe revArgs =
+    P.oneOf
+        [ Pattern.term syntaxVersion
+            |> P.andThen (\arg ->
+                Space.chomp
+                    |> P.andThen (\_ -> chompDefArgsAndBody syntaxVersion maybeDocs name tipe (arg :: revArgs))
+               )
+        , P.succeed ()
+            |. P.word1 '=' (P.Problem_Decl (P.DP_Def (A.toValue name) P.DDP_Equals))
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        Expr.expression syntaxVersion
+                            |> P.map (\body ->
+                                let
+                                    value : Src.Value
+                                    value =
+                                        Src.Value name (List.reverse revArgs) body tipe
+
+                                    avalue : A.Located Src.Value
+                                    avalue =
+                                        A.merge name body value
+                                in
+                                Value maybeDocs avalue
+                               )
+                       )
+               )
+        ]
+
+
+chompMatchingName : Name -> P.Parser (A.Located Name)
+chompMatchingName expectedName =
+    P.addLocation (Var.lower (P.Problem_Decl (P.DP_Def expectedName P.DDP_NameRepeat)))
+        |> P.andThen (\locatedName ->
+            if A.toValue locatedName == expectedName then
+                P.succeed locatedName
+            else
+                P.problem (P.Problem_Decl (P.DP_Def expectedName (P.DP_NameMatch (A.toValue locatedName))))
+           )
+
+
+typeDecl : Maybe Src.Comment -> P.Parser Decl
+typeDecl maybeDocs =
+    P.inContext (P.CtxNode P.NDeclType)
+        (P.succeed ()
+            |. Keyword.type_ (P.Problem_Decl P.DP_Start)
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        P.oneOf
+                            [ P.inContext (P.CtxNode P.NDeclTypeAlias)
+                                (P.succeed ()
+                                    |. Keyword.alias_ (P.Problem_Decl (P.DP_Type P.DTP_Name))
+                                    |> P.andThen (\_ ->
+                                        Space.chomp
+                                            |> P.andThen (\_ -> chompAliasNameToEquals)
+                                            |> P.andThen (\( name, args ) ->
+                                                Type.expression
+                                                    |> P.map (\tipe ->
+                                                        Alias maybeDocs (A.merge name tipe (Src.Alias name args tipe))
+                                                       )
+                                               )
+                                       )
+                                )
+                            , chompCustomNameToEquals
+                                |> P.andThen (\( name, args ) ->
+                                    Type.variant
+                                        |> P.andThen (\firstVariant ->
+                                            chompVariants [ firstVariant ]
+                                                |> P.map (\variants ->
+                                                    Union maybeDocs (A.merge name (List.head variants |> Maybe.map Tuple.first |> Maybe.withDefault (A.sameAs name "")) (Src.Union name args variants))
+                                                   )
+                                           )
+                                   )
+                            ]
+                       )
+               )
         )
 
 
-
--- TYPE ALIASES
-
-
-chompAliasNameToEquals : P.Parser E.TypeAlias ( A.Located Name, List (A.Located Name) )
+chompAliasNameToEquals : P.Parser ( A.Located Name, List (A.Located Name) )
 chompAliasNameToEquals =
-    P.addLocation (Var.upper E.AliasName)
-        |> P.bind
-            (\name ->
-                Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
-                    |> P.bind (\_ -> chompAliasNameToEqualsHelp name [])
-            )
+    P.addLocation (Var.upper (P.Problem_Decl (P.DP_Type (P.DTP_Alias P.TAP_Name))))
+        |> P.andThen (\name ->
+            Space.chomp
+                |> P.andThen (\_ -> chompAliasNameToEqualsHelp name [])
+           )
 
 
-chompAliasNameToEqualsHelp : A.Located Name -> List (A.Located Name) -> P.Parser E.TypeAlias ( A.Located Name, List (A.Located Name) )
+chompAliasNameToEqualsHelp : A.Located Name -> List (A.Located Name) -> P.Parser ( A.Located Name, List (A.Located Name) )
 chompAliasNameToEqualsHelp name args =
-    P.oneOf E.AliasEquals
-        [ P.addLocation (Var.lower E.AliasEquals)
-            |> P.bind
-                (\arg ->
-                    Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
-                        |> P.bind (\_ -> chompAliasNameToEqualsHelp name (arg :: args))
-                )
-        , P.word1 '=' E.AliasEquals
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.AliasSpace E.AliasIndentBody)
-            |> P.fmap (\_ -> ( name, List.reverse args ))
+    P.oneOf
+        [ P.addLocation (Var.lower (P.Problem_Decl (P.DP_Type (P.DTP_Alias P.TAP_Equals))))
+            |> P.andThen (\arg ->
+                Space.chomp
+                    |> P.andThen (\_ -> chompAliasNameToEqualsHelp name (arg :: args))
+               )
+        , P.succeed ( name, List.reverse args )
+            |. P.word1 '=' (P.Problem_Decl (P.DP_Type (P.DTP_Alias P.TAP_Equals)))
+            |> P.andThen (\_ -> Space.chomp)
         ]
 
 
-
--- CUSTOM TYPES
-
-
-chompCustomNameToEquals : P.Parser E.CustomType ( A.Located Name, List (A.Located Name) )
+chompCustomNameToEquals : P.Parser ( A.Located Name, List (A.Located Name) )
 chompCustomNameToEquals =
-    P.addLocation (Var.upper E.CT_Name)
-        |> P.bind
-            (\name ->
-                Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
-                    |> P.bind (\_ -> chompCustomNameToEqualsHelp name [])
-            )
+    P.addLocation (Var.upper (P.Problem_Decl (P.DP_Type (P.DTP_Union P.CTP_Name))))
+        |> P.andThen (\name ->
+            Space.chomp
+                |> P.andThen (\_ -> chompCustomNameToEqualsHelp name [])
+           )
 
 
-chompCustomNameToEqualsHelp : A.Located Name -> List (A.Located Name) -> P.Parser E.CustomType ( A.Located Name, List (A.Located Name) )
+chompCustomNameToEqualsHelp : A.Located Name -> List (A.Located Name) -> P.Parser ( A.Located Name, List (A.Located Name) )
 chompCustomNameToEqualsHelp name args =
-    P.oneOf E.CT_Equals
-        [ P.addLocation (Var.lower E.CT_Equals)
-            |> P.bind
-                (\arg ->
-                    Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
-                        |> P.bind (\_ -> chompCustomNameToEqualsHelp name (arg :: args))
-                )
-        , P.word1 '=' E.CT_Equals
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterEquals)
-            |> P.fmap (\_ -> ( name, List.reverse args ))
+    P.oneOf
+        [ P.addLocation (Var.lower (P.Problem_Decl (P.DP_Type (P.DTP_Union P.CTP_Equals))))
+            |> P.andThen (\arg ->
+                Space.chomp
+                    |> P.andThen (\_ -> chompCustomNameToEqualsHelp name (arg :: args))
+               )
+        , P.succeed ( name, List.reverse args )
+            |. P.word1 '=' (P.Problem_Decl (P.DP_Type (P.DTP_Union P.CTP_Equals)))
+            |> P.andThen (\_ -> Space.chomp)
         ]
 
 
-chompVariants : List ( A.Located Name, List Src.Type ) -> A.Position -> Space.Parser E.CustomType (List ( A.Located Name, List Src.Type ))
-chompVariants variants end =
+chompVariants : List ( A.Located Name, List Src.Type ) -> P.Parser (List ( A.Located Name, List Src.Type ))
+chompVariants variants =
     P.oneOfWithFallback
-        [ Space.checkIndent end E.CT_IndentBar
-            |> P.bind (\_ -> P.word1 '|' E.CT_Bar)
-            |> P.bind (\_ -> Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterBar)
-            |> P.bind (\_ -> Type.variant)
-            |> P.bind (\( variant, newEnd ) -> chompVariants (variant :: variants) newEnd)
+        [ P.succeed ()
+            |. P.word1 '|' (P.Problem_Decl (P.DP_Type (P.DTP_Union P.CTP_Bar)))
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        Type.variant
+                            |> P.andThen (\variant -> chompVariants (variant :: variants))
+                       )
+               )
         ]
-        ( List.reverse variants, end )
+        (List.reverse variants)
 
 
-
--- PORT
-
-
-portDecl : Maybe Src.Comment -> Space.Parser E.Decl Decl
+portDecl : Maybe Src.Comment -> P.Parser Decl
 portDecl maybeDocs =
-    P.inContext E.Port (Keyword.port_ E.DeclStart) <|
-        (Space.chompAndCheckIndent E.PortSpace E.PortIndentName
-            |> P.bind (\_ -> P.addLocation (Var.lower E.PortName))
-            |> P.bind
-                (\name ->
-                    Space.chompAndCheckIndent E.PortSpace E.PortIndentColon
-                        |> P.bind (\_ -> P.word1 ':' E.PortColon)
-                        |> P.bind (\_ -> Space.chompAndCheckIndent E.PortSpace E.PortIndentType)
-                        |> P.bind
-                            (\_ ->
-                                P.specialize E.PortType Type.expression
-                                    |> P.fmap
-                                        (\( tipe, end ) ->
-                                            ( Port maybeDocs (Src.Port name tipe)
-                                            , end
-                                            )
-                                        )
-                            )
-                )
+    P.inContext (P.CtxNode P.NPort)
+        (P.succeed ()
+            |. Keyword.port_ (P.Problem_Decl P.DP_Start)
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ -> P.addLocation (Var.lower (P.Problem_Decl (P.DP_Port P.PP_Name))))
+                    |> P.andThen (\name ->
+                        Space.chomp
+                            |> P.andThen (\_ ->
+                                P.succeed ()
+                                    |. P.word1 ':' (P.Problem_Decl (P.DP_Port P.PP_Colon))
+                                    |> P.andThen (\_ ->
+                                        Space.chomp
+                                            |> P.andThen (\_ ->
+                                                Type.expression
+                                                    |> P.map (\tipe -> Port maybeDocs (Src.Port name tipe))
+                                               )
+                                       )
+                               )
+                       )
+               )
         )
 
 
-
--- INFIX
--- INVARIANT: always chomps to a freshline
---
-
-
-infix_ : P.Parser E.Module (A.Located Src.Infix)
+infix_ : P.Parser (A.Located Src.Infix)
 infix_ =
-    let
-        err : P.Row -> P.Col -> E.Module
-        err =
-            E.Infix
-
-        err_ : a -> P.Row -> P.Col -> E.Module
-        err_ =
-            \_ -> E.Infix
-    in
-    P.getPosition
-        |> P.bind
-            (\start ->
-                Keyword.infix_ err
-                    |> P.bind (\_ -> Space.chompAndCheckIndent err_ err)
-                    |> P.bind
-                        (\_ ->
-                            P.oneOf err
-                                [ Keyword.left_ err |> P.fmap (\_ -> Binop.Left)
-                                , Keyword.right_ err |> P.fmap (\_ -> Binop.Right)
-                                , Keyword.non_ err |> P.fmap (\_ -> Binop.Non)
-                                ]
-                        )
-                    |> P.bind
-                        (\associativity ->
-                            Space.chompAndCheckIndent err_ err
-                                |> P.bind (\_ -> Number.precedence err)
-                                |> P.bind
-                                    (\precedence ->
-                                        Space.chompAndCheckIndent err_ err
-                                            |> P.bind (\_ -> P.word1 '(' err)
-                                            |> P.bind (\_ -> Symbol.operator err err_)
-                                            |> P.bind
-                                                (\op ->
-                                                    P.word1 ')' err
-                                                        |> P.bind (\_ -> Space.chompAndCheckIndent err_ err)
-                                                        |> P.bind (\_ -> P.word1 '=' err)
-                                                        |> P.bind (\_ -> Space.chompAndCheckIndent err_ err)
-                                                        |> P.bind (\_ -> Var.lower err)
-                                                        |> P.bind
-                                                            (\name ->
-                                                                P.getPosition
-                                                                    |> P.bind
-                                                                        (\end ->
-                                                                            Space.chomp err_
-                                                                                |> P.bind (\_ -> Space.checkFreshLine err)
-                                                                                |> P.fmap (\_ -> A.at start end (Src.Infix op associativity precedence name))
-                                                                        )
-                                                            )
-                                                )
-                                    )
-                        )
-            )
+    P.addLocation
+        (P.succeed ()
+            |. Keyword.infix_ (P.Problem_Module P.MP_Infix)
+            |> P.andThen (\_ ->
+                Space.chomp
+                    |> P.andThen (\_ ->
+                        P.oneOf
+                            [ P.succeed Binop.Left |. Keyword.left_ (P.Problem_Module P.MP_Infix)
+                            , P.succeed Binop.Right |. Keyword.right_ (P.Problem_Module P.MP_Infix)
+                            , P.succeed Binop.Non |. Keyword.non_ (P.Problem_Module P.MP_Infix)
+                            ]
+                            |> P.andThen (\associativity ->
+                                Space.chomp
+                                    |> P.andThen (\_ -> Number.precedence (P.Problem_Module P.MP_Infix))
+                                    |> P.andThen (\precedence ->
+                                        Space.chomp
+                                            |> P.andThen (\_ ->
+                                                P.succeed ()
+                                                    |. P.word1 '(' (P.Problem_Module P.MP_Infix)
+                                                    |> P.andThen (\_ -> Symbol.operator (P.Problem_Module P.MP_Infix) (\op -> P.Problem_Module P.MP_Infix))
+                                                    |> P.andThen (\op ->
+                                                        P.succeed ()
+                                                            |. P.word1 ')' (P.Problem_Module P.MP_Infix)
+                                                            |> P.andThen (\_ ->
+                                                                Space.chomp
+                                                                    |> P.andThen (\_ ->
+                                                                        P.succeed ()
+                                                                            |. P.word1 '=' (P.Problem_Module P.MP_Infix)
+                                                                            |> P.andThen (\_ ->
+                                                                                Space.chomp
+                                                                                    |> P.andThen (\_ ->
+                                                                                        Var.lower (P.Problem_Module P.MP_Infix)
+                                                                                            |> P.andThen (\name ->
+                                                                                                Space.chomp
+                                                                                                    |> P.andThen (\_ ->
+                                                                                                        Space.checkFreshLine (P.Problem_Module P.MP_Infix)
+                                                                                                            |> P.map (\_ -> Src.Infix op associativity precedence name)
+                                                                                                       )
+                                                                                               )
+                                                                                       )
+                                                                               )
+                                                                       )
+                                                               )
+                                                       )
+                                               )
+                                       )
+                               )
+                       )
+               )
+        )

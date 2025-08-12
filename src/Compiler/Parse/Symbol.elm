@@ -7,7 +7,7 @@ module Compiler.Parse.Symbol exposing
     )
 
 import Compiler.Data.Name exposing (Name)
-import Compiler.Parse.Primitives as P exposing (Col, Parser, Row)
+import Compiler.Parse.NewPrimitives as P
 import Data.Set as EverySet exposing (EverySet)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
@@ -25,46 +25,34 @@ type BadOperator
     | BadHasType
 
 
-operator : (Row -> Col -> x) -> (BadOperator -> Row -> Col -> x) -> Parser x Name
-operator toExpectation toError =
-    P.Parser <|
-        \(P.State src pos end indent row col) ->
-            let
-                newPos : Int
-                newPos =
-                    chompOps src pos end
-            in
-            if pos == newPos then
-                P.Eerr row col toExpectation
+operator : P.Problem -> (BadOperator -> P.Problem) -> P.Parser Name
+operator expecting toProblem =
+    P.getChompedString (P.chompWhile isBinopCharHelp)
+        |> P.andThen
+            (\op ->
+                if String.isEmpty op then
+                    P.problem expecting
 
-            else
-                case String.slice pos newPos src of
-                    "." ->
-                        P.Eerr row col (toError BadDot)
+                else
+                    case op of
+                        "." ->
+                            P.problem (toProblem BadDot)
 
-                    "|" ->
-                        P.Cerr row col (toError BadPipe)
+                        "|" ->
+                            P.problem (toProblem BadPipe)
 
-                    "->" ->
-                        P.Cerr row col (toError BadArrow)
+                        "->" ->
+                            P.problem (toProblem BadArrow)
 
-                    "=" ->
-                        P.Cerr row col (toError BadEquals)
+                        "=" ->
+                            P.problem (toProblem BadEquals)
 
-                    ":" ->
-                        P.Cerr row col (toError BadHasType)
+                        ":" ->
+                            P.problem (toProblem BadHasType)
 
-                    op ->
-                        let
-                            newCol : Col
-                            newCol =
-                                col + (newPos - pos)
-
-                            newState : P.State
-                            newState =
-                                P.State src newPos end indent row newCol
-                        in
-                        P.Cok op newState
+                        _ ->
+                            P.succeed op
+            )
 
 
 chompOps : String -> Int -> Int -> Int
