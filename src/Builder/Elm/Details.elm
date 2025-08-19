@@ -896,7 +896,7 @@ crawlKernel foreignDeps mvar pkg src name =
                                         Task.pure Nothing
 
                                     Just (Kernel.Content imports chunks) ->
-                                        crawlImports foreignDeps mvar pkg src imports
+                                        crawlImports foreignDeps mvar pkg src (List.map Src.c1Value imports)
                                             |> Task.fmap (\_ -> Just (SKernelLocal chunks))
                             )
 
