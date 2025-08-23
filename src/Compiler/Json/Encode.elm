@@ -177,31 +177,26 @@ chars chrs =
 
 escape : String -> String
 escape chrs =
-    case String.toList chrs of
-        [] ->
-            ""
+    String.toList chrs
+        |> List.map
+            (\c ->
+                case c of
+                    '\u{000D}' ->
+                        "\\r"
 
-        c :: cs ->
-            let
-                escapedChar : String
-                escapedChar =
-                    case c of
-                        '\u{000D}' ->
-                            "\\r"
+                    '\n' ->
+                        "\\n"
 
-                        '\n' ->
-                            "\\n"
+                    '"' ->
+                        "\\\""
 
-                        '"' ->
-                            "\\\""
+                    '\\' ->
+                        "\\\\"
 
-                        '\\' ->
-                            "\\\\"
-
-                        _ ->
-                            String.fromChar c
-            in
-            escapedChar ++ escape (String.fromList cs)
+                    _ ->
+                        String.fromChar c
+            )
+        |> String.concat
 
 
 
