@@ -20,3 +20,6 @@ bin/guida.min.js
 
 # Try
 try/public/app.js
+
+# Assets
+assets/some-application/index.html
