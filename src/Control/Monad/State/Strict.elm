@@ -70,7 +70,8 @@ pure value =
 get : StateT s IO.ReplState
 get =
     liftIO
-        (Impure.task "getStateT"
+        (Impure.task IO.crash
+            "getStateT"
             []
             Impure.EmptyBody
             (Impure.DecoderResolver
@@ -85,7 +86,8 @@ get =
 
 put : IO.ReplState -> Task Never ()
 put (IO.ReplState imports types decls) =
-    Impure.task "putStateT"
+    Impure.task IO.crash
+        "putStateT"
         []
         (Impure.JsonBody
             (Encode.object

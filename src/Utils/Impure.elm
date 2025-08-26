@@ -11,7 +11,6 @@ import Json.Encode as Encode
 import Task exposing (Task)
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE
-import Utils.Crash exposing (crash)
 
 
 type Body
@@ -26,11 +25,11 @@ type Resolver a
     | StringResolver (String -> a)
     | DecoderResolver (Decode.Decoder a)
     | BytesResolver (BD.Decoder a)
-    | Crash
+    | NoReturn
 
 
-customTask : String -> String -> List Http.Header -> Body -> Resolver a -> Task Never a
-customTask method url headers body resolver =
+customTask : (String -> Task Never a) -> String -> String -> List Http.Header -> Body -> Resolver a -> Task Never a
+customTask crashHandler method url headers body resolver =
     Http.task
         { method = method
         , headers = headers
@@ -58,16 +57,16 @@ customTask method url headers body resolver =
                         (\response ->
                             case response of
                                 Http.BadUrl_ url_ ->
-                                    crash ("Unexpected BadUrl: " ++ url_)
+                                    Err ("Unexpected BadUrl: " ++ url_)
 
                                 Http.Timeout_ ->
-                                    crash "Unexpected Timeout"
+                                    Err "Unexpected Timeout"
 
                                 Http.NetworkError_ ->
-                                    crash "Unexpected NetworkError"
+                                    Err "Unexpected NetworkError"
 
                                 Http.BadStatus_ metadata _ ->
-                                    crash ("Unexpected BadStatus. Status code: " ++ String.fromInt metadata.statusCode)
+                                    Err ("Unexpected BadStatus. Status code: " ++ String.fromInt metadata.statusCode)
 
                                 Http.GoodStatus_ _ body_ ->
                                     Ok (fn body_)
@@ -78,16 +77,16 @@ customTask method url headers body resolver =
                         (\response ->
                             case response of
                                 Http.BadUrl_ url_ ->
-                                    crash ("Unexpected BadUrl: " ++ url_)
+                                    Err ("Unexpected BadUrl: " ++ url_)
 
                                 Http.Timeout_ ->
-                                    crash "Unexpected Timeout"
+                                    Err "Unexpected Timeout"
 
                                 Http.NetworkError_ ->
-                                    crash "Unexpected NetworkError"
+                                    Err "Unexpected NetworkError"
 
                                 Http.BadStatus_ metadata _ ->
-                                    crash ("Unexpected BadStatus. Status code: " ++ String.fromInt metadata.statusCode)
+                                    Err ("Unexpected BadStatus. Status code: " ++ String.fromInt metadata.statusCode)
 
                                 Http.GoodStatus_ _ body_ ->
                                     case Decode.decodeString decoder body_ of
@@ -95,7 +94,7 @@ customTask method url headers body resolver =
                                             Ok value
 
                                         Err err ->
-                                            crash ("Decoding error: " ++ Decode.errorToString err)
+                                            Err ("Decoding error: " ++ Decode.errorToString err)
                         )
 
                 BytesResolver decoder ->
@@ -103,16 +102,16 @@ customTask method url headers body resolver =
                         (\response ->
                             case response of
                                 Http.BadUrl_ url_ ->
-                                    crash ("Unexpected BadUrl: " ++ url_)
+                                    Err ("Unexpected BadUrl: " ++ url_)
 
                                 Http.Timeout_ ->
-                                    crash "Unexpected Timeout"
+                                    Err "Unexpected Timeout"
 
                                 Http.NetworkError_ ->
-                                    crash "Unexpected NetworkError"
+                                    Err "Unexpected NetworkError"
 
                                 Http.BadStatus_ metadata _ ->
-                                    crash ("Unexpected BadStatus. Status code: " ++ String.fromInt metadata.statusCode)
+                                    Err ("Unexpected BadStatus. Status code: " ++ String.fromInt metadata.statusCode)
 
                                 Http.GoodStatus_ _ body_ ->
                                     case BD.decode decoder body_ of
@@ -120,15 +119,16 @@ customTask method url headers body resolver =
                                             Ok value
 
                                         Nothing ->
-                                            crash "Decoding bytes error..."
+                                            Err "Decoding bytes error..."
                         )
 
-                Crash ->
-                    Http.stringResolver (\_ -> crash url)
+                NoReturn ->
+                    Http.stringResolver (\_ -> "IO function should never return but did: " ++ url |> Err)
         , timeout = Nothing
         }
+        |> Task.onError crashHandler
 
 
-task : String -> List Http.Header -> Body -> Resolver a -> Task Never a
-task url headers body resolver =
-    customTask "POST" url headers body resolver
+task : (String -> Task Never a) -> String -> List Http.Header -> Body -> Resolver a -> Task Never a
+task crashHandler url headers body resolver =
+    customTask crashHandler "POST" url headers body resolver

@@ -11,6 +11,7 @@ module System.IO exposing
     , putStr, putStrLn, getLine
     , ReplState(..), initialReplState
     , writeString
+    , crash
     )
 
 {-| Ref.: <https://hackage.haskell.org/package/base-4.20.0.1/docs/System-IO.html>
@@ -72,6 +73,9 @@ module System.IO exposing
 
 @docs writeString
 
+
+# Go Bang, But Nicely!
+
 -}
 
 import Dict exposing (Dict)
@@ -79,6 +83,7 @@ import Http
 import Json.Decode as Decode
 import Task exposing (Task)
 import Utils.Impure as Impure
+import Utils.Task.Extra as Task
 
 
 type alias Program =
@@ -113,7 +118,8 @@ update msg () =
 
 writeString : FilePath -> String -> Task Never ()
 writeString path content =
-    Impure.task "writeString"
+    Impure.task crash
+        "writeString"
         [ Http.header "path" path ]
         (Impure.StringBody content)
         (Impure.Always ())
@@ -160,7 +166,8 @@ stderr =
 
 withFile : String -> IOMode -> (Handle -> Task Never a) -> Task Never a
 withFile path mode callback =
-    Impure.task "withFile"
+    Impure.task crash
+        "withFile"
         [ Http.header "mode"
             (case mode of
                 ReadMode ->
@@ -194,7 +201,7 @@ type IOMode
 
 hClose : Handle -> Task Never ()
 hClose (Handle handle) =
-    Impure.task "hClose" [] (Impure.StringBody (String.fromInt handle)) (Impure.Always ())
+    Impure.task crash "hClose" [] (Impure.StringBody (String.fromInt handle)) (Impure.Always ())
 
 
 
@@ -203,7 +210,8 @@ hClose (Handle handle) =
 
 hFileSize : Handle -> Task Never Int
 hFileSize (Handle handle) =
-    Impure.task "hFileSize"
+    Impure.task crash
+        "hFileSize"
         []
         (Impure.StringBody (String.fromInt handle))
         (Impure.DecoderResolver Decode.int)
@@ -233,7 +241,8 @@ hIsTerminalDevice _ =
 
 hPutStr : Handle -> String -> Task Never ()
 hPutStr (Handle fd) content =
-    Impure.task "hPutStr"
+    Impure.task crash
+        "hPutStr"
         [ Http.header "fd" (String.fromInt fd) ]
         (Impure.StringBody content)
         (Impure.Always ())
@@ -260,7 +269,7 @@ putStrLn s =
 
 getLine : Task Never String
 getLine =
-    Impure.task "getLine" [] Impure.EmptyBody (Impure.StringResolver identity)
+    Impure.task crash "getLine" [] Impure.EmptyBody (Impure.StringResolver identity)
 
 
 
@@ -274,3 +283,21 @@ type ReplState
 initialReplState : ReplState
 initialReplState =
     ReplState Dict.empty Dict.empty Dict.empty
+
+
+
+-- Go Bang, But Nicely!
+
+
+crash : String -> Task Never a
+crash str =
+    hPutStrLn stderr str
+        |> Task.bind
+            (\_ ->
+                Impure.task
+                    crash
+                    "exitWith"
+                    []
+                    (Impure.StringBody (String.fromInt -1))
+                    Impure.NoReturn
+            )

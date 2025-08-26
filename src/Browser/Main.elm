@@ -69,12 +69,12 @@ app =
 
 getArgs : Task Never Args
 getArgs =
-    Impure.task "getArgs" [] Impure.EmptyBody (Impure.DecoderResolver argsDecoder)
+    Impure.task IO.crash "getArgs" [] Impure.EmptyBody (Impure.DecoderResolver argsDecoder)
 
 
 exitWithResponse : Encode.Value -> Task Never a
 exitWithResponse value =
-    Impure.task "exitWithResponse" [] (Impure.JsonBody value) Impure.Crash
+    Impure.task IO.crash "exitWithResponse" [] (Impure.JsonBody value) Impure.NoReturn
 
 
 

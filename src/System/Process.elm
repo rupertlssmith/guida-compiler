@@ -51,7 +51,8 @@ proc cmd args =
 
 withCreateProcess : CreateProcess -> (Maybe IO.Handle -> Maybe IO.Handle -> Maybe IO.Handle -> ProcessHandle -> Task Never Exit.ExitCode) -> Task Never Exit.ExitCode
 withCreateProcess createProcess f =
-    Impure.task "withCreateProcess"
+    Impure.task IO.crash
+        "withCreateProcess"
         []
         (Impure.JsonBody
             (Encode.object
@@ -123,7 +124,8 @@ withCreateProcess createProcess f =
 
 waitForProcess : ProcessHandle -> Task Never Exit.ExitCode
 waitForProcess (ProcessHandle ph) =
-    Impure.task "waitForProcess"
+    Impure.task IO.crash
+        "waitForProcess"
         []
         (Impure.StringBody (String.fromInt ph))
         (Impure.DecoderResolver

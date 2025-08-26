@@ -40,7 +40,6 @@ import Control.Monad.State.TypeCheck.Strict as State exposing (StateT, liftIO)
 import Data.Map as Dict exposing (Dict)
 import Maybe.Extra as Maybe
 import System.TypeCheck.IO as IO exposing (Content(..), Descriptor(..), FlatType(..), IO, Mark(..), SuperType(..), Variable)
-import Utils.Crash exposing (crash)
 
 
 
@@ -352,7 +351,7 @@ variableToCanType variable =
                                 )
 
                     Error ->
-                        crash "cannot handle Error types in variableToCanType"
+                        State.throw "cannot handle Error types in variableToCanType"
             )
 
 
@@ -377,17 +376,17 @@ termToCanType term =
                     (\canFields ->
                         variableToCanType extension
                             |> State.fmap Type.iteratedDealias
-                            |> State.fmap
+                            |> State.bind
                                 (\canExt ->
                                     case canExt of
                                         Can.TRecord subFields subExt ->
-                                            Can.TRecord (Dict.union subFields canFields) subExt
+                                            Can.TRecord (Dict.union subFields canFields) subExt |> State.pure
 
                                         Can.TVar name ->
-                                            Can.TRecord canFields (Just name)
+                                            Can.TRecord canFields (Just name) |> State.pure
 
                                         _ ->
-                                            crash "Used toAnnotation on a type that is not well-formed"
+                                            State.throw "Used toAnnotation on a type that is not well-formed"
                                 )
                     )
 
@@ -553,20 +552,20 @@ termToErrorType term =
                     (\errFields ->
                         variableToErrorType extension
                             |> State.fmap ET.iteratedDealias
-                            |> State.fmap
+                            |> State.bind
                                 (\errExt ->
                                     case errExt of
                                         ET.Record subFields subExt ->
-                                            ET.Record (Dict.union subFields errFields) subExt
+                                            ET.Record (Dict.union subFields errFields) subExt |> State.pure
 
                                         ET.FlexVar ext ->
-                                            ET.Record errFields (ET.FlexOpen ext)
+                                            ET.Record errFields (ET.FlexOpen ext) |> State.pure
 
                                         ET.RigidVar ext ->
-                                            ET.Record errFields (ET.RigidOpen ext)
+                                            ET.Record errFields (ET.RigidOpen ext) |> State.pure
 
                                         _ ->
-                                            crash "Used toErrorType on a type that is not well-formed"
+                                            State.throw "Used toErrorType on a type that is not well-formed"
                                 )
                     )
 

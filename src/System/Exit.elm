@@ -5,6 +5,7 @@ module System.Exit exposing
     , exitWith
     )
 
+import System.IO as IO
 import Task exposing (Task)
 import Utils.Impure as Impure
 
@@ -26,10 +27,12 @@ exitWith exitCode =
                 ExitFailure int ->
                     int
     in
-    Impure.task "exitWith"
+    Impure.task
+        IO.crash
+        "exitWith"
         []
         (Impure.StringBody (String.fromInt code))
-        Impure.Crash
+        Impure.NoReturn
 
 
 exitFailure : Task Never a

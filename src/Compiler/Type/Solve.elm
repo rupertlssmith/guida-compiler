@@ -19,7 +19,6 @@ import Data.Map as Dict exposing (Dict)
 import Data.Vector as Vector
 import Data.Vector.Mutable as MVector
 import System.TypeCheck.IO as IO exposing (Content, Descriptor(..), IO, Mark, Variable)
-import Utils.Crash exposing (crash)
 import Utils.Main as Utils
 
 
@@ -349,14 +348,14 @@ isGeneric var =
                     Type.toErrorType var
                         |> IO.bind
                             (\tipe ->
-                                crash <|
-                                    "You ran into a compiler bug. Here are some details for the developers:\n\n"
-                                        ++ "    "
-                                        ++ Doc.toString (ET.toDoc L.empty RT.None tipe)
-                                        ++ " [rank = "
-                                        ++ String.fromInt rank
-                                        ++ "]\n\n"
-                                        ++ "Please create an <http://sscce.org/> and then report it\nat <https://github.com/elm/compiler/issues>\n\n"
+                                "You ran into a compiler bug. Here are some details for the developers:\n\n"
+                                    ++ "    "
+                                    ++ Doc.toString (ET.toDoc L.empty RT.None tipe)
+                                    ++ " [rank = "
+                                    ++ String.fromInt rank
+                                    ++ "]\n\n"
+                                    ++ "Please create an <http://sscce.org/> and then report it\nat <https://github.com/elm/compiler/issues>\n\n"
+                                    |> IO.throw
                             )
             )
 

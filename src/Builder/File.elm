@@ -107,12 +107,12 @@ writeUtf8 =
 
 readUtf8 : FilePath -> Task Never String
 readUtf8 path =
-    Impure.task "read" [] (Impure.StringBody path) (Impure.StringResolver identity)
+    Impure.task IO.crash "read" [] (Impure.StringBody path) (Impure.StringResolver identity)
 
 
 readStdin : Task Never String
 readStdin =
-    Impure.task "readStdin" [] Impure.EmptyBody (Impure.StringResolver identity)
+    Impure.task IO.crash "readStdin" [] Impure.EmptyBody (Impure.StringResolver identity)
 
 
 

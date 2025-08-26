@@ -11,7 +11,6 @@ import Array exposing (Array)
 import Array.Extra as Array
 import Data.IORef as IORef exposing (IORef)
 import System.TypeCheck.IO as IO exposing (IO, Variable)
-import Utils.Crash exposing (crash)
 
 
 length : IORef (Array (Maybe (List Variable))) -> IO Int
@@ -39,17 +38,17 @@ grow ioRef length_ =
 read : IORef (Array (Maybe (List Variable))) -> Int -> IO (List Variable)
 read ioRef i =
     IORef.readIORefMVector ioRef
-        |> IO.fmap
+        |> IO.bind
             (\array ->
                 case Array.get i array of
                     Just (Just value) ->
-                        value
+                        value |> IO.pure
 
                     Just Nothing ->
-                        crash "Data.Vector.read: invalid value"
+                        IO.throw "Data.Vector.read: invalid value"
 
                     Nothing ->
-                        crash "Data.Vector.read: could not find entry"
+                        IO.throw "Data.Vector.read: could not find entry"
             )
 
 

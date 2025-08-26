@@ -9,6 +9,7 @@ module Control.Monad.State.TypeCheck.Strict exposing
     , modify
     , pure
     , runStateT
+    , throw
     , traverseList
     , traverseMap
     , traverseMaybe
@@ -88,6 +89,11 @@ bind func (StateT arg) =
 pure : a -> StateT s a
 pure value =
     StateT (\s -> IO.pure ( value, s ))
+
+
+throw : String -> StateT s a
+throw msg =
+    StateT (\_ -> IO.throw msg)
 
 
 gets : (s -> a) -> StateT s a

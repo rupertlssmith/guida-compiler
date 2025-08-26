@@ -24,7 +24,6 @@ module Compiler.Type.UnionFind exposing
 
 import Data.IORef as IORef exposing (IORef(..))
 import System.TypeCheck.IO as IO exposing (Descriptor, IO)
-import Utils.Crash exposing (crash)
 
 
 
@@ -187,7 +186,7 @@ union p1 p2 newDesc =
                                                                         )
 
                                                         _ ->
-                                                            crash "Unexpected pattern"
+                                                            IO.throw "Unexpected pattern"
                                                 )
                                     )
                         )

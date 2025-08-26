@@ -9,23 +9,22 @@ module Data.Vector exposing
 import Array exposing (Array)
 import Data.IORef as IORef exposing (IORef)
 import System.TypeCheck.IO as IO exposing (IO, Variable)
-import Utils.Crash exposing (crash)
 
 
 unsafeLast : IORef (Array (Maybe (List Variable))) -> IO (List Variable)
 unsafeLast ioRef =
     IORef.readIORefMVector ioRef
-        |> IO.fmap
+        |> IO.bind
             (\array ->
                 case Array.get (Array.length array - 1) array of
                     Just (Just value) ->
-                        value
+                        value |> IO.pure
 
                     Just Nothing ->
-                        crash "Data.Vector.unsafeLast: invalid value"
+                        IO.throw "Data.Vector.unsafeLast: invalid value"
 
                     Nothing ->
-                        crash "Data.Vector.unsafeLast: empty array"
+                        IO.throw "Data.Vector.unsafeLast: empty array"
             )
 
 

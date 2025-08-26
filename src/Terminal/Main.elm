@@ -28,10 +28,11 @@ main =
         (app
             |> Task.bind
                 (\() ->
-                    Impure.task "exitWith"
+                    Impure.task IO.crash
+                        "exitWith"
                         []
                         (Impure.StringBody "0")
-                        Impure.Crash
+                        Impure.NoReturn
                 )
         )
 

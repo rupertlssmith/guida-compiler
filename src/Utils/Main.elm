@@ -754,7 +754,8 @@ lockWithFileLock path mode ioFunc =
 
 lockFile : FilePath -> Task Never ()
 lockFile path =
-    Impure.task "lockFile"
+    Impure.task IO.crash
+        "lockFile"
         []
         (Impure.StringBody path)
         (Impure.Always ())
@@ -762,7 +763,8 @@ lockFile path =
 
 unlockFile : FilePath -> Task Never ()
 unlockFile path =
-    Impure.task "unlockFile"
+    Impure.task IO.crash
+        "unlockFile"
         []
         (Impure.StringBody path)
         (Impure.Always ())
@@ -774,7 +776,8 @@ unlockFile path =
 
 dirDoesFileExist : FilePath -> Task Never Bool
 dirDoesFileExist filename =
-    Impure.task "dirDoesFileExist"
+    Impure.task IO.crash
+        "dirDoesFileExist"
         []
         (Impure.StringBody filename)
         (Impure.DecoderResolver Decode.bool)
@@ -782,7 +785,8 @@ dirDoesFileExist filename =
 
 dirFindExecutable : FilePath -> Task Never (Maybe FilePath)
 dirFindExecutable filename =
-    Impure.task "dirFindExecutable"
+    Impure.task IO.crash
+        "dirFindExecutable"
         []
         (Impure.StringBody filename)
         (Impure.DecoderResolver (Decode.maybe Decode.string))
@@ -790,7 +794,8 @@ dirFindExecutable filename =
 
 dirCreateDirectoryIfMissing : Bool -> FilePath -> Task Never ()
 dirCreateDirectoryIfMissing createParents filename =
-    Impure.task "dirCreateDirectoryIfMissing"
+    Impure.task IO.crash
+        "dirCreateDirectoryIfMissing"
         []
         (Impure.JsonBody
             (Encode.object
@@ -804,7 +809,8 @@ dirCreateDirectoryIfMissing createParents filename =
 
 dirGetCurrentDirectory : Task Never String
 dirGetCurrentDirectory =
-    Impure.task "dirGetCurrentDirectory"
+    Impure.task IO.crash
+        "dirGetCurrentDirectory"
         []
         Impure.EmptyBody
         (Impure.StringResolver identity)
@@ -812,7 +818,8 @@ dirGetCurrentDirectory =
 
 dirGetAppUserDataDirectory : FilePath -> Task Never FilePath
 dirGetAppUserDataDirectory filename =
-    Impure.task "dirGetAppUserDataDirectory"
+    Impure.task IO.crash
+        "dirGetAppUserDataDirectory"
         []
         (Impure.StringBody filename)
         (Impure.StringResolver identity)
@@ -820,7 +827,8 @@ dirGetAppUserDataDirectory filename =
 
 dirGetModificationTime : FilePath -> Task Never Time.Posix
 dirGetModificationTime filename =
-    Impure.task "dirGetModificationTime"
+    Impure.task IO.crash
+        "dirGetModificationTime"
         []
         (Impure.StringBody filename)
         (Impure.DecoderResolver (Decode.map Time.millisToPosix Decode.int))
@@ -828,7 +836,8 @@ dirGetModificationTime filename =
 
 dirRemoveFile : FilePath -> Task Never ()
 dirRemoveFile path =
-    Impure.task "dirRemoveFile"
+    Impure.task IO.crash
+        "dirRemoveFile"
         []
         (Impure.StringBody path)
         (Impure.Always ())
@@ -836,7 +845,8 @@ dirRemoveFile path =
 
 dirRemoveDirectoryRecursive : FilePath -> Task Never ()
 dirRemoveDirectoryRecursive path =
-    Impure.task "dirRemoveDirectoryRecursive"
+    Impure.task IO.crash
+        "dirRemoveDirectoryRecursive"
         []
         (Impure.StringBody path)
         (Impure.Always ())
@@ -844,7 +854,8 @@ dirRemoveDirectoryRecursive path =
 
 dirDoesDirectoryExist : FilePath -> Task Never Bool
 dirDoesDirectoryExist path =
-    Impure.task "dirDoesDirectoryExist"
+    Impure.task IO.crash
+        "dirDoesDirectoryExist"
         []
         (Impure.StringBody path)
         (Impure.DecoderResolver Decode.bool)
@@ -852,7 +863,8 @@ dirDoesDirectoryExist path =
 
 dirCanonicalizePath : FilePath -> Task Never FilePath
 dirCanonicalizePath path =
-    Impure.task "dirCanonicalizePath"
+    Impure.task IO.crash
+        "dirCanonicalizePath"
         []
         (Impure.StringBody path)
         (Impure.StringResolver identity)
@@ -864,12 +876,14 @@ dirWithCurrentDirectory dir action =
         |> Task.bind
             (\currentDir ->
                 bracket_
-                    (Impure.task "dirWithCurrentDirectory"
+                    (Impure.task IO.crash
+                        "dirWithCurrentDirectory"
                         []
                         (Impure.StringBody dir)
                         (Impure.Always ())
                     )
-                    (Impure.task "dirWithCurrentDirectory"
+                    (Impure.task IO.crash
+                        "dirWithCurrentDirectory"
                         []
                         (Impure.StringBody currentDir)
                         (Impure.Always ())
@@ -880,7 +894,8 @@ dirWithCurrentDirectory dir action =
 
 dirListDirectory : FilePath -> Task Never (List FilePath)
 dirListDirectory path =
-    Impure.task "dirListDirectory"
+    Impure.task IO.crash
+        "dirListDirectory"
         []
         (Impure.StringBody path)
         (Impure.DecoderResolver (Decode.list Decode.string))
@@ -892,7 +907,8 @@ dirListDirectory path =
 
 envLookupEnv : String -> Task Never (Maybe String)
 envLookupEnv name =
-    Impure.task "envLookupEnv"
+    Impure.task IO.crash
+        "envLookupEnv"
         []
         (Impure.StringBody name)
         (Impure.DecoderResolver (Decode.maybe Decode.string))
@@ -905,7 +921,8 @@ envGetProgName =
 
 envGetArgs : Task Never (List String)
 envGetArgs =
-    Impure.task "envGetArgs"
+    Impure.task IO.crash
+        "envGetArgs"
         []
         Impure.EmptyBody
         (Impure.DecoderResolver (Decode.list Decode.string))
@@ -1035,7 +1052,8 @@ newMVar toEncoder value =
 
 readMVar : BD.Decoder a -> MVar a -> Task Never a
 readMVar decoder (MVar ref) =
-    Impure.task "readMVar"
+    Impure.task IO.crash
+        "readMVar"
         []
         (Impure.StringBody (String.fromInt ref))
         (Impure.BytesResolver decoder)
@@ -1054,7 +1072,8 @@ modifyMVar decoder toEncoder m io =
 
 takeMVar : BD.Decoder a -> MVar a -> Task Never a
 takeMVar decoder (MVar ref) =
-    Impure.task "takeMVar"
+    Impure.task IO.crash
+        "takeMVar"
         []
         (Impure.StringBody (String.fromInt ref))
         (Impure.BytesResolver decoder)
@@ -1062,7 +1081,8 @@ takeMVar decoder (MVar ref) =
 
 putMVar : (a -> BE.Encoder) -> MVar a -> a -> Task Never ()
 putMVar encoder (MVar ref) value =
-    Impure.task "putMVar"
+    Impure.task IO.crash
+        "putMVar"
         [ Http.header "id" (String.fromInt ref) ]
         (Impure.BytesBody (encoder value))
         (Impure.Always ())
@@ -1070,7 +1090,8 @@ putMVar encoder (MVar ref) value =
 
 newEmptyMVar : Task Never (MVar a)
 newEmptyMVar =
-    Impure.task "newEmptyMVar"
+    Impure.task IO.crash
+        "newEmptyMVar"
         []
         Impure.EmptyBody
         (Impure.DecoderResolver (Decode.map MVar Decode.int))
@@ -1151,7 +1172,8 @@ builderHPutBuilder =
 
 binaryDecodeFileOrFail : BD.Decoder a -> FilePath -> Task Never (Result ( Int, String ) a)
 binaryDecodeFileOrFail decoder filename =
-    Impure.task "binaryDecodeFileOrFail"
+    Impure.task IO.crash
+        "binaryDecodeFileOrFail"
         []
         (Impure.StringBody filename)
         (Impure.BytesResolver (BD.map Ok decoder))
@@ -1159,7 +1181,8 @@ binaryDecodeFileOrFail decoder filename =
 
 binaryEncodeFile : (a -> BE.Encoder) -> FilePath -> a -> Task Never ()
 binaryEncodeFile toEncoder path value =
-    Impure.task "write"
+    Impure.task IO.crash
+        "write"
         [ Http.header "path" path ]
         (Impure.BytesBody (toEncoder value))
         (Impure.Always ())
@@ -1207,7 +1230,8 @@ replCompleteWord _ _ _ =
 
 replGetInputLine : String -> ReplInputT (Maybe String)
 replGetInputLine prompt =
-    Impure.task "replGetInputLine"
+    Impure.task IO.crash
+        "replGetInputLine"
         []
         (Impure.StringBody prompt)
         (Impure.DecoderResolver (Decode.maybe Decode.string))
@@ -1224,7 +1248,8 @@ replGetInputLineWithInitial prompt ( left, right ) =
 
 nodeGetDirname : Task Never String
 nodeGetDirname =
-    Impure.task "nodeGetDirname"
+    Impure.task IO.crash
+        "nodeGetDirname"
         []
         Impure.EmptyBody
         (Impure.StringResolver identity)
@@ -1232,7 +1257,8 @@ nodeGetDirname =
 
 nodeMathRandom : Task Never Float
 nodeMathRandom =
-    Impure.task "nodeMathRandom"
+    Impure.task IO.crash
+        "nodeMathRandom"
         []
         Impure.EmptyBody
         (Impure.DecoderResolver Decode.float)

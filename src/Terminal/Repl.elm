@@ -46,7 +46,6 @@ import System.Exit as Exit
 import System.IO as IO
 import System.Process as Process
 import Task exposing (Task)
-import Utils.Crash exposing (crash)
 import Utils.Main as Utils exposing (FilePath)
 import Utils.Task.Extra as Task
 
@@ -646,7 +645,7 @@ interpret interpreter javascript =
                         |> Task.bind (\_ -> Process.waitForProcess handle)
 
                 Nothing ->
-                    crash "not implemented"
+                    IO.crash "not implemented"
 
 
 

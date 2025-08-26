@@ -13,7 +13,7 @@ import Compiler.Data.OneOrMore as OneOrMore exposing (OneOrMore)
 import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Json.Encode as E
 import Compiler.Nitpick.PatternMatches as P
-import Compiler.Reporting.Annotation as A
+import Compiler.Reporting.Annotation as A exposing (zero)
 import Compiler.Reporting.Doc as D
 import Compiler.Reporting.Error.Canonicalize as Canonicalize
 import Compiler.Reporting.Error.Docs as Docs
@@ -25,6 +25,7 @@ import Compiler.Reporting.Error.Type as Type
 import Compiler.Reporting.Render.Code as Code
 import Compiler.Reporting.Render.Type.Localizer as L
 import Compiler.Reporting.Report as Report
+import Text.PrettyPrint.ANSI.Leijen exposing (empty)
 import Time
 import Utils.Bytes.Decode as BD
 import Utils.Bytes.Encode as BE

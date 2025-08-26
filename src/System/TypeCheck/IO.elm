@@ -6,6 +6,7 @@ module System.TypeCheck.IO exposing
     , Point(..), PointInfo(..)
     , Descriptor(..), Content(..), SuperType(..), Mark(..), Variable, FlatType(..)
     , Canonical(..)
+    , Error, errorToString, fatal, throw
     )
 
 {-| Ref.: <https://hackage.haskell.org/package/base-4.20.0.1/docs/System-IO.html>
@@ -45,7 +46,7 @@ import Compiler.Data.Index as Index
 import Data.Map as Dict exposing (Dict)
 
 
-unsafePerformIO : IO a -> a
+unsafePerformIO : IO a -> Result Error a
 unsafePerformIO ioA =
     { ioRefsWeight = Array.empty
     , ioRefsPointInfo = Array.empty
@@ -53,7 +54,7 @@ unsafePerformIO ioA =
     , ioRefsMVector = Array.empty
     }
         |> ioA
-        |> Tuple.second
+        |> Result.map Tuple.second
 
 
 
@@ -68,11 +69,32 @@ type Step state a
 loop : (state -> IO (Step state a)) -> state -> IO a
 loop callback loopState ioState =
     case callback loopState ioState of
-        ( newIOState, Loop newLoopState ) ->
+        Ok ( newIOState, Loop newLoopState ) ->
             loop callback newLoopState newIOState
 
-        ( newIOState, Done a ) ->
-            ( newIOState, a )
+        Ok ( newIOState, Done a ) ->
+            Ok ( newIOState, a )
+
+        Err err ->
+            Err err
+
+
+
+-- Crashing
+
+
+type Error
+    = FatalError String
+
+
+errorToString : Error -> String
+errorToString (FatalError msg) =
+    msg
+
+
+fatal : String -> Result Error a
+fatal str =
+    str |> FatalError |> Err
 
 
 
@@ -80,7 +102,7 @@ loop callback loopState ioState =
 
 
 type alias IO a =
-    State -> ( State, a )
+    State -> Result Error ( State, a )
 
 
 type alias State =
@@ -93,7 +115,12 @@ type alias State =
 
 pure : a -> IO a
 pure x =
-    \s -> ( s, x )
+    \s -> Ok ( s, x )
+
+
+throw : String -> IO a
+throw str =
+    str |> FatalError |> Err |> always
 
 
 apply : IO a -> IO (a -> b) -> IO b
@@ -103,21 +130,13 @@ apply ma mf =
 
 fmap : (a -> b) -> IO a -> IO b
 fmap fn ma s0 =
-    let
-        ( s1, a ) =
-            ma s0
-    in
-    ( s1, fn a )
+    ma s0
+        |> Result.andThen (\( s1, a ) -> Ok ( s1, fn a ))
 
 
 bind : (a -> IO b) -> IO a -> IO b
 bind f ma =
-    \s0 ->
-        let
-            ( s1, a ) =
-                ma s0
-        in
-        f a s1
+    \s0 -> ma s0 |> Result.andThen (\( s1, a ) -> f a s1)
 
 
 foldrM : (a -> b -> IO b) -> b -> List a -> IO b

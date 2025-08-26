@@ -27,6 +27,7 @@ import Compiler.Elm.Version as V
 import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
+import System.IO as IO
 import Task exposing (Task)
 import Url.Builder
 import Utils.Bytes.Decode as BD
@@ -109,7 +110,8 @@ post =
 
 fetch : String -> Manager -> String -> List Header -> (Error -> e) -> (String -> Task Never (Result e a)) -> Task Never (Result e a)
 fetch method _ url headers _ onSuccess =
-    Impure.customTask method
+    Impure.customTask IO.crash
+        method
         url
         (List.map (\( a, b ) -> Http.header a b) (addDefaultHeaders headers))
         Impure.EmptyBody
@@ -161,7 +163,8 @@ shaToChars =
 
 getArchive : Manager -> String -> (Error -> e) -> e -> (( Sha, Zip.Archive ) -> Task Never (Result e a)) -> Task Never (Result e a)
 getArchive _ url _ _ onSuccess =
-    Impure.task "getArchive"
+    Impure.task IO.crash
+        "getArchive"
         []
         (Impure.StringBody url)
         (Impure.DecoderResolver
@@ -192,7 +195,8 @@ type MultiPart
 
 upload : Manager -> String -> List MultiPart -> Task Never (Result Error ())
 upload _ url parts =
-    Impure.task "httpUpload"
+    Impure.task IO.crash
+        "httpUpload"
         []
         (Impure.JsonBody
             (Encode.object

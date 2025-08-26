@@ -19,6 +19,7 @@ import Compiler.Reporting.Result as R
 import Compiler.Type.Constrain.Module as Type
 import Compiler.Type.Solve as Type
 import Data.Map exposing (Dict)
+import System.IO as IO
 import System.TypeCheck.IO as TypeCheck
 import Task exposing (Task)
 import Utils.Task.Extra as Task
@@ -35,21 +36,27 @@ type Artifacts
 compile : Pkg.Name -> Dict String ModuleName.Raw I.Interface -> Src.Module -> Task Never (Result E.Error Artifacts)
 compile pkg ifaces modul =
     Task.pure (canonicalize pkg ifaces modul)
-        |> Task.fmap
+        |> Task.andThen
             (\canonicalResult ->
                 case canonicalResult of
                     Ok canonical ->
-                        Result.map2 (\annotations () -> annotations)
-                            (typeCheck modul canonical)
-                            (nitpick canonical)
-                            |> Result.andThen
-                                (\annotations ->
-                                    optimize modul annotations canonical
-                                        |> Result.map (\objects -> Artifacts canonical annotations objects)
+                        typeCheck modul canonical
+                            |> Task.bind
+                                (\res ->
+                                    Result.map2 (\annotations () -> annotations)
+                                        res
+                                        (nitpick canonical)
+                                        |> Result.andThen
+                                            (\annotations ->
+                                                optimize modul annotations canonical
+                                                    |> Result.map (\objects -> Artifacts canonical annotations objects)
+                                            )
+                                        |> Task.pure
                                 )
+                            |> Task.onError (TypeCheck.errorToString >> IO.crash)
 
                     Err err ->
-                        Err err
+                        Err err |> Task.pure
             )
 
 
@@ -67,14 +74,17 @@ canonicalize pkg ifaces modul =
             Err (E.BadNames errors)
 
 
-typeCheck : Src.Module -> Can.Module -> Result E.Error (Dict String Name Can.Annotation)
+typeCheck : Src.Module -> Can.Module -> Task TypeCheck.Error (Result E.Error (Dict String Name Can.Annotation))
 typeCheck modul canonical =
     case TypeCheck.unsafePerformIO (TypeCheck.bind Type.run (Type.constrain canonical)) of
-        Ok annotations ->
-            Ok annotations
+        Ok (Ok annotations) ->
+            Task.succeed (Ok annotations)
 
-        Err errors ->
-            Err (E.BadTypes (Localizer.fromModule modul) errors)
+        Ok (Err errors) ->
+            Task.succeed (Err (E.BadTypes (Localizer.fromModule modul) errors))
+
+        Err crash ->
+            Task.fail crash
 
 
 nitpick : Can.Module -> Result E.Error ()
