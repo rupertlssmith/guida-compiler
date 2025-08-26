@@ -679,6 +679,7 @@ fromExpr ((Level indent nextLevel) as level) grouping expression builder =
                 anyMany =
                     linesMap (fromExprLines (nextLevel ())) args
 
+                funcB : Builder
                 funcB =
                     fromExpr level Atomic function builder
             in
@@ -711,6 +712,7 @@ fromExpr ((Level indent nextLevel) as level) grouping expression builder =
                         _ ->
                             helper
 
+                funcB : Builder
                 funcB =
                     fromExpr level Atomic trackedHelper builder
             in
