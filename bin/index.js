@@ -483,6 +483,21 @@ server.setDefaultHandler((request) => {
 
 server.install();
 
-const { Elm } = require("./guida.min.js");
+Error.stackTraceLimit = Infinity;
+
+Object.defineProperty(Object.prototype, "__elm_crash", {
+  set([msg]) {
+    process.stderr.write(msg);
+    try {
+        throw new Error();
+    } catch(e) {
+        process.stderr.write(e.stack);
+        process.stderr.write("\n");
+    }
+    process.exit(-1);
+  }
+});
+
+const { Elm } = require("./guida.js");
 
 Elm.Terminal.Main.init();
