@@ -76,6 +76,8 @@ module System.IO exposing
 
 # Go Bang, But Nicely!
 
+@docs crash
+
 -}
 
 import Dict exposing (Dict)

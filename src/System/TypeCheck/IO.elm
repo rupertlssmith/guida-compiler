@@ -39,6 +39,11 @@ module System.TypeCheck.IO exposing
 
 @docs Canonical
 
+
+# Errors and mechanism to throw them
+
+@docs Error, errorToString, fatal, throw
+
 -}
 
 import Array exposing (Array)
@@ -131,7 +136,7 @@ apply ma mf =
 fmap : (a -> b) -> IO a -> IO b
 fmap fn ma s0 =
     ma s0
-        |> Result.andThen (\( s1, a ) -> Ok ( s1, fn a ))
+        |> Result.map (\( s1, a ) -> ( s1, fn a ))
 
 
 bind : (a -> IO b) -> IO a -> IO b
