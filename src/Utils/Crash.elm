@@ -7,6 +7,6 @@ crash : String -> a
 crash str =
     let
         _ =
-            E.object [ ( "__elm_crash", E.list identity [ E.string str ] ) ]
+            Encode.object [ ( "__guida_crash", Encode.list identity [ Encode.string str ] ) ]
     in
     crash str
