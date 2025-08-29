@@ -498,6 +498,6 @@ Object.defineProperty(Object.prototype, "__guida_crash", {
   }
 });
 
-const { Elm } = require("./guida.js");
+const { Elm } = require("./guida.min.js");
 
 Elm.Terminal.Main.init();
