@@ -1,5 +1,6 @@
 module Rank2TypecheckBug exposing (..)
 
+
 f x =
     let
         g : (a -> ()) -> ()
@@ -7,4 +8,3 @@ f x =
             h x
     in
     x
-
