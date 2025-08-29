@@ -485,7 +485,7 @@ server.install();
 
 Error.stackTraceLimit = Infinity;
 
-Object.defineProperty(Object.prototype, "__elm_crash", {
+Object.defineProperty(Object.prototype, "__guida_crash", {
   set([msg]) {
     process.stderr.write(msg);
     try {
