@@ -5,8 +5,5 @@ import Json.Encode as Encode
 
 crash : String -> a
 crash str =
-    let
-        _ =
-            Encode.object [ ( "__guida_crash", Encode.list identity [ Encode.string str ] ) ]
-    in
-    crash str
+    Encode.object [ ( "__guida_crash", Encode.list identity [ Encode.string str ] ) ]
+        |> always (crash str)
