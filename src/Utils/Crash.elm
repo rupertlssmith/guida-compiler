@@ -1,6 +1,6 @@
 module Utils.Crash exposing (crash)
 
-import Json.Encode as E
+import Json.Encode as Encode
 
 
 crash : String -> a
