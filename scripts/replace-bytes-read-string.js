@@ -14,6 +14,23 @@ const path = argv[0];
 
 const data = fs
     .readFileSync(path, { encoding: 'utf8', flag: 'r' })
+    .replace(`var $author$project$Utils$Crash$crash = function (str) {
+\tcrash:
+\twhile (true) {
+\t\tvar $temp$str = str;
+\t\tstr = $temp$str;
+\t\tcontinue crash;
+\t}
+};`,`var $author$project$Utils$Crash$crash = function (str) {
+\tprocess.stderr.write(str);
+\ttry {
+\t\tthrow new Error();
+\t} catch(e) {
+\t\tprocess.stderr.write(e.stack);
+\t\tprocess.stderr.write("\\\\n");
+\t}
+\tprocess.exit(-1);
+};`)
     .replace(`var _Bytes_read_string = F3(function(len, bytes, offset)
 {
 	var string = '';
